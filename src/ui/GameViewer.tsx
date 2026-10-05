@@ -72,12 +72,6 @@ export function GameViewer({ id, onOpen }: Props) {
     setTimeout(() => setCopied(""), 1500);
   };
 
-  const remove = async () => {
-    if (!confirm("この棋譜をこの端末から削除しますか？")) return;
-    await db.games.delete(game.id);
-    history.back();
-  };
-
   return (
     <section className="viewer">
       <div>
@@ -173,11 +167,6 @@ export function GameViewer({ id, onOpen }: Props) {
               )}
             </dd>
           </dl>
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="ghost" onClick={remove}>
-              この端末から削除
-            </button>
-          </div>
         </div>
         <div className="panel">
           <strong>同じ局面を通った対局</strong>

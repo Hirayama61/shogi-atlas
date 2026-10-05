@@ -68,7 +68,8 @@ export function GameList({ onOpen }: Props) {
         <div className="panel">
           <p>まだ棋譜がありません。</p>
           <p className="muted">
-            「取り込み」タブで KIF を貼り付けるか、「設定」からデータリポジトリと同期してください。
+            「設定」からデータリポジトリと同期してください。棋譜はデータリポジトリの Issue
+            に貼ると取り込まれます。
           </p>
         </div>
       )}

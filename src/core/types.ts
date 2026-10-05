@@ -41,6 +41,8 @@ export interface GameSource {
   url?: string;
   /** shogi-atlas-data の Issue 番号 */
   issue?: number;
+  /** Issue コメントから取り込んだ場合のコメント ID */
+  comment?: number;
 }
 
 export interface GameRecord {

@@ -56,7 +56,16 @@ pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新
 - `GameRecord.parser` は `src/core/normalize.ts` の `PARSER_VERSION`。戦法判定などの出力を変えたら上げ、`pnpm reindex` でデータリポジトリを更新する。アプリは版が違うレコードを自動で取り直す。
 - フィールドを足したら `normalizeSummary` / `normalizeGame` に既定値を足す。DB からの読み出しと同期の両方がここを通るので、古いデータが残っていても画面が壊れない。
 
+## Issue 駆動の運用
+
+- やりたいことは Issue にする。起案は `/create-issue` (テンプレート `.github/ISSUE_TEMPLATE/work-item.md`、承認してから作成)。
+- 状態はラベル: `ready` (着手可) → `in-progress` (作業中) → 閉じて完了。人の判断待ちは `needs-input`、止まっていれば `blocked`。
+- 領域ラベル `area:core` / `area:app` / `area:scripts` / `area:infra` で衝突を避ける。同じ領域の Issue を同時に 2 つ進めない。
+- 着手は `/work-issue` の手順で。2 時間おきのルーティン「shogi-atlas Issue 作業」も同じ手順で `ready` を 1 件ずつ拾う。
+- 会話の流れでそのまま着手してもよい。その場合も Issue を作り、`in-progress` を付けてから進める。
+- データリポジトリ (shogi-atlas-data) に触る Issue はルーティンが扱えないので、対話セッションで扱う。
+
 ## 方針
 
-- バイブコーディングで進める。計画書や Issue を先に作らず、動くものを小さく足していく。
+- バイブコーディングで進める。計画書を先に作らず、動くものを小さく足していく。Issue は「次に何をやるか」の受け渡しのためで、設計書ではない。
 - 迷ったら「局面キーで対局を横断できること」を軸に考える。戦法分類・癖の抽出・分岐棋譜生成はすべてその上に乗せる。

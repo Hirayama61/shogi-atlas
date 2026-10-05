@@ -14,4 +14,5 @@ pnpm dev
 pnpm check
 ```
 
+機能追加は Issue 駆動。やりたいことを Issue (`ready` ラベル) にしておくと、2 時間おきのルーティンが 1 件ずつ拾って実装し `main` に push する。
 詳細は [CLAUDE.md](./CLAUDE.md)。

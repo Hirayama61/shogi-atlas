@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c1917"/>
+  <path d="M256 72 L352 128 L384 408 L128 408 L160 128 Z" fill="#f0d9a0" stroke="#7c5a1e" stroke-width="10" stroke-linejoin="round"/>
+  <text x="256" y="330" font-size="190" font-family="Hiragino Mincho ProN, Noto Serif JP, serif" font-weight="700" text-anchor="middle" fill="#1c1917">飛</text>
+</svg>

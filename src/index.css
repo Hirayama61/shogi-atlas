@@ -1,0 +1,240 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f4;
+  --panel: #ffffff;
+  --text: #1c1917;
+  --muted: #78716c;
+  --border: #d6d3d1;
+  --accent: #b45309;
+  --accent-soft: #fef3c7;
+  --board: #f0d9a0;
+  --board-line: #7c5a1e;
+  --highlight: #fde68a;
+  --danger: #b91c1c;
+  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1917;
+    --panel: #292524;
+    --text: #f5f5f4;
+    --muted: #a8a29e;
+    --border: #44403c;
+    --accent: #f59e0b;
+    --accent-soft: #451a03;
+    --board: #d9b36a;
+    --board-line: #4a2f0a;
+    --highlight: #b45309;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#root {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 12px 80px;
+}
+header.app {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+}
+header.app h1 {
+  font-size: 18px;
+  margin: 0;
+}
+nav.tabs {
+  display: flex;
+  gap: 4px;
+}
+nav.tabs button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+nav.tabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+button.ghost {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+button:disabled {
+  opacity: 0.5;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.field label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.field input,
+.field textarea,
+.field select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.field textarea {
+  min-height: 160px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+.error {
+  color: var(--danger);
+}
+.chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  margin-right: 4px;
+}
+ul.games {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+ul.games li {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 4px;
+  cursor: pointer;
+}
+ul.games li:hover {
+  background: var(--accent-soft);
+}
+.game-title {
+  font-weight: 600;
+}
+.game-title .win {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+}
+.viewer {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .viewer {
+    grid-template-columns: minmax(0, 420px) 1fr;
+  }
+}
+.board-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hand {
+  display: flex;
+  gap: 6px;
+  min-height: 28px;
+  align-items: center;
+  font-size: 14px;
+}
+.hand .piece {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.board {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+}
+.controls {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.moves {
+  max-height: 60vh;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.moves button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.moves button.current {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  font-size: 13px;
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+}

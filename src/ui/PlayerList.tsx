@@ -7,10 +7,11 @@ import { navigate } from "./router";
 
 export function PlayerList() {
   const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const games = useLiveQuery(() => db.games.toArray(), []);
   const players = useMemo(() => (games ? listPlayers(games) : []), [games]);
   const filtered = players.filter(
-    (p) => !query || p.name.toLowerCase().includes(query.toLowerCase()),
+    (p) => (showAll || p.tracked) && (!query || p.name.toLowerCase().includes(query.toLowerCase())),
   );
 
   if (!games) return <p className="muted">読み込み中…</p>;
@@ -33,7 +34,17 @@ export function PlayerList() {
           }}
         />
         <span className="muted">{filtered.length} 人</span>
+        <label className="row muted">
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+          対局相手も表示
+        </label>
       </div>
+      {filtered.length === 0 && (
+        <p className="muted">
+          登録した対局者がいません。データリポジトリで対局者名をタイトルにした Issue
+          を作ると、ここに出ます。
+        </p>
+      )}
       <ul className="games">
         {filtered.map((p) => (
           <li key={p.name} onClick={() => navigate({ kind: "player", name: p.name })}>

@@ -13,7 +13,8 @@ GitHub Pages で公開し、スマホにインストールして使う。
 ## 構成
 
 - `src/core/` 純粋な TypeScript。棋譜パース (`parse.ts`)、局面キー (`position.ts`)、戦型判定 (`opening.ts`)、将棋ウォーズ固有の解釈 (`wars.ts`)、共通スキーマ (`types.ts`)。DOM に依存しない。ブラウザと `scripts/` の両方から使う。
-- `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。
+- `src/core/normalize.ts` 古いレコードを現在の型に揃える。`src/core/stats.ts` 対局者ごとの集計と分岐点。
+- `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。読み出し時に normalize を通す。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。
 - `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。データリポジトリ側の GitHub Actions から呼ばれる。
@@ -26,13 +27,27 @@ GitHub Pages で公開し、スマホにインストールして使う。
 
 ```
 pnpm dev          # 開発サーバー
-pnpm check        # typecheck + lint + test
+pnpm check        # typecheck + lint + format:check + test
+pnpm e2e          # Playwright (要 pnpm build)。GitHub API はモックし、同期から分岐点まで通す
+pnpm test:coverage
 pnpm build        # tsc + vite build (dist/)
 pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
 pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
 ```
 
-変更したら `pnpm check` を通してからコミットする。
+変更したら `pnpm check` を通してからコミットする。画面や同期に触ったら `pnpm build && pnpm e2e` も。CI は両方走る。
+
+## テストの置き方
+
+- `src/core/__tests__/` 純粋ロジック。棋譜は `fixtures.ts` の架空の短い棋譜か USI 手順を使う (合法手かどうかは parseKifu が検証する)。
+- `src/db/*.test.ts`, `src/sync/*.test.ts`, `src/ui/*.test.tsx` はファイル先頭に `// @vitest-environment jsdom`。IndexedDB は fake-indexeddb、画面は Testing Library。
+- `e2e/` は Playwright。`fixture.ts` の `syncWithMock` でデータリポジトリをモックする。
+- 新しい判定ルール (戦法・囲い) を足すときは、それを満たす USI 手順をフィクスチャに足してテストする。
+
+## データの互換性
+
+- `GameRecord.parser` は `src/core/normalize.ts` の `PARSER_VERSION`。戦法判定などの出力を変えたら上げ、`pnpm reindex` でデータリポジトリを更新する。アプリは版が違うレコードを自動で取り直す。
+- フィールドを足したら `normalizeSummary` / `normalizeGame` に既定値を足す。DB からの読み出しと同期の両方がここを通るので、古いデータが残っていても画面が壊れない。
 
 ## 方針
 

@@ -24,10 +24,11 @@ export const END_REASON_LABEL: Record<EndReason, string> = {
 
 export function describeGame(g: GameSummary | GameRecord): string {
   const parts = [shortOpeningLabel(g.opening)];
-  if (g.timeControl) parts.push(g.timeControl);
   parts.push(`${g.length}手`);
-  const end = END_REASON_LABEL[g.endReason];
-  parts.push(end ? `${RESULT_LABEL[g.result]}(${end})` : RESULT_LABEL[g.result]);
+  if (g.timeControl) parts.push(g.timeControl);
+  const result = RESULT_LABEL[g.result] ?? RESULT_LABEL.unknown;
+  const end = END_REASON_LABEL[g.endReason] ?? "";
+  parts.push(end ? `${result}(${end})` : result);
   return parts.join(" · ");
 }
 

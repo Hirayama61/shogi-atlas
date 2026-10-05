@@ -6,3 +6,5 @@ dev-dist/
 coverage/
 *.png
 !public/*.png
+test-results/
+playwright-report/

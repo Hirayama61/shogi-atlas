@@ -53,6 +53,8 @@ export interface GameSource {
 
 export interface GameRecord {
   schema: 1;
+  /** 解析ロジックの版 (normalize.ts の PARSER_VERSION)。古いものはアプリ側で取り直す。 */
+  parser: number;
   /** USI 手順 + 対局者 + 開始日時から導出する安定 ID */
   id: string;
   source: GameSource;

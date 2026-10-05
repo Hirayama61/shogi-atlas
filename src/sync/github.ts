@@ -1,4 +1,5 @@
-import type { GameIndex, GameRecord } from "../core/types";
+import { normalizeGame, normalizeSummary } from "../core/normalize";
+import type { GameRecord, GameSummary } from "../core/types";
 import { upsertGames, db } from "../db/db";
 
 export interface DataRepoConfig {
@@ -94,15 +95,14 @@ export async function pullFromDataRepo(
   onProgress?.({ phase: "index", done: 0, total: 0 });
   const indexText = await fetchRaw("index.json", config);
   if (!indexText) return { added: 0, updated: 0, total: 0 };
-  const index = JSON.parse(indexText) as GameIndex;
-  const remoteIds = index.games.map((g) => g.id);
+  const parsed = JSON.parse(indexText) as { games?: unknown[] };
+  const summaries = (parsed.games ?? [])
+    .map(normalizeSummary)
+    .filter((s): s is GameSummary => s !== null);
+  const remoteIds = summaries.map((g) => g.id);
   const local = await db.games.where("id").anyOf(remoteIds).toArray();
   const localById = new Map(local.map((g) => [g.id, g] as const));
-  // importedAt が変わったものは再取得対象にする (ラベル付けの更新など)
-  const missing = index.games.filter((s) => {
-    const l = localById.get(s.id);
-    return !l || l.importedAt !== s.importedAt;
-  });
+  const missing = summaries.filter((s) => needsFetch(localById.get(s.id), s));
 
   const fetched: GameRecord[] = [];
   let done = 0;
@@ -113,7 +113,8 @@ export async function pullFromDataRepo(
       while (queue.length) {
         const summary = queue.shift()!;
         const text = await fetchRaw(`games/${summary.id}.json`, config);
-        if (text) fetched.push(JSON.parse(text) as GameRecord);
+        const game = text ? normalizeGame(JSON.parse(text)) : null;
+        if (game) fetched.push(game);
         done++;
         onProgress?.({ phase: "games", done, total: missing.length });
       }
@@ -121,5 +122,11 @@ export async function pullFromDataRepo(
   );
   const result = await upsertGames(fetched);
   onProgress?.({ phase: "done", done, total: missing.length });
-  return { ...result, total: index.games.length };
+  return { ...result, total: summaries.length };
+}
+
+/** ローカルに無い、取り込み日時が変わった、解析の版が変わった、のいずれかなら取り直す */
+export function needsFetch(local: GameSummary | undefined, remote: GameSummary): boolean {
+  if (!local) return true;
+  return local.importedAt !== remote.importedAt || local.parser !== remote.parser;
 }

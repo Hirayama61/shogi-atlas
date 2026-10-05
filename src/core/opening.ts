@@ -161,7 +161,8 @@ export const GAME_SHAPE_LABEL: Record<GameShape, string> = {
 
 /** 一覧表示用の短い戦型名。相居飛車なら共通の戦法名、対抗形なら振り飛車側の戦法名。 */
 export function shortOpeningLabel(o: OpeningInfo): string {
-  if (o.shape === "unknown") return "不明";
+  if (o.shape === "unknown" || !o.blackOpening || !o.whiteOpening) return UNKNOWN;
+  if (o.blackOpening === UNKNOWN || o.whiteOpening === UNKNOWN) return UNKNOWN;
   if (o.shape === "aiIbisha") {
     return o.blackOpening === o.whiteOpening
       ? o.blackOpening

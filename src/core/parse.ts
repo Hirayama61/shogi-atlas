@@ -15,6 +15,7 @@ import {
 } from "tsshogi";
 import { sha256Hex } from "./hash";
 import { classifyOpening } from "./opening";
+import { PARSER_VERSION } from "./normalize";
 import { positionKey } from "./position";
 import type { EndReason, GameRecord, GameResult, GameSource, KifuFormat } from "./types";
 import { isShogiWars, normalizeDatetime, splitPlayerName, warsTimeControl } from "./wars";
@@ -155,6 +156,7 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
 
   const game: GameRecord = {
     schema: 1,
+    parser: PARSER_VERSION,
     id,
     source: opts.source,
     importedAt: opts.importedAt ?? new Date().toISOString(),

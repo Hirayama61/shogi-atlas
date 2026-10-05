@@ -163,6 +163,8 @@ export interface PlayerSummary {
   rank?: string;
   latest?: string;
   tags: string[];
+  /** 自分で登録した対局者か (Issue のタイトル = 名前がタグに入っている) */
+  tracked: boolean;
 }
 
 /** 全対局から対局者の一覧を作る */
@@ -171,7 +173,16 @@ export function listPlayers(games: GameSummary[]): PlayerSummary[] {
   for (const g of games) {
     for (const side of ["black", "white"] as const) {
       const name = g[side];
-      const p = map.get(name) ?? { name, games: 0, wins: 0, losses: 0, tags: [], latestAt: "" };
+      const p = map.get(name) ?? {
+        name,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        tags: [],
+        latestAt: "",
+        tracked: false,
+      };
+      if (g.tags.includes(name)) p.tracked = true;
       p.games++;
       const o = outcomeFor(g.result, side);
       if (o === "win") p.wins++;
@@ -190,5 +201,8 @@ export function listPlayers(games: GameSummary[]): PlayerSummary[] {
   }
   return Array.from(map.values())
     .map((p) => ({ ...p, tags: Array.from(new Set(p.tags.filter((t) => t !== p.name))) }))
-    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        Number(b.tracked) - Number(a.tracked) || b.games - a.games || a.name.localeCompare(b.name),
+    );
 }

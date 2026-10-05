@@ -37,6 +37,13 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
+    // 画面・DB・同期のテストはファイル先頭の `// @vitest-environment jsdom` で jsdom に切り替える
+    setupFiles: ["src/test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      exclude: ["src/**/*.test.*", "src/test/**", "src/main.tsx"],
+    },
   },
 });

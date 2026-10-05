@@ -115,7 +115,7 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
 
     const rank = side === "black" ? g.blackRank : g.whiteRank;
     const at = g.startedAt ?? g.importedAt;
-    if (!latest || at > latest.at) latest = { at, rank };
+    if (!latest || at > latest.at) latest = { at, rank: rank ?? latest?.rank };
 
     const end = Math.min(g.positions.length - 1, COMMON_POSITION_PLIES);
     for (let ply = COMMON_POSITION_MIN_PLY; ply <= end; ply++) {

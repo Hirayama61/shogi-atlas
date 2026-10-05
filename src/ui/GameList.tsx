@@ -4,12 +4,9 @@ import { db } from "../db/db";
 import type { GameShape } from "../core/types";
 import { GAME_SHAPE_LABEL } from "../core/opening";
 import { describeGame, formatDate } from "./labels";
+import { navigate } from "./router";
 
-interface Props {
-  onOpen: (id: string) => void;
-}
-
-export function GameList({ onOpen }: Props) {
+export function GameList() {
   const [query, setQuery] = useState("");
   const [shape, setShape] = useState<GameShape | "">("");
   const games = useLiveQuery(() => db.games.orderBy("startedAt").reverse().toArray(), []);
@@ -79,7 +76,7 @@ export function GameList({ onOpen }: Props) {
       )}
       <ul className="games">
         {filtered.map((g) => (
-          <li key={g.id} onClick={() => onOpen(g.id)}>
+          <li key={g.id} onClick={() => navigate({ kind: "game", id: g.id })}>
             <div className="game-title">
               <span className={g.result === "black" ? "win" : ""}>☗{g.black}</span>
               {" vs "}

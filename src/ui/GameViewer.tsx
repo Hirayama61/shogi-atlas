@@ -6,10 +6,11 @@ import { GAME_SHAPE_LABEL } from "../core/opening";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate } from "./labels";
+import { navigate } from "./router";
 
 interface Props {
   id: string;
-  onOpen: (id: string) => void;
+  initialPly?: number;
 }
 
 interface PlyInfo {
@@ -19,9 +20,9 @@ interface PlyInfo {
   usi?: string;
 }
 
-export function GameViewer({ id, onOpen }: Props) {
+export function GameViewer({ id, initialPly }: Props) {
   const game = useLiveQuery(() => db.games.get(id), [id]);
-  const [ply, setPly] = useState(0);
+  const [ply, setPly] = useState(initialPly ?? 0);
   const [flipped, setFlipped] = useState(false);
   const [copied, setCopied] = useState("");
 
@@ -112,15 +113,21 @@ export function GameViewer({ id, onOpen }: Props) {
       <div>
         <div className="panel">
           <div className="game-title">
-            <span className={game.result === "black" ? "win" : ""}>
+            <a
+              className={game.result === "black" ? "win" : ""}
+              href={`#/player/${encodeURIComponent(game.black)}`}
+            >
               ☗{game.black}
               {game.blackRank ? ` ${game.blackRank}` : ""}
-            </span>
+            </a>
             {" vs "}
-            <span className={game.result === "white" ? "win" : ""}>
+            <a
+              className={game.result === "white" ? "win" : ""}
+              href={`#/player/${encodeURIComponent(game.white)}`}
+            >
               ☖{game.white}
               {game.whiteRank ? ` ${game.whiteRank}` : ""}
-            </span>
+            </a>
           </div>
           <dl className="kv">
             <dt>日時</dt>
@@ -178,7 +185,7 @@ export function GameViewer({ id, onOpen }: Props) {
           {!sameGames?.length && <p className="muted">なし</p>}
           <ul className="games">
             {sameGames?.map((g) => (
-              <li key={g.id} onClick={() => onOpen(g.id)}>
+              <li key={g.id} onClick={() => navigate({ kind: "game", id: g.id, ply: current.ply })}>
                 <div>
                   ☗{g.black} vs ☖{g.white}
                 </div>

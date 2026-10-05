@@ -1,15 +1,34 @@
 export type Route =
-  { kind: "list" } | { kind: "import" } | { kind: "settings" } | { kind: "game"; id: string };
+  | { kind: "list" }
+  | { kind: "players" }
+  | { kind: "settings" }
+  | { kind: "game"; id: string; ply?: number }
+  | { kind: "player"; name: string };
 
 export function parseHash(hash: string): Route {
-  const m = /^#\/game\/([0-9a-f]+)/.exec(hash);
-  if (m?.[1]) return { kind: "game", id: m[1] };
+  const game = /^#\/game\/([0-9a-f]+)(?:\/(\d+))?/.exec(hash);
+  if (game?.[1]) return { kind: "game", id: game[1], ply: game[2] ? Number(game[2]) : undefined };
+  const player = /^#\/player\/(.+)$/.exec(hash);
+  if (player?.[1]) return { kind: "player", name: decodeURIComponent(player[1]) };
+  if (hash.startsWith("#/players")) return { kind: "players" };
   if (hash.startsWith("#/settings")) return { kind: "settings" };
   return { kind: "list" };
 }
 
+export function hashFor(route: Route): string {
+  switch (route.kind) {
+    case "game":
+      return route.ply !== undefined ? `#/game/${route.id}/${route.ply}` : `#/game/${route.id}`;
+    case "player":
+      return `#/player/${encodeURIComponent(route.name)}`;
+    case "list":
+      return "#/";
+    default:
+      return `#/${route.kind}`;
+  }
+}
+
 export function navigate(route: Route): void {
-  const hash =
-    route.kind === "game" ? `#/game/${route.id}` : route.kind === "list" ? "#/" : `#/${route.kind}`;
+  const hash = hashFor(route);
   if (location.hash !== hash) location.hash = hash;
 }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseKifu } from "../core/parse";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
 import { db } from "../db/db";
+import type { AnalysisRecord } from "../core/analysis";
 import { GameList } from "./GameList";
 import { GameViewer } from "./GameViewer";
 import { PlayerList } from "./PlayerList";
@@ -36,6 +37,7 @@ async function seed() {
 describe("UI", () => {
   beforeEach(async () => {
     await db.games.clear();
+    await db.analyses.clear();
     location.hash = "";
   });
   afterEach(cleanup);
@@ -83,5 +85,47 @@ describe("UI", () => {
   it("PlayerPage: 対局が無い人", async () => {
     render(<PlayerPage name="nobody" />);
     await waitFor(() => expect(screen.getByText(/nobody の対局がありません/)).toBeInTheDocument());
+  });
+
+  it("GameViewer: 解析があれば評価値グラフと悪手の印、解析つき KIF が出る", async () => {
+    const { a } = await seed();
+    const cps = [0, 10, 0, 20, 0, -400, -380, -400, 600, 580, 600, 620, 600, 610, 600];
+    const analysis: AnalysisRecord = {
+      schema: 1,
+      id: a.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) =>
+        ply === 7 ? { ply, cp, best: "7a6b", pv: ["7a6b"] } : { ply, cp },
+      ),
+    };
+    await db.analyses.put(analysis);
+    render(<GameViewer id={a.id} initialPly={8} />);
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "評価値の推移" })).toBeInTheDocument(),
+    );
+    expect(screen.getByText("解析つき KIF をコピー")).toBeInTheDocument();
+    expect(screen.getAllByText("??").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/大悪手/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/-400 → \+600/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("undefined");
+  });
+
+  it("PlayerPage: 解析があれば弱点プロファイルが出る", async () => {
+    const { b } = await seed();
+    const cps = Array.from({ length: 21 }, (_, i) => (i >= 15 ? -900 : 0));
+    await db.analyses.put({
+      schema: 1,
+      id: b.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) => ({ ply, cp })),
+    });
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/解析済み 1 局/)).toBeInTheDocument());
+    expect(screen.getByText("痛かった手")).toBeInTheDocument();
+    expect(screen.getByText("局面を開く")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("undefined");
+    expect(document.body.textContent).not.toContain("NaN");
   });
 });

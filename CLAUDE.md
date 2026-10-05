@@ -17,6 +17,8 @@ GitHub Pages で公開し、スマホにインストールして使う。
 - `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。読み出し時に normalize を通す。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。
+- `src/core/analysis.ts` エンジン解析の型と各手の評価 (損失・勝率の減少・疑問手/悪手/大悪手)。`src/core/profile.ts` 対局者の弱点プロファイル。`src/core/annotate.ts` 解析つき KIF。
+- `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。データリポジトリ側の `analyze.yml` から毎日呼ばれる。
 - `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。データリポジトリ側の GitHub Actions から呼ばれる。
   運用は「対局者ごとに Issue を 1 本、タイトル = 対局者名、コメントに棋譜を貼る」。処理済みは `inbox-state.json` で管理し、Issue は閉じない。
   棋譜の取り込み経路はこれだけ。アプリ側に貼り付け取り込みは置かない (Issue 指定やラベル付けが不便なため外した)。
@@ -33,6 +35,8 @@ pnpm test:coverage
 pnpm build        # tsc + vite build (dist/)
 pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
 pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
+pnpm analyze      # エンジン解析 (DATA_DIR, DEPTH, MAX_GAMES, ONLY)
+pnpm profile      # 弱点プロファイルと analysis/index.json を更新 (DATA_DIR)
 ```
 
 変更したら `pnpm check` を通してからコミットする。画面や同期に触ったら `pnpm build && pnpm e2e` も。CI は両方走る。

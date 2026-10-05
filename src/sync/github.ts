@@ -1,3 +1,4 @@
+import { normalizeAnalysis, type AnalysisIndex, type AnalysisRecord } from "../core/analysis";
 import { normalizeGame, normalizeSummary } from "../core/normalize";
 import type { GameRecord, GameSummary } from "../core/types";
 import { upsertGames, db } from "../db/db";
@@ -80,7 +81,7 @@ export async function fetchRaw(path: string, config: DataRepoConfig): Promise<st
 }
 
 export interface PullProgress {
-  phase: "index" | "games" | "done";
+  phase: "index" | "games" | "analyses" | "done";
   done: number;
   total: number;
 }
@@ -91,10 +92,10 @@ export interface PullProgress {
 export async function pullFromDataRepo(
   config: DataRepoConfig,
   onProgress?: (p: PullProgress) => void,
-): Promise<{ added: number; updated: number; total: number }> {
+): Promise<{ added: number; updated: number; total: number; analyses: number }> {
   onProgress?.({ phase: "index", done: 0, total: 0 });
   const indexText = await fetchRaw("index.json", config);
-  if (!indexText) return { added: 0, updated: 0, total: 0 };
+  if (!indexText) return { added: 0, updated: 0, total: 0, analyses: 0 };
   const parsed = JSON.parse(indexText) as { games?: unknown[] };
   const summaries = (parsed.games ?? [])
     .map(normalizeSummary)
@@ -121,8 +122,40 @@ export async function pullFromDataRepo(
     }),
   );
   const result = await upsertGames(fetched);
+
+  // エンジン解析 (無ければ飛ばす)
+  let analysesAdded = 0;
+  const analysisIndexText = await fetchRaw("analysis/index.json", config);
+  if (analysisIndexText) {
+    const analysisIndex = JSON.parse(analysisIndexText) as Partial<AnalysisIndex>;
+    const entries = Object.entries(analysisIndex.analyses ?? {});
+    const localAnalyses = await db.analyses
+      .where("id")
+      .anyOf(entries.map(([id]) => id))
+      .toArray();
+    const localAt = new Map(localAnalyses.map((a) => [a.id, a.analyzedAt] as const));
+    const need = entries.filter(([id, at]) => localAt.get(id) !== at).map(([id]) => id);
+    const got: AnalysisRecord[] = [];
+    let doneA = 0;
+    const queueA = [...need];
+    await Promise.all(
+      Array.from({ length: CONCURRENCY }, async () => {
+        while (queueA.length) {
+          const id = queueA.shift()!;
+          const text = await fetchRaw(`analysis/${id}.json`, config);
+          const a = text ? normalizeAnalysis(JSON.parse(text)) : null;
+          if (a) got.push(a);
+          doneA++;
+          onProgress?.({ phase: "analyses", done: doneA, total: need.length });
+        }
+      }),
+    );
+    if (got.length) await db.analyses.bulkPut(got);
+    analysesAdded = got.length;
+  }
+
   onProgress?.({ phase: "done", done, total: missing.length });
-  return { ...result, total: summaries.length };
+  return { ...result, total: summaries.length, analyses: analysesAdded };
 }
 
 /** ローカルに無い、取り込み日時が変わった、解析の版が変わった、のいずれかなら取り直す */

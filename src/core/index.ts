@@ -6,3 +6,6 @@ export * from "./wars";
 export * from "./hash";
 export * from "./normalize";
 export * from "./stats";
+export * from "./analysis";
+export * from "./profile";
+export * from "./annotate";

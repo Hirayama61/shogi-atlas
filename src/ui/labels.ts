@@ -1,4 +1,5 @@
 import type { EndReason, GameRecord, GameResult, GameSummary } from "../core/types";
+import { MATE_CP } from "../core/analysis";
 import { shortOpeningLabel } from "../core/opening";
 
 export const RESULT_LABEL: Record<GameResult, string> = {
@@ -35,4 +36,10 @@ export function describeGame(g: GameSummary | GameRecord): string {
 export function formatDate(iso: string | undefined): string {
   if (!iso) return "日付不明";
   return iso.replace("T", " ").slice(0, 16);
+}
+
+export function fmtCp(cp: number): string {
+  if (cp >= MATE_CP) return "先手勝勢 (詰み)";
+  if (cp <= -MATE_CP) return "後手勝勢 (詰み)";
+  return cp > 0 ? `+${cp}` : `${cp}`;
 }

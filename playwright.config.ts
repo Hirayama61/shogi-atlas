@@ -16,7 +16,8 @@ export default defineConfig({
   webServer: {
     command: "pnpm vite preview --port 4173 --strictPort",
     url: "http://localhost:4173/shogi-atlas/",
-    reuseExistingServer: !process.env.CI,
+    // 古い preview サーバーを掴まないよう、毎回立ち上げ直す
+    reuseExistingServer: false,
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

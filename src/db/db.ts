@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import { normalizeAnalysis, type AnalysisRecord } from "../core/analysis";
 import { normalizeGame } from "../core/normalize";
 import type { GameRecord } from "../core/types";
 
@@ -9,13 +10,19 @@ import type { GameRecord } from "../core/types";
  */
 export class AtlasDB extends Dexie {
   games!: EntityTable<GameRecord, "id">;
+  analyses!: EntityTable<AnalysisRecord, "id">;
 
   constructor() {
     super("shogi-atlas");
     this.version(1).stores({
       games: "id, black, white, startedAt, importedAt, result, opening.shape, *tags, *positions",
     });
+    this.version(2).stores({
+      games: "id, black, white, startedAt, importedAt, result, opening.shape, *tags, *positions",
+      analyses: "id, analyzedAt",
+    });
     this.games.hook("reading", (obj) => normalizeGame(obj) ?? obj);
+    this.analyses.hook("reading", (obj) => normalizeAnalysis(obj) ?? obj);
   }
 }
 

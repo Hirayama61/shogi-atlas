@@ -1,11 +1,14 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
+import { JUDGEMENT_LABEL, reviewGame, type GameReview } from "../core/analysis";
+import { annotatedKif } from "../core/annotate";
 import { importRecord } from "../core/parse";
 import { positionKey } from "../core/position";
 import { GAME_SHAPE_LABEL } from "../core/opening";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
-import { describeGame, formatDate } from "./labels";
+import { EvalChart } from "./EvalChart";
+import { describeGame, fmtCp, formatDate } from "./labels";
 import { navigate } from "./router";
 
 interface Props {
@@ -22,6 +25,19 @@ interface PlyInfo {
 
 export function GameViewer({ id, initialPly }: Props) {
   const game = useLiveQuery(() => db.games.get(id), [id]);
+  const analysis = useLiveQuery(() => db.analyses.get(id), [id]);
+  const review = useMemo<GameReview | null>(() => {
+    if (!game || !analysis) return null;
+    try {
+      return reviewGame(game, analysis);
+    } catch {
+      return null;
+    }
+  }, [game, analysis]);
+  const reviewByPly = useMemo(
+    () => new Map((review?.moves ?? []).map((m) => [m.ply, m] as const)),
+    [review],
+  );
   const [ply, setPly] = useState(initialPly ?? 0);
   const [flipped, setFlipped] = useState(false);
   const [copied, setCopied] = useState("");
@@ -107,8 +123,63 @@ export function GameViewer({ id, initialPly }: Props) {
           <button className="ghost" onClick={() => copy(current.sfen, "SFEN")}>
             局面 SFEN をコピー
           </button>
+          {analysis && (
+            <button
+              className="ghost"
+              onClick={() => copy(annotatedKif(game, analysis), "解析つき KIF")}
+            >
+              解析つき KIF をコピー
+            </button>
+          )}
           {copied && <span className="muted">{copied} をコピーしました</span>}
         </div>
+        {review ? (
+          <div className="panel" style={{ marginTop: 12 }}>
+            <EvalChart
+              curve={review.curve}
+              moves={review.moves}
+              currentPly={current.ply}
+              onSelect={setPly}
+            />
+            {(() => {
+              const m = reviewByPly.get(current.ply);
+              if (!m) return null;
+              return (
+                <p style={{ margin: "6px 0 0" }}>
+                  {current.ply}手目 {current.text}
+                  {m.judgement !== "good" && (
+                    <span className="mark"> {JUDGEMENT_LABEL[m.judgement]}</span>
+                  )}
+                  <span className="muted">
+                    {" "}
+                    {fmtCp(m.cpBefore)} → {fmtCp(m.cpAfter)}
+                    {m.best ? ` · 最善 ${m.best}` : " · 最善"}
+                  </span>
+                </p>
+              );
+            })()}
+            <dl className="kv" style={{ marginTop: 6 }}>
+              <dt>☗精度</dt>
+              <dd>
+                平均損失 {review.black.averageLoss} · 疑問手 {review.black.counts.inaccuracy} 悪手{" "}
+                {review.black.counts.mistake} 大悪手 {review.black.counts.blunder}
+              </dd>
+              <dt>☖精度</dt>
+              <dd>
+                平均損失 {review.white.averageLoss} · 疑問手 {review.white.counts.inaccuracy} 悪手{" "}
+                {review.white.counts.mistake} 大悪手 {review.white.counts.blunder}
+              </dd>
+              <dt>エンジン</dt>
+              <dd className="muted">
+                {analysis?.engine.name} 深さ {analysis?.engine.depth}
+              </dd>
+            </dl>
+          </div>
+        ) : (
+          <p className="muted" style={{ textAlign: "center", marginTop: 8 }}>
+            エンジン解析はまだありません
+          </p>
+        )}
       </div>
       <div>
         <div className="panel">
@@ -204,6 +275,14 @@ export function GameViewer({ id, initialPly }: Props) {
               onClick={() => setPly(p.ply)}
             >
               {p.ply > 0 ? `${String(p.ply).padStart(3, " ")} ${p.text}` : p.text}
+              {(() => {
+                const m = reviewByPly.get(p.ply);
+                return m && m.judgement !== "good" ? (
+                  <span className="mark">
+                    {{ inaccuracy: "?!", mistake: "?", blunder: "??" }[m.judgement]}
+                  </span>
+                ) : null;
+              })()}
             </button>
           ))}
         </div>

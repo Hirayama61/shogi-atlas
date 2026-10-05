@@ -42,12 +42,12 @@ describe("pullFromDataRepo", () => {
       [`games/${b.id}.json`]: b,
     };
     const calls = mockRepo(files);
-    expect(await pullFromDataRepo(config)).toEqual({ added: 2, updated: 0, total: 2 });
+    expect(await pullFromDataRepo(config)).toEqual({ added: 2, updated: 0, total: 2, analyses: 0 });
     expect(calls).toContain(`games/${a.id}.json`);
 
     calls.length = 0;
-    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 2 });
-    expect(calls).toEqual(["index.json"]);
+    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 2, analyses: 0 });
+    expect(calls).toEqual(["index.json", "analysis/index.json"]);
   });
 
   it("解析の版が変わったものは取り直す", async () => {
@@ -57,20 +57,20 @@ describe("pullFromDataRepo", () => {
       "index.json": { schema: 1, updatedAt: "x", games: [toSummary(a)] },
       [`games/${a.id}.json`]: a,
     });
-    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 1, total: 1 });
+    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 1, total: 1, analyses: 0 });
     expect(calls).toContain(`games/${a.id}.json`);
     expect((await db.games.get(a.id))?.parser).toBe(PARSER_VERSION);
   });
 
   it("index.json が無ければ何もしない、壊れたレコードは無視する", async () => {
     mockRepo({});
-    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 0 });
+    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 0, analyses: 0 });
     vi.unstubAllGlobals();
     mockRepo({
       "index.json": { schema: 1, updatedAt: "x", games: [{ id: "bad" }, null] },
       "games/bad.json": { id: "bad" },
     });
-    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 1 });
+    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 1, analyses: 0 });
   });
 
   it("認証エラーは例外になる", async () => {
@@ -95,5 +95,27 @@ describe("pullFromDataRepo", () => {
     expect(loadConfig().token).toBe("t");
     saveConfig({ ...config, remember: true });
     expect(localStorage.getItem("shogi-atlas.dataRepo")).toContain('"token":"t"');
+  });
+
+  it("解析結果も取り込み、analyzedAt が同じなら取り直さない", async () => {
+    const a = await parseKifu(WARS_KIF, { source, importedAt: "2026-01-01T00:00:00Z" });
+    const analysis = {
+      schema: 1,
+      id: a.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-02-01T00:00:00Z",
+      plies: [{ ply: 0, cp: 0 }],
+    };
+    const calls = mockRepo({
+      "index.json": { schema: 1, updatedAt: "x", games: [toSummary(a)] },
+      [`games/${a.id}.json`]: a,
+      "analysis/index.json": { schema: 1, analyses: { [a.id]: analysis.analyzedAt } },
+      [`analysis/${a.id}.json`]: analysis,
+    });
+    expect(await pullFromDataRepo(config)).toEqual({ added: 1, updated: 0, total: 1, analyses: 1 });
+    expect((await db.analyses.get(a.id))?.plies).toHaveLength(1);
+    calls.length = 0;
+    expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 1, analyses: 0 });
+    expect(calls).toEqual(["index.json", "analysis/index.json"]);
   });
 });

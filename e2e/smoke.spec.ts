@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fixtureGames, syncWithMock } from "./fixture";
+import { fixtureAnalyses, fixtureGames, syncWithMock } from "./fixture";
 
 test.describe("一通りの画面", () => {
   test.beforeEach(async ({ page }) => {
@@ -13,8 +13,8 @@ test.describe("一通りの画面", () => {
 
   test("同期 → 一覧 → 詳細 → 対局者 → 分岐点", async ({ page }) => {
     const games = await fixtureGames();
-    await syncWithMock(page, games);
-    await expect(page.getByText("同期完了: 追加 4 局")).toBeVisible();
+    await syncWithMock(page, games, fixtureAnalyses(games));
+    await expect(page.getByText("同期完了: 追加 4 局、更新 0 局、解析 1 件")).toBeVisible();
 
     await page.goto("#/");
     await expect(page.locator("ul.games li")).toHaveCount(4);
@@ -36,6 +36,13 @@ test.describe("一通りの画面", () => {
     await page.locator("ul.games li", { hasText: "taro" }).click();
 
     await expect(page.getByText("採用戦法")).toBeVisible();
+    await expect(page.getByText(/解析済み 1 局/)).toBeVisible();
+    await expect(page.getByText("痛かった手")).toBeVisible();
+    await page.getByRole("button", { name: "局面を開く" }).first().click();
+    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);
+    await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
+    await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();
+    await page.goBack();
     await expect(page.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
     await page.locator(".branch button").first().click();
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/18/);

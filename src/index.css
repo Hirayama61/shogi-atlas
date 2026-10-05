@@ -284,3 +284,44 @@ table.stats td:first-child {
   padding: 10px 0;
   border-top: 1px solid var(--border);
 }
+.eval-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+}
+.eval-readout {
+  text-align: center;
+  min-height: 1.5em;
+}
+.moves .mark {
+  color: var(--danger);
+  font-weight: 700;
+  margin-left: 6px;
+}
+.worst {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.rates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.rates div {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px;
+}
+.rates strong {
+  display: block;
+  font-size: 20px;
+}
+.rates span {
+  font-size: 12px;
+  color: var(--muted);
+}

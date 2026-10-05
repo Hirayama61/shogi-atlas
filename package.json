@@ -18,9 +18,12 @@
     "inbox": "tsx scripts/process-inbox.ts",
     "reindex": "tsx scripts/reindex.ts",
     "e2e": "playwright test",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "analyze": "tsx scripts/analyze.ts",
+    "profile": "tsx scripts/profile.ts"
   },
   "dependencies": {
+    "@mizarjp/yaneuraou.k-p": "7.6.3-alpha.0",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.2.0",
     "react": "^19.2.0",
@@ -34,6 +37,7 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
+    "@types/emscripten": "^1.41.6",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

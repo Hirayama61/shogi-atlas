@@ -24,7 +24,7 @@ export function SettingsPane() {
     try {
       const r = await pullFromDataRepo(config, setProgress);
       setMessage(
-        `同期完了: 追加 ${r.added} 局、更新 ${r.updated} 局 (リポジトリ全体 ${r.total} 局)`,
+        `同期完了: 追加 ${r.added} 局、更新 ${r.updated} 局、解析 ${r.analyses} 件 (リポジトリ全体 ${r.total} 局)`,
       );
     } catch (e) {
       setMessage(`同期失敗: ${(e as Error).message}`);
@@ -129,7 +129,9 @@ export function SettingsPane() {
             <span className="muted">
               {progress.phase === "index"
                 ? "一覧を取得中…"
-                : `${progress.done} / ${progress.total} 局`}
+                : progress.phase === "analyses"
+                  ? `解析 ${progress.done} / ${progress.total}`
+                  : `${progress.done} / ${progress.total} 局`}
             </span>
           )}
         </div>

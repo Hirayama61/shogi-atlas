@@ -23,6 +23,10 @@ export function GameList({ onOpen }: Props) {
       return (
         g.black.toLowerCase().includes(q) ||
         g.white.toLowerCase().includes(q) ||
+        g.opening.blackOpening.includes(q) ||
+        g.opening.whiteOpening.includes(q) ||
+        g.opening.blackCastle.includes(q) ||
+        g.opening.whiteCastle.includes(q) ||
         g.tags.some((t) => t.toLowerCase().includes(q)) ||
         (g.memo ?? "").toLowerCase().includes(q)
       );
@@ -36,7 +40,7 @@ export function GameList({ onOpen }: Props) {
       <div className="panel row">
         <input
           type="search"
-          placeholder="対局者・タグ・メモで絞り込み"
+          placeholder="対局者・戦法・囲い・タグで絞り込み"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{

@@ -33,6 +33,12 @@ export interface OpeningInfo {
   /** 序盤 (40手以内) で飛車が最も振られた筋。先手は 2 から増える方向、後手は 8 から減る方向。 */
   blackRookFile: number | null;
   whiteRookFile: number | null;
+  /** 戦法名 (例: "四間飛車", "角換わり", "居飛車")。判定できなければ "不明"。 */
+  blackOpening: string;
+  whiteOpening: string;
+  /** 囲い名 (例: "本美濃", "居飛車穴熊")。判定できなければ "不明"。 */
+  blackCastle: string;
+  whiteCastle: string;
 }
 
 export interface GameSource {

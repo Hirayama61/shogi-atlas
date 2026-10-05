@@ -77,3 +77,21 @@ P9+KY+KE+GI+KI+OU+KI+GI+KE+KY
 -3324KA
 %TIME_UP
 `;
+
+// 以下は戦法・囲い判定用の USI 手順 (合法手であることはテストで確認する)
+
+/** ☗四間飛車 + 本美濃 vs ☖居飛車 + 舟囲い */
+export const USI_SHIKEN_VS_FUNA =
+  "position startpos moves 7g7f 8c8d 6g6f 3c3d 2h6h 8d8e 8h7g 5a4b 5i4h 4b3b 4h3h 6a5b 3h2h 3a4b 3i3h 7a6b 6i5h 5c5d 1g1f 1c1d";
+
+/** 角換わり (相居飛車) */
+export const USI_KAKUGAWARI =
+  "position startpos moves 7g7f 8c8d 2g2f 4a3b 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i4h 7a6b 6i7h 6a5b";
+
+/** 横歩取り (相居飛車) */
+export const USI_YOKOFU =
+  "position startpos moves 7g7f 3c3d 2g2f 8c8d 2f2e 8d8e 6i7h 4a3b 2e2d 2c2d 2h2d 8e8f 8g8f 8b8f 2d3d 2b3c";
+
+/** ☗居飛車穴熊 vs ☖四間飛車 + 本美濃 */
+export const USI_ANAGUMA_VS_SHIKEN =
+  "position startpos moves 7g7f 3c3d 8h7g 4c4d 5i6h 8b4b 6h7h 5a6b 9i9h 6b7b 7h8h 7b8b 8h9i 7a7b 7i8h 4a5b 6i7i 9c9d 4i5h 1c1d";

@@ -1,5 +1,5 @@
 import type { EndReason, GameRecord, GameResult, GameSummary } from "../core/types";
-import { GAME_SHAPE_LABEL } from "../core/opening";
+import { shortOpeningLabel } from "../core/opening";
 
 export const RESULT_LABEL: Record<GameResult, string> = {
   black: "先手勝ち",
@@ -23,7 +23,7 @@ export const END_REASON_LABEL: Record<EndReason, string> = {
 };
 
 export function describeGame(g: GameSummary | GameRecord): string {
-  const parts = [GAME_SHAPE_LABEL[g.opening.shape]];
+  const parts = [shortOpeningLabel(g.opening)];
   if (g.timeControl) parts.push(g.timeControl);
   parts.push(`${g.length}手`);
   const end = END_REASON_LABEL[g.endReason];

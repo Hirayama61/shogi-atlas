@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { importRecord } from "../core/parse";
 import { positionKey } from "../core/position";
-import { GAME_SHAPE_LABEL, SIDE_STYLE_LABEL } from "../core/opening";
+import { GAME_SHAPE_LABEL } from "../core/opening";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate } from "./labels";
@@ -128,9 +128,14 @@ export function GameViewer({ id, onOpen }: Props) {
             <dt>概要</dt>
             <dd>{describeGame(game)}</dd>
             <dt>戦型</dt>
+            <dd>{GAME_SHAPE_LABEL[game.opening.shape]}</dd>
+            <dt>☗戦法</dt>
             <dd>
-              {GAME_SHAPE_LABEL[game.opening.shape]} (☗{SIDE_STYLE_LABEL[game.opening.black]} / ☖
-              {SIDE_STYLE_LABEL[game.opening.white]})
+              {game.opening.blackOpening} · 囲い: {game.opening.blackCastle}
+            </dd>
+            <dt>☖戦法</dt>
+            <dd>
+              {game.opening.whiteOpening} · 囲い: {game.opening.whiteCastle}
             </dd>
             {game.tournament && (
               <>

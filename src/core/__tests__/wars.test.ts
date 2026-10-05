@@ -14,6 +14,8 @@ describe("wars helpers", () => {
   it("持ち時間区分を取り出す", () => {
     expect(warsTimeControl("将棋ウォーズ(10分)")).toBe("10分");
     expect(warsTimeControl("将棋ウォーズ（3分）")).toBe("3分");
+    expect(warsTimeControl("将棋ウォーズ(10分切れ負け)")).toBe("10分");
+    expect(warsTimeControl("将棋ウォーズ(10秒)")).toBe("10秒");
     expect(warsTimeControl("順位戦")).toBeUndefined();
   });
 

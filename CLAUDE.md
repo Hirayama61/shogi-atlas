@@ -29,6 +29,7 @@ pnpm dev          # 開発サーバー
 pnpm check        # typecheck + lint + test
 pnpm build        # tsc + vite build (dist/)
 pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
+pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
 ```
 
 変更したら `pnpm check` を通してからコミットする。

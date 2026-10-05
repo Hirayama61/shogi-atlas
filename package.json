@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "inbox": "tsx scripts/process-inbox.ts"
+    "inbox": "tsx scripts/process-inbox.ts",
+    "reindex": "tsx scripts/reindex.ts"
   },
   "dependencies": {
     "dexie": "^4.4.6",

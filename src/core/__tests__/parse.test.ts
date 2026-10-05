@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { importRecord, parseKifu, splitKifuBlocks } from "../parse";
-import { AI_IBISHA_KIF, USI_LINE, WARS_KIF } from "./fixtures";
+import { AI_IBISHA_KIF, USI_LINE, WARS_CSA, WARS_KIF } from "./fixtures";
 
 const source = { kind: "paste" as const };
 
@@ -25,6 +25,23 @@ describe("parseKifu", () => {
     expect(g.positions).toHaveLength(15);
     expect(g.positions[0]).toBe("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -");
     expect(g.id).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("将棋ウォーズのアプリが出す CSA 形式を読み込める", async () => {
+    const g = await parseKifu(WARS_CSA, { source });
+    expect(g.format).toBe("csa");
+    expect(g.black).toBe("doukeinari");
+    expect(g.blackRank).toBe("5段");
+    expect(g.white).toBe("maedahide");
+    expect(g.tournament).toBe("将棋ウォーズ(10分切れ負け)");
+    expect(g.timeControl).toBe("10分");
+    expect(g.tags).toContain("将棋ウォーズ");
+    expect(g.startedAt).toBe("2026-10-05T23:52:45");
+    expect(g.length).toBe(12);
+    // %TIME_UP は手番側 (先手) の時間切れなので後手の勝ち
+    expect(g.result).toBe("white");
+    expect(g.endReason).toBe("timeout");
+    expect(g.opening.white).toBe("furibisha");
   });
 
   it("飛車の位置から対抗形を判定する", async () => {

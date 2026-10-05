@@ -12,11 +12,13 @@ export function splitPlayerName(raw: string | undefined): { name: string; rank?:
   return { name: text.slice(0, m.index).trim(), rank: m[1] };
 }
 
-/** "将棋ウォーズ(10分)" → "10分" */
+/** "将棋ウォーズ(10分)" や "将棋ウォーズ(10分切れ負け)" → "10分"。"3分" / "10秒" も同様。 */
 export function warsTimeControl(tournament: string | undefined): string | undefined {
   if (!tournament) return undefined;
   const m = /将棋ウォーズ\s*[（(](.+?)[）)]/.exec(tournament);
-  return m?.[1]?.trim();
+  const inner = m?.[1]?.trim();
+  if (!inner) return undefined;
+  return /^\d+\s*(分|秒)/.exec(inner)?.[0]?.replace(/\s+/g, "") ?? inner;
 }
 
 export function isShogiWars(tournament: string | undefined, place: string | undefined): boolean {

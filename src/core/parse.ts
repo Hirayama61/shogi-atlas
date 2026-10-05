@@ -138,7 +138,8 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
   const white = splitPlayerName(
     get(RecordMetadataKey.WHITE_NAME) ?? get(RecordMetadataKey.UWATE_NAME),
   );
-  const tournament = get(RecordMetadataKey.TOURNAMENT);
+  // CSA の $EVENT は tsshogi では title に入るので、棋戦が無ければそちらを使う
+  const tournament = get(RecordMetadataKey.TOURNAMENT) ?? get(RecordMetadataKey.TITLE);
   const place = get(RecordMetadataKey.PLACE);
   const startedAt = normalizeDatetime(
     get(RecordMetadataKey.START_DATETIME) ?? get(RecordMetadataKey.DATE),

@@ -46,3 +46,34 @@ export const AI_IBISHA_KIF = `先手：alice
 `;
 
 export const USI_LINE = "position startpos moves 7g7f 3c3d 2g2f 8c8d 2f2e 8d8e";
+
+/** 将棋ウォーズのアプリ「棋譜コピー」が出す CSA 形式 (手数は短縮) */
+export const WARS_CSA = `V2.2
+N+doukeinari 5段
+N-maedahide 5段
+$EVENT:将棋ウォーズ(10分切れ負け)
+$START_TIME:2026/10/05 23:52:45
+P1-KY-KE-GI-KI-OU-KI-GI-KE-KY
+P2 * -HI *  *  *  *  * -KA * 
+P3-FU-FU-FU-FU-FU-FU-FU-FU-FU
+P4 *  *  *  *  *  *  *  *  * 
+P5 *  *  *  *  *  *  *  *  * 
+P6 *  *  *  *  *  *  *  *  * 
+P7+FU+FU+FU+FU+FU+FU+FU+FU+FU
+P8 * +KA *  *  *  *  * +HI * 
+P9+KY+KE+GI+KI+OU+KI+GI+KE+KY
++
++7776FU
+-3334FU
++2726FU
+-4344FU
++2625FU
+-8242HI
++2524FU
+-2324FU
++2824HI
+-2233KA
++2434HI
+-3324KA
+%TIME_UP
+`;

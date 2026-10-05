@@ -27,7 +27,6 @@ export default function App() {
   return (
     <>
       <header className="app">
-        <h1>Shogi Atlas</h1>
         <nav className="tabs">
           {tab("list", "棋譜")}
           {tab("import", "取り込み")}

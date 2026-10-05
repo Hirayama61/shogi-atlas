@@ -14,9 +14,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg", "apple-touch-icon.png"],
       manifest: {
-        name: "Shogi Atlas",
+        name: "Atlas",
         short_name: "Atlas",
-        description: "自分用の将棋棋譜アトラス",
+        description: "自分用の棋譜アトラス",
         lang: "ja",
         start_url: base,
         scope: base,

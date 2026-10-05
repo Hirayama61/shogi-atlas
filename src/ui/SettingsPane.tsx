@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { db } from "../db/db";
 import {
   loadConfig,
@@ -13,6 +13,7 @@ export function SettingsPane() {
   const [progress, setProgress] = useState<PullProgress | null>(null);
   const [message, setMessage] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const update = (patch: Partial<DataRepoConfig>) => setConfig((c) => ({ ...c, ...patch }));
 
@@ -31,6 +32,18 @@ export function SettingsPane() {
       setBusy(false);
       setProgress(null);
     }
+  };
+
+  const readTokenFile = async (file: File | undefined) => {
+    if (!file) return;
+    const text = (await file.text()).trim();
+    const token = text.split(/\s+/).find((t) => /^(github_pat_|ghp_)/.test(t)) ?? text;
+    update({ token });
+    setMessage(
+      token
+        ? "ファイルからトークンを読み込みました。「同期する」か「保存のみ」で保存されます。"
+        : "ファイルが空です",
+    );
   };
 
   const clearAll = async () => {
@@ -70,6 +83,24 @@ export function SettingsPane() {
             onChange={(e) => update({ token: e.target.value })}
             placeholder="github_pat_..."
           />
+          <div className="row">
+            <button className="ghost" type="button" onClick={() => fileInput.current?.click()}>
+              ファイルから読み込む
+            </button>
+            <span className="muted">
+              トークンだけを書いたテキストファイル (iCloud Drive などに置いたもの)
+            </span>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".txt,text/plain"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                void readTokenFile(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          </div>
         </div>
         <label className="row" style={{ marginBottom: 10 }}>
           <input
@@ -78,7 +109,7 @@ export function SettingsPane() {
             onChange={(e) => update({ remember: e.target.checked })}
           />
           <span className="muted">
-            トークンをこの端末に保存する (外すとタブを閉じるまでだけ有効)
+            トークンをこの端末に保存する (次回以降も入力不要。外すとタブを閉じるまでだけ有効)
           </span>
         </label>
         <div className="row">

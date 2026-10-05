@@ -36,7 +36,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* PWA (standalone) ではステータスバーの下に潜り込むので、セーフエリア分を空ける */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 #root {
   max-width: 960px;
@@ -46,13 +48,9 @@ body {
 header.app {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   padding: 12px 0;
-}
-header.app h1 {
-  font-size: 18px;
-  margin: 0;
 }
 nav.tabs {
   display: flex;

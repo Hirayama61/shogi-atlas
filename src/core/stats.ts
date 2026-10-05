@@ -1,3 +1,4 @@
+import { formatRating } from "./quest";
 import type { GameRecord, GameResult, GameSummary } from "./types";
 
 /** 分岐点の抽出に使う手数の範囲。序盤数手は誰でも同じなので除く。 */
@@ -14,6 +15,13 @@ export function playerSide(g: GameSummary, name: string): Side | null {
 }
 
 export type Outcome = "win" | "loss" | "draw" | "unknown";
+
+/** 段級位 (将棋ウォーズ) が無ければレート (将棋クエスト) を表示用に使う */
+function rankOf(g: GameSummary, side: Side): string | undefined {
+  return side === "black"
+    ? (g.blackRank ?? formatRating(g.blackRating))
+    : (g.whiteRank ?? formatRating(g.whiteRating));
+}
 
 export function outcomeFor(result: GameResult, side: Side): Outcome {
   if (result === "draw") return "draw";
@@ -113,7 +121,7 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
     bump(vsOpenings, theirs, outcome);
     bump(timeControls, g.timeControl ?? "不明", outcome);
 
-    const rank = side === "black" ? g.blackRank : g.whiteRank;
+    const rank = rankOf(g, side);
     const at = g.startedAt ?? g.importedAt;
     if (!latest || at > latest.at) latest = { at, rank: rank ?? latest?.rank };
 
@@ -191,7 +199,7 @@ export function listPlayers(games: GameSummary[]): PlayerSummary[] {
       if (at > p.latestAt) {
         p.latestAt = at;
         p.latest = at;
-        const rank = side === "black" ? g.blackRank : g.whiteRank;
+        const rank = rankOf(g, side);
         if (rank) p.rank = rank;
       }
       for (const t of g.tags)

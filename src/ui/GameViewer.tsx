@@ -4,6 +4,7 @@ import { JUDGEMENT_LABEL, reviewGame, type GameReview } from "../core/analysis";
 import { annotatedKif } from "../core/annotate";
 import { importRecord } from "../core/parse";
 import { positionKey } from "../core/position";
+import { formatRating } from "../core/quest";
 import { GAME_SHAPE_LABEL } from "../core/opening";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
@@ -190,6 +191,7 @@ export function GameViewer({ id, initialPly }: Props) {
             >
               ☗{game.black}
               {game.blackRank ? ` ${game.blackRank}` : ""}
+              {game.blackRating !== undefined ? ` ${formatRating(game.blackRating)}` : ""}
             </a>
             {" vs "}
             <a
@@ -198,6 +200,7 @@ export function GameViewer({ id, initialPly }: Props) {
             >
               ☖{game.white}
               {game.whiteRank ? ` ${game.whiteRank}` : ""}
+              {game.whiteRating !== undefined ? ` ${formatRating(game.whiteRating)}` : ""}
             </a>
           </div>
           <dl className="kv">

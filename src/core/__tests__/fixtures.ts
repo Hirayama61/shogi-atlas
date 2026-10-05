@@ -103,3 +103,34 @@ export const USI_MIGIGYOKU =
 /** 囲いが何にも当てはまらない (☗6八玉だけ、☖は居玉) */
 export const USI_NO_CASTLE =
   "position startpos moves 7g7f 3c3d 5i6h 8c8d 1g1f 1c1d 9g9f 9c9d 2g2f 8d8e 3g3f 4c4d";
+
+/** 将棋クエストの「棋譜ダウンロード」が出す KIF (手数は短縮)。レート付きの名前、開始日時なし、終局は「時間切れ」 */
+export const QUEST_KIF_TIMEOUT = `棋戦：Shogi Quest
+手合割：平手
+先手：alice(1605)
+後手：bob(1480)
+手数----指手---------消費時間--
+1 ７六歩(77)  ( 0:01/00:00:01)
+2 ３四歩(33)  ( 0:02/00:00:02)
+3 ２六歩(27)  ( 0:01/00:00:02)
+4 ８四歩(83)  ( 0:01/00:00:03)
+5 時間切れ  ( 9:57/00:09:59)
+`;
+
+/** 将棋クエストの「接続切れ」。手番側 (後手) の負け */
+export const QUEST_KIF_DISCONNECT = `棋戦：Shogi Quest
+手合割：平手
+先手：alice(1605)
+後手：bob(1480)
+手数----指手---------消費時間--
+1 ７六歩(77)  ( 0:01/00:00:01)
+2 ３四歩(33)  ( 0:02/00:00:02)
+3 ２六歩(27)  ( 0:01/00:00:02)
+4 接続切れ  ( 0:13/00:00:15)
+`;
+
+/** 終局行の無い詰み。後手玉が５一、先手の金を５二に打って歩で支えた形 */
+export const USI_MATE_NO_TERMINAL = "position sfen 4k4/9/4P4/9/9/9/9/9/4K4 b G 1 moves G*5b";
+
+/** 王手はかかっているが詰んでいない (玉が逃げられる) */
+export const USI_CHECK_NOT_MATE = "position sfen 4k4/9/9/9/9/9/9/9/4K4 b G 1 moves G*5b";

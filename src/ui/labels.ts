@@ -20,6 +20,7 @@ export const END_REASON_LABEL: Record<EndReason, string> = {
   enteringKing: "入玉宣言",
   default: "不戦",
   interrupt: "中断",
+  disconnect: "接続切れ",
   unknown: "",
 };
 

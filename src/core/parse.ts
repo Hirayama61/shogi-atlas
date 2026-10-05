@@ -1,5 +1,6 @@
 import {
   Color,
+  Position,
   Record,
   RecordFormatType,
   RecordMetadataKey,
@@ -14,9 +15,11 @@ import {
   type ImmutableRecord,
 } from "tsshogi";
 import { sha256Hex } from "./hash";
+import { isCheckmated } from "./mate";
 import { classifyOpening } from "./opening";
 import { PARSER_VERSION } from "./normalize";
 import { positionKey } from "./position";
+import { QUEST_TERMINAL, isShogiQuest, splitRating } from "./quest";
 import type { EndReason, GameRecord, GameResult, GameSource, KifuFormat } from "./types";
 import { isShogiWars, normalizeDatetime, splitPlayerName, warsTimeControl } from "./wars";
 
@@ -119,9 +122,11 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
   const positions: string[] = [];
   let length = 0;
   let last: ImmutableNode | undefined;
+  let lastSfen = "";
   record.forEach((node) => {
     if (node.ply === 0) {
       positions.push(positionKey(node.sfen));
+      lastSfen = node.sfen;
       return;
     }
     if (isSpecial(node)) {
@@ -129,16 +134,15 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
       return;
     }
     positions.push(positionKey(node.sfen));
+    lastSfen = node.sfen;
     length++;
     last = node;
   });
 
-  const black = splitPlayerName(
+  const black = parsePlayer(
     get(RecordMetadataKey.BLACK_NAME) ?? get(RecordMetadataKey.SHITATE_NAME),
   );
-  const white = splitPlayerName(
-    get(RecordMetadataKey.WHITE_NAME) ?? get(RecordMetadataKey.UWATE_NAME),
-  );
+  const white = parsePlayer(get(RecordMetadataKey.WHITE_NAME) ?? get(RecordMetadataKey.UWATE_NAME));
   // CSA の $EVENT は tsshogi では title に入るので、棋戦が無ければそちらを使う
   const tournament = get(RecordMetadataKey.TOURNAMENT) ?? get(RecordMetadataKey.TITLE);
   const place = get(RecordMetadataKey.PLACE);
@@ -146,7 +150,12 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
     get(RecordMetadataKey.START_DATETIME) ?? get(RecordMetadataKey.DATE),
   );
   const endedAt = normalizeDatetime(get(RecordMetadataKey.END_DATETIME));
-  const { result, endReason } = judgeResult(last, raw);
+  let { result, endReason } = judgeResult(last, raw);
+  if (result === "unknown" && endReason === "unknown" && length > 0) {
+    // 終局行が無い棋譜 (将棋クエストの詰みなど) は最終局面が詰みかどうかで判定する
+    const mated = judgeMate(lastSfen);
+    if (mated) ({ result, endReason } = mated);
+  }
   const usi = record.getUSI({ allMoves: true });
 
   const id = (await sha256Hex([usi, black.name, white.name, startedAt ?? ""].join("|"))).slice(
@@ -174,6 +183,8 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
   };
   if (black.rank) game.blackRank = black.rank;
   if (white.rank) game.whiteRank = white.rank;
+  if (black.rating !== undefined) game.blackRating = black.rating;
+  if (white.rating !== undefined) game.whiteRating = white.rating;
   if (startedAt) game.startedAt = startedAt;
   if (endedAt) game.endedAt = endedAt;
   if (tournament) game.tournament = tournament;
@@ -181,8 +192,26 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
   const timeControl = warsTimeControl(tournament) ?? get(RecordMetadataKey.TIME_LIMIT);
   if (timeControl) game.timeControl = timeControl;
   if (isShogiWars(tournament, place)) game.tags = dedupe([...game.tags, "将棋ウォーズ"]);
+  if (isShogiQuest(tournament, place)) game.tags = dedupe([...game.tags, "将棋クエスト"]);
   if (opts.memo?.trim()) game.memo = opts.memo.trim();
   return game;
+}
+
+/** "name 二段" (将棋ウォーズ) や "name(1605)" (将棋クエスト) から名前・段級位・レートを分離する。 */
+function parsePlayer(raw: string | undefined): { name: string; rank?: string; rating?: number } {
+  const { name, rating } = splitRating(raw);
+  const split = splitPlayerName(name);
+  const out: { name: string; rank?: string; rating?: number } = { name: split.name };
+  if (split.rank) out.rank = split.rank;
+  if (rating !== undefined) out.rating = rating;
+  return out;
+}
+
+/** 最終局面が詰みなら手番側の負け */
+function judgeMate(sfen: string): { result: GameResult; endReason: EndReason } | undefined {
+  const position = Position.newBySFEN(sfen);
+  if (!position || !isCheckmated(position)) return undefined;
+  return { result: other(position.color), endReason: "mate" };
 }
 
 function dedupe(items: string[]): string[] {
@@ -235,6 +264,11 @@ export function judgeResult(
       default:
         break;
     }
+  }
+  if (last && isSpecial(last) && "name" in last.move) {
+    // 将棋クエストの「時間切れ」「接続切れ」。tsshogi は未知の特殊手として名前だけ保持する
+    const endReason = QUEST_TERMINAL[last.move.name.trim()];
+    if (endReason) return { result: other(last.nextColor), endReason };
   }
   const m = /(先手|後手|下手|上手)の(勝ち|反則勝ち)/.exec(raw);
   if (m) {

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { importRecord, parseKifu, splitKifuBlocks } from "../parse";
-import { AI_IBISHA_KIF, USI_LINE, WARS_CSA, WARS_KIF } from "./fixtures";
+import {
+  AI_IBISHA_KIF,
+  QUEST_KIF_DISCONNECT,
+  QUEST_KIF_TIMEOUT,
+  USI_CHECK_NOT_MATE,
+  USI_LINE,
+  USI_MATE_NO_TERMINAL,
+  WARS_CSA,
+  WARS_KIF,
+} from "./fixtures";
 
 const source = { kind: "paste" as const };
 
@@ -59,6 +68,42 @@ describe("parseKifu", () => {
     expect(g.result).toBe("white");
     expect(g.endReason).toBe("mate");
     expect(g.length).toBe(14);
+  });
+
+  it("将棋クエストの KIF を読み込める (レート、時間切れ)", async () => {
+    const g = await parseKifu(QUEST_KIF_TIMEOUT, { source });
+    expect(g.black).toBe("alice");
+    expect(g.blackRating).toBe(1605);
+    expect(g.blackRank).toBeUndefined();
+    expect(g.white).toBe("bob");
+    expect(g.whiteRating).toBe(1480);
+    expect(g.tournament).toBe("Shogi Quest");
+    expect(g.tags).toContain("将棋クエスト");
+    expect(g.startedAt).toBeUndefined();
+    expect(g.length).toBe(4);
+    // 5 手目を指すはずだった先手の時間切れなので後手の勝ち
+    expect(g.result).toBe("white");
+    expect(g.endReason).toBe("timeout");
+  });
+
+  it("将棋クエストの接続切れは手番側の負け", async () => {
+    const g = await parseKifu(QUEST_KIF_DISCONNECT, { source });
+    expect(g.length).toBe(3);
+    expect(g.result).toBe("black");
+    expect(g.endReason).toBe("disconnect");
+  });
+
+  it("終局行が無くても最終局面が詰みなら詰みと判定する", async () => {
+    const g = await parseKifu(USI_MATE_NO_TERMINAL, { source });
+    expect(g.length).toBe(1);
+    expect(g.result).toBe("black");
+    expect(g.endReason).toBe("mate");
+  });
+
+  it("王手だけでは終局とみなさない", async () => {
+    const g = await parseKifu(USI_CHECK_NOT_MATE, { source });
+    expect(g.result).toBe("unknown");
+    expect(g.endReason).toBe("unknown");
   });
 
   it("USI 文字列も読み込める", async () => {

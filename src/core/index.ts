@@ -3,6 +3,8 @@ export * from "./parse";
 export * from "./position";
 export * from "./opening";
 export * from "./wars";
+export * from "./quest";
+export * from "./mate";
 export * from "./hash";
 export * from "./normalize";
 export * from "./stats";

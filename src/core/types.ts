@@ -18,6 +18,7 @@ export type EndReason =
   | "enteringKing"
   | "default"
   | "interrupt"
+  | "disconnect"
   | "unknown";
 
 /** 片側の戦型の大分類 */
@@ -68,6 +69,9 @@ export interface GameRecord {
   /** 段級位。将棋ウォーズの KIF から取れた場合のみ */
   blackRank?: string;
   whiteRank?: string;
+  /** レート。将棋クエストの KIF から取れた場合のみ */
+  blackRating?: number;
+  whiteRating?: number;
   /** "YYYY-MM-DDTHH:mm:ss" (タイムゾーンなし、対局地のローカル時刻) */
   startedAt?: string;
   endedAt?: string;

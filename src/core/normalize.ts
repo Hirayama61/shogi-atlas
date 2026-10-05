@@ -4,7 +4,7 @@ import type { GameRecord, GameSummary, OpeningInfo } from "./types";
  * 解析ロジックの版。戦法判定などを変えたら上げる。
  * アプリ側はこれが違うデータを「古い」とみなして取り直し、reindex はこれを書き込む。
  */
-export const PARSER_VERSION = 3;
+export const PARSER_VERSION = 4;
 
 export const UNKNOWN_LABEL = "不明";
 
@@ -80,6 +80,10 @@ export function normalizeSummary(raw: unknown): GameSummary | null {
   ] as const) {
     const v = opt(r[key]);
     if (v) s[key] = v;
+  }
+  for (const key of ["blackRating", "whiteRating"] as const) {
+    const v = r[key];
+    if (typeof v === "number" && Number.isFinite(v)) s[key] = v;
   }
   return s;
 }

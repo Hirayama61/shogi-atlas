@@ -12,7 +12,13 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { MATE_CP, type AnalysisRecord, type PlyEval } from "../src/core/analysis";
+import {
+  MATE_CP,
+  isAnalysisStale,
+  normalizeAnalysis,
+  type AnalysisRecord,
+  type PlyEval,
+} from "../src/core/analysis";
 import { annotatedKif } from "../src/core/annotate";
 import { normalizeGame } from "../src/core/normalize";
 import type { GameRecord } from "../src/core/types";
@@ -69,6 +75,7 @@ async function analyzeGame(engine: Engine, game: GameRecord): Promise<AnalysisRe
     id: game.id,
     engine: { name: `${engine.name} v${ANALYZER_VERSION}`, depth },
     analyzedAt: new Date().toISOString(),
+    game: { importedAt: game.importedAt, length: game.length },
     plies,
   };
 }
@@ -83,17 +90,23 @@ async function main(): Promise<void> {
     const g = normalizeGame(JSON.parse(await readFile(path.join(gamesDir, f), "utf8")));
     if (g) games.push(g);
   }
+  const needs = async (g: GameRecord) => {
+    const file = path.join(outDir, `${g.id}.json`);
+    if (!existsSync(file)) return true;
+    const a = normalizeAnalysis(JSON.parse(await readFile(file, "utf8")));
+    return !a || isAnalysisStale(g, a);
+  };
+  const flags = await Promise.all(games.map(needs));
   const pending = games
-    .filter((g) => !existsSync(path.join(outDir, `${g.id}.json`)))
+    .filter((_, i) => flags[i])
     .sort((a, b) => {
       const pa = only && (a.black === only || a.white === only) ? 0 : 1;
       const pb = only && (b.black === only || b.white === only) ? 0 : 1;
       return pa - pb || (b.startedAt ?? "").localeCompare(a.startedAt ?? "");
     })
     .slice(0, maxGames);
-  console.log(
-    `未解析 ${games.length - (files.length - pending.length)} 局のうち ${pending.length} 局を解析 (深さ ${depth})`,
-  );
+  const total = flags.filter(Boolean).length;
+  console.log(`未解析・要再解析 ${total} 局のうち ${pending.length} 局を解析 (深さ ${depth})`);
   if (pending.length === 0) return;
 
   const engine = await Engine.create();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MATE_CP,
+  isAnalysisStale,
   judge,
   phaseOf,
   reviewGame,
@@ -137,5 +138,16 @@ describe("analysis", () => {
     expect(kif).toContain("*悪手 (損失 400)");
     expect(kif).toContain("*最善 ☗２六歩");
     expect(kif).toContain("*大悪手 (損失 1000)");
+  });
+
+  it("対局が更新されたら解析は古いとみなす", () => {
+    const a = { ...fakeAnalysis("x", [0, 0, 0]), game: { importedAt: "t1", length: 2 } };
+    expect(isAnalysisStale({ importedAt: "t1", length: 2 }, a)).toBe(false);
+    expect(isAnalysisStale({ importedAt: "t2", length: 2 }, a)).toBe(true);
+    expect(isAnalysisStale({ importedAt: "t1", length: 5 }, a)).toBe(true);
+    // 古い解析 (game 無し) は局面数が合っていればそのまま使う
+    expect(isAnalysisStale({ importedAt: "t9", length: 2 }, fakeAnalysis("x", [0, 0, 0]))).toBe(
+      false,
+    );
   });
 });

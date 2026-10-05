@@ -21,7 +21,22 @@ export interface AnalysisRecord {
   id: string;
   engine: { name: string; depth: number };
   analyzedAt: string;
+  /** 解析したときの対局の状態。reindex で手順が変わったら解析をやり直すために持つ */
+  game?: { importedAt: string; length: number };
   plies: PlyEval[];
+}
+
+/**
+ * 対局が解析後に更新されていれば true。
+ * importedAt が変わった (reindex された) か、局面数が手数と合わなければやり直す。
+ */
+export function isAnalysisStale(
+  game: { importedAt: string; length: number },
+  analysis: AnalysisRecord,
+): boolean {
+  if (analysis.plies.length !== game.length + 1) return true;
+  if (analysis.game && analysis.game.importedAt !== game.importedAt) return true;
+  return false;
 }
 
 export const MATE_CP = 3000;
@@ -42,13 +57,15 @@ export function normalizeAnalysis(raw: unknown): AnalysisRecord | null {
     (p): p is PlyEval =>
       !!p && typeof p === "object" && typeof p.ply === "number" && typeof p.cp === "number",
   );
-  return {
+  const out: AnalysisRecord = {
     schema: 1,
     id: r.id,
     engine: r.engine && typeof r.engine === "object" ? r.engine : { name: "unknown", depth: 0 },
     analyzedAt: typeof r.analyzedAt === "string" ? r.analyzedAt : "",
     plies,
   };
+  if (r.game && typeof r.game === "object") out.game = r.game;
+  return out;
 }
 
 /** 評価値を先手の勝率 (0..1) に変換する。将棋の評価値では 600 cp で約 73%。 */

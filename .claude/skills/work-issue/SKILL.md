@@ -56,6 +56,13 @@ pnpm --dir /home/user/shogi-atlas build && pnpm --dir /home/user/shogi-atlas e2e
 
 通らなければ直す。通るまで push しない。
 
+## 5b. データリポジトリに触る Issue (`area:data`)
+
+- clone は `/home/user/shogi-atlas-data`。無ければ `add_repo` (owner: Hirayama61, repo: shogi-atlas-data, access: push) で接続してから clone する。
+- 変更前に `git -C /home/user/shogi-atlas-data pull --rebase origin main`。
+- パーサーを変えて `PARSER_VERSION` を上げたら `DATA_DIR=/home/user/shogi-atlas-data pnpm --dir /home/user/shogi-atlas reindex` を実行し、データリポジトリ側もコミットして push する。
+- 棋譜ファイル (`games/`, `analysis/`) を手で編集しない。スクリプト経由で更新する。
+
 ## 6. push と完了
 
 - コミットメッセージの本文に `Closes #<番号>` を入れる (main への push で Issue が閉じる)。

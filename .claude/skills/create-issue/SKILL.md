@@ -44,8 +44,8 @@ README・CLAUDE.md・関連コード・既存 Issue (`gh api "repos/Hirayama61/s
 7. Freedom: 実装方法を必要以上に固定していないか。制約と完了条件で What を固め、How は空ける
 
 ラベルを決める。状態は `ready` (すぐ着手できる) か `needs-input` (人の判断が要る)。
-領域は `area:core` / `area:app` / `area:scripts` / `area:infra` から該当するものすべて (ルーティンはこの領域が重なる Issue を同時に拾わない)。
-データリポジトリ側の変更を含むなら本文の制約に明記する (ルーティンはデータリポジトリに触れないので、その Issue は対話セッションで扱う)。
+領域は `area:core` / `area:app` / `area:scripts` / `area:infra` / `area:data` から該当するものすべて (ルーティンはこの領域が重なる Issue を同時に拾わない)。
+データリポジトリ側の変更を含むなら `area:data` を付け、本文の制約に何を変えるかを明記する。
 
 ## CREATE: 承認を得てから作る
 

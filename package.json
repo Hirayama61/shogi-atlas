@@ -20,7 +20,7 @@
     "e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "analyze": "tsx scripts/analyze.ts",
-    "profile": "tsx scripts/profile.ts"
+    "build-profiles": "tsx scripts/profile.ts"
   },
   "dependencies": {
     "@mizarjp/yaneuraou.k-p": "7.6.3-alpha.0",

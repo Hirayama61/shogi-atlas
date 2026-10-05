@@ -2,7 +2,7 @@
  * 解析済みの対局から対局者ごとの弱点プロファイルを作り、players/<name>/profile.{json,md} に書く。
  * 対象は Issue で登録した対局者 (タグに自分の名前が入っている人)。
  *
- *   DATA_DIR=../shogi-atlas-data pnpm profile
+ *   DATA_DIR=../shogi-atlas-data pnpm build-profiles
  */
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";

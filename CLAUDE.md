@@ -36,7 +36,7 @@ pnpm build        # tsc + vite build (dist/)
 pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
 pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
 pnpm analyze      # エンジン解析 (DATA_DIR, DEPTH, MAX_GAMES, ONLY)
-pnpm profile      # 弱点プロファイルと analysis/index.json を更新 (DATA_DIR)
+pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新 (DATA_DIR)
 ```
 
 変更したら `pnpm check` を通してからコミットする。画面や同期に触ったら `pnpm build && pnpm e2e` も。CI は両方走る。

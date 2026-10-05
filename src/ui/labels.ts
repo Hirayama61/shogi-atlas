@@ -21,6 +21,7 @@ export const END_REASON_LABEL: Record<EndReason, string> = {
   default: "不戦",
   interrupt: "中断",
   disconnect: "接続切れ",
+  try: "トライ",
   unknown: "",
 };
 

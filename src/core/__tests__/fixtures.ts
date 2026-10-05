@@ -134,3 +134,12 @@ export const USI_MATE_NO_TERMINAL = "position sfen 4k4/9/4P4/9/9/9/9/9/4K4 b G 1
 
 /** 王手はかかっているが詰んでいない (玉が逃げられる) */
 export const USI_CHECK_NOT_MATE = "position sfen 4k4/9/9/9/9/9/9/9/4K4 b G 1 moves G*5b";
+
+/** トライルール: 先手玉が５二から５一 (後手玉の初期位置) に入る。終局行なし */
+export const USI_TRY_BLACK = "position sfen 9/4K4/9/9/9/9/9/9/8k b - 1 moves 5b5a";
+
+/** 後手玉が５八から５九に入るトライ */
+export const USI_TRY_WHITE = "position sfen K8/9/9/9/9/9/9/4k4/9 w - 1 moves 5h5i";
+
+/** ５一以外への玉の移動は終局扱いしない */
+export const USI_KING_MOVE_NOT_TRY = "position sfen 9/4K4/9/9/9/9/9/9/8k b - 1 moves 5b4a";

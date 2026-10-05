@@ -5,8 +5,11 @@ import {
   QUEST_KIF_DISCONNECT,
   QUEST_KIF_TIMEOUT,
   USI_CHECK_NOT_MATE,
+  USI_KING_MOVE_NOT_TRY,
   USI_LINE,
   USI_MATE_NO_TERMINAL,
+  USI_TRY_BLACK,
+  USI_TRY_WHITE,
   WARS_CSA,
   WARS_KIF,
 } from "./fixtures";
@@ -98,6 +101,17 @@ describe("parseKifu", () => {
     expect(g.length).toBe(1);
     expect(g.result).toBe("black");
     expect(g.endReason).toBe("mate");
+  });
+
+  it("トライルール: 玉が相手玉の初期位置に入ったら指した側の勝ち", async () => {
+    const b = await parseKifu(USI_TRY_BLACK, { source });
+    expect(b.result).toBe("black");
+    expect(b.endReason).toBe("try");
+    const w = await parseKifu(USI_TRY_WHITE, { source });
+    expect(w.result).toBe("white");
+    expect(w.endReason).toBe("try");
+    const other = await parseKifu(USI_KING_MOVE_NOT_TRY, { source });
+    expect(other.result).toBe("unknown");
   });
 
   it("王手だけでは終局とみなさない", async () => {

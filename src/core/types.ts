@@ -19,6 +19,7 @@ export type EndReason =
   | "default"
   | "interrupt"
   | "disconnect"
+  | "try"
   | "unknown";
 
 /** 片側の戦型の大分類 */

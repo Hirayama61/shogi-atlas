@@ -1,5 +1,6 @@
 import {
   Color,
+  PieceType,
   Position,
   Record,
   RecordFormatType,
@@ -157,9 +158,9 @@ export async function parseKifu(text: string, opts: ParseOptions): Promise<GameR
   const endedAt = normalizeDatetime(get(RecordMetadataKey.END_DATETIME));
   let { result, endReason } = judgeResult(last, raw);
   if (result === "unknown" && endReason === "unknown" && length > 0) {
-    // 終局行が無い棋譜 (将棋クエストの詰みなど) は最終局面が詰みかどうかで判定する
-    const mated = judgeMate(lastSfen);
-    if (mated) ({ result, endReason } = mated);
+    // 終局行が無い棋譜 (将棋クエスト) は、最終手がトライか最終局面が詰みかで判定する
+    const decided = judgeTry(last) ?? judgeMate(lastSfen);
+    if (decided) ({ result, endReason } = decided);
   }
   const usi = record.getUSI({ allMoves: true });
 
@@ -210,6 +211,22 @@ function parsePlayer(raw: string | undefined): { name: string; rank?: string; ra
   if (split.rank) out.rank = split.rank;
   if (rating !== undefined) out.rating = rating;
   return out;
+}
+
+/**
+ * トライルール (将棋クエスト): 自分の玉が相手玉の初期位置 (先手なら５一、後手なら５九) に
+ * 到達したら勝ち。終局行が無い棋譜の最終手がそれなら、指した側の勝ち。
+ */
+function judgeTry(
+  last: ImmutableNode | undefined,
+): { result: GameResult; endReason: EndReason } | undefined {
+  if (!last) return undefined;
+  const move = last.move;
+  if (!("usi" in move)) return undefined;
+  if (move.pieceType !== PieceType.KING || move.to.file !== 5) return undefined;
+  const goal = move.color === Color.BLACK ? 1 : 9;
+  if (move.to.rank !== goal) return undefined;
+  return { result: self(move.color), endReason: "try" };
 }
 
 /** 最終局面が詰みなら手番側の負け */

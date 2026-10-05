@@ -1,5 +1,5 @@
 import { bishopsOnBoard, fileOf, has, inHand, mirror, toBoardView, type BoardView } from "./board";
-import { detectCastle } from "./castle";
+import { detectCastle, fallbackCastleLabel } from "./castle";
 import type { GameShape, OpeningInfo, SideStyle } from "./types";
 
 /** 戦法判定に使う最大手数 */
@@ -69,6 +69,10 @@ function sideFeatures(views: BoardView[]): SideFeatures {
   const castle = detectCastle(views, CASTLE_PLIES);
   const style: SideStyle =
     plies < MIN_PLIES_FOR_JUDGE ? "unknown" : furiFile !== null ? "furibisha" : "ibisha";
+  // 「右玉」は居飛車の用語。振り飛車側で同じ形なら玉の位置で表す
+  let castleName = castle?.name ?? fallbackCastleLabel(views, CASTLE_PLIES);
+  if (style === "furibisha" && castleName === "右玉")
+    castleName = fallbackCastleLabel(views, CASTLE_PLIES);
   return {
     style,
     rookFile,
@@ -77,7 +81,7 @@ function sideFeatures(views: BoardView[]): SideFeatures {
     yokofu,
     rookPawnAdvanced,
     ishida: furiFile === 7 && pawn75,
-    castle: castle?.name ?? UNKNOWN,
+    castle: castleName,
   };
 }
 

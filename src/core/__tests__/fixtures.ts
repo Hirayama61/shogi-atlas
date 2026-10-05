@@ -95,3 +95,11 @@ export const USI_YOKOFU =
 /** ☗居飛車穴熊 vs ☖四間飛車 + 本美濃 */
 export const USI_ANAGUMA_VS_SHIKEN =
   "position startpos moves 7g7f 3c3d 8h7g 4c4d 5i6h 8b4b 6h7h 5a6b 9i9h 6b7b 7h8h 7b8b 8h9i 7a7b 7i8h 4a5b 6i7i 9c9d 4i5h 1c1d";
+
+/** ☗右玉 (3八玉・4八銀・5八金) */
+export const USI_MIGIGYOKU =
+  "position startpos moves 7g7f 8c8d 2g2f 8d8e 5i4h 3c3d 4h3h 4a3b 3i4h 7a6b 4i5h 5a4b 6i6h 6a5b";
+
+/** 囲いが何にも当てはまらない (☗6八玉だけ、☖は居玉) */
+export const USI_NO_CASTLE =
+  "position startpos moves 7g7f 3c3d 5i6h 8c8d 1g1f 1c1d 9g9f 9c9d 2g2f 8d8e 3g3f 4c4d";

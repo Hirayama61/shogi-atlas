@@ -170,6 +170,47 @@ export const CASTLES: CastlePattern[] = [
     minMatch: 3,
   },
   {
+    name: "雁木",
+    king: [5, 9],
+    pieces: [
+      [6, 7, "S"],
+      [5, 7, "S"],
+      [7, 8, "G"],
+      [5, 8, "G"],
+    ],
+    minMatch: 4,
+  },
+  {
+    name: "矢倉",
+    king: [6, 9],
+    pieces: [
+      [7, 8, "G"],
+      [6, 7, "G"],
+      [7, 7, "S"],
+    ],
+    minMatch: 2,
+  },
+  {
+    name: "右玉",
+    king: [3, 8],
+    pieces: [
+      [4, 8, "S"],
+      [5, 8, "G"],
+      [4, 7, "S"],
+    ],
+    minMatch: 2,
+  },
+  {
+    name: "右玉",
+    king: [4, 8],
+    pieces: [
+      [3, 8, "S"],
+      [5, 8, "G"],
+      [4, 7, "S"],
+    ],
+    minMatch: 2,
+  },
+  {
     name: "エルモ囲い",
     king: [7, 9],
     pieces: [
@@ -251,6 +292,21 @@ export function matchCastle(view: BoardView): CastleMatch | null {
  * 局面列 (先手視点に揃えたもの) から囲いを決める。
  * 完成度が最も高い局面を採用し、同点なら早い手数のものを採る。
  */
+const RANK_KANJI = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+
+/** どの囲いにも当てはまらないときの予備ラベル。玉の位置だけを示す。 */
+export function fallbackCastleLabel(views: BoardView[], maxPly: number): string {
+  const end = Math.min(views.length - 1, maxPly);
+  const view = views[end];
+  if (!view) return "不明";
+  for (const [sq, p] of view.pieces) {
+    if (p !== "K") continue;
+    if (sq === "59") return "居玉";
+    return `${sq[0]}${RANK_KANJI[Number(sq[1])]}玉型`;
+  }
+  return "不明";
+}
+
 export function detectCastle(views: BoardView[], maxPly: number): CastleMatch | null {
   let best: CastleMatch | null = null;
   const end = Math.min(views.length - 1, maxPly);
@@ -261,7 +317,8 @@ export function detectCastle(views: BoardView[], maxPly: number): CastleMatch | 
     if (!m) continue;
     const score = m.matched / m.total;
     const bestScore = best ? best.matched / best.total : -1;
-    if (score > bestScore || (score === bestScore && m.matched > (best?.matched ?? 0))) {
+    // 完成度が同じなら、駒数が多いもの、さらに同じなら後の局面 (より完成した形) を採る
+    if (score > bestScore || (score === bestScore && m.matched >= (best?.matched ?? 0))) {
       best = { ...m, ply };
     }
   }

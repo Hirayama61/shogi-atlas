@@ -37,11 +37,16 @@ export interface ParseOptions {
   memo?: string;
 }
 
-/** 前後の空白や BOM、CRLF を正規化する。 */
+/**
+ * 前後の空白や BOM、CRLF を正規化する。
+ * KIF の「同　銀」は全角空白が正式だが、貼り付け経路で半角になったり消えたりするので揃える
+ * (tsshogi は「同 銀」を特殊手「同」と読んでしまい、そこで手順が途切れる)。
+ */
 export function normalizeKifuText(text: string): string {
   return text
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n")
+    .replace(/^(\s*\d+\s+)同[ \t]*(?=[歩香桂銀金角飛玉王と杏圭全馬龍竜成])/gm, "$1同\u3000")
     .trim();
 }
 

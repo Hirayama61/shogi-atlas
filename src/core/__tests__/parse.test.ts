@@ -115,6 +115,16 @@ describe("parseKifu", () => {
     expect(g.tags).toEqual(["test"]);
   });
 
+  it("「同　銀」の全角空白が半角や無しでも同じ手順として読む", async () => {
+    const base = await parseKifu(AI_IBISHA_KIF, { source });
+    expect(AI_IBISHA_KIF).toContain("同\u3000銀");
+    const halfSpace = await parseKifu(AI_IBISHA_KIF.replace("同\u3000銀", "同 銀"), { source });
+    const noSpace = await parseKifu(AI_IBISHA_KIF.replace("同\u3000銀", "同銀"), { source });
+    expect(halfSpace.usi).toBe(base.usi);
+    expect(noSpace.usi).toBe(base.usi);
+    expect(halfSpace.length).toBe(14);
+  });
+
   it("同じ棋譜からは同じ ID が得られる", async () => {
     const a = await parseKifu(WARS_KIF, { source });
     const b = await parseKifu(WARS_KIF.replace(/\n/g, "\r\n"), { source });

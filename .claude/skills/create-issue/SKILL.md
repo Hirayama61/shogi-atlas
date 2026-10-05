@@ -16,7 +16,7 @@ DISCOVER → FRAME → GRILL → DRAFT → CREATE の順に進める。
 
 ## DISCOVER: 自分で調べる
 
-README・CLAUDE.md・関連コード・既存 Issue (`gh issue list --state all`) を読み、事実を集める。
+README・CLAUDE.md・関連コード・既存 Issue (`gh api "repos/Hirayama61/shogi-atlas/issues?state=all&per_page=100"`) を読み、事実を集める。GitHub の操作は `gh api` (REST) で行う (`gh issue ...` は GraphQL を使うためこの環境では失敗する)。
 コードや設定から分かることをユーザーに聞かない。似た Issue が既にあれば、新しく作らずそちらを案内する。
 
 ## FRAME: 解くべき問題を定義する
@@ -49,7 +49,12 @@ README・CLAUDE.md・関連コード・既存 Issue (`gh issue list --state all`
 
 ## CREATE: 承認を得てから作る
 
-タイトルと本文の最終案を提示し、承認を得てから `gh issue create -R Hirayama61/shogi-atlas --label ... --title ... --body-file ...` で作成する。承認前に作成しない。
+タイトルと本文の最終案を提示し、承認を得てから作成する。承認前に作成しない。
+
+```sh
+gh api -X POST repos/Hirayama61/shogi-atlas/issues -f title="..." -F body=@<本文ファイル> -f 'labels[]=ready' -f 'labels[]=area:app'
+```
+
 ユーザーが「そのまま着手して」と言ったら、作成後に `/work-issue <番号>` の手順で続ける。
 
-着手をブロックする Issue があれば `gh issue edit <番号> --add-blocked-by <ブロック元番号>` で依存関係を設定する。本文には書かない。
+着手をブロックする Issue があれば、本文の「参考情報」に「#<番号> が先」と書き、`blocked` ラベルを付ける。

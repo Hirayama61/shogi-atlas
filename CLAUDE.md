@@ -69,7 +69,7 @@ pnpm pipeline     # 上の inbox → analyze → build-profiles を回して com
 - やりたいことは Issue にする。起案は `/create-issue` (テンプレート `.github/ISSUE_TEMPLATE/work-item.md`、承認してから作成)。
 - 状態はラベル: `ready` (着手可) → `in-progress` (作業中) → 閉じて完了。人の判断待ちは `needs-input`、止まっていれば `blocked`。
 - 領域ラベル `area:core` / `area:app` / `area:scripts` / `area:infra` / `area:data` で衝突を避ける。同じ領域の Issue を同時に 2 つ進めない。
-- 着手は `/work-issue` の手順で。2 時間おきのルーティン「shogi-atlas Issue 作業」が専用の作業セッション (本体とデータリポジトリの両方を接続済み) を起こし、同じ手順で `ready` を 1 件ずつ拾う。
+- 着手は `/work-issue` の手順で。1 時間おき (毎時 7 分 UTC) のルーティン「shogi-atlas Issue 作業」が専用の作業セッション (本体とデータリポジトリの両方を接続済み) を起こし、同じ手順で `ready` を 1 件ずつ拾う。
 - 会話の流れでそのまま着手してもよい。その場合も Issue を作り、`in-progress` を付けてから進める。
 - データリポジトリ (shogi-atlas-data) に触る Issue は `area:data` を付ける。ワークフローや README の変更、パーサー変更に伴う `pnpm reindex` などが該当する。作業セッションには `/home/user/shogi-atlas-data` に clone がある。無いセッションでは `add_repo` (owner: Hirayama61, repo: shogi-atlas-data, access: push) で接続してから clone する。
 - ルーティンが新規に立てるセッションにはリポジトリが接続されないので、ルーティンは必ず既存の作業セッションに向ける (persistent_session_id)。作業セッションが重くなったら新しく作り直してルーティンを付け替える。

@@ -14,7 +14,7 @@ GitHub の操作は `gh api` (REST)。セッションとルーティンの操作
 
 `list_triggers` で次の 3 本を確認する。
 
-- 「shogi-atlas Issue 作業 (2時間おき)」
+- 「shogi-atlas Issue 作業 (…おき)」(名前の括弧内は変わりうる。1 時間おき、毎時 7 分 UTC)
 - 「shogi-atlas 取り込み・解析 (2時間おき)」(専用セッション「棋譜データ取り込みルーティン」で `pnpm pipeline` を回す)
 - 「将棋 対策レポート (週次)」
 

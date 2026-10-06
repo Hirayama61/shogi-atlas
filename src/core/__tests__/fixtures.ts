@@ -120,6 +120,46 @@ export const USI_MIGIGYOKU =
 export const USI_NO_CASTLE =
   "position startpos moves 7g7f 3c3d 5i6h 8c8d 1g1f 1c1d 9g9f 9c9d 2g2f 8d8e 3g3f 4c4d";
 
+/** ☖ゴキゲン中飛車: 角道を開けたまま 5四歩・5二飛 (6 手目) */
+export const USI_GOKIGEN =
+  "position startpos moves 7g7f 3c3d 2g2f 5c5d 2f2e 8b5b 5i6h 5a6b 6h7h 6b7b 3i4h 7b8b 9g9f 7a7b";
+
+/** ☗先手中飛車: 5六歩・5八飛 */
+export const USI_SENTE_NAKABISHA =
+  "position startpos moves 5g5f 8c8d 2h5h 3c3d 5i4h 5a4b 4h3h 4b3b 3h2h 7a6b 3i3h 6a5b";
+
+/** ☗ノーマル三間飛車: 6六歩で角道を止めて 7八飛 */
+export const USI_NORMAL_SANKEN =
+  "position startpos moves 7g7f 8c8d 6g6f 3c3d 2h7h 8d8e 8h7g 5a4b 5i4h 4b3b 4h3h 6a5b 3h2h 7a6b 3i3h 5c5d";
+
+/** ☗石田流本組: 7五歩 (11 手目なので早石田ではない)・7六飛・7七桂 */
+export const USI_ISHIDA_HONGUMI =
+  "position startpos moves 7g7f 3c3d 2h7h 8c8d 5i4h 5a4b 4h3h 4b3b 3h2h 7a6b 7f7e 6a5b 7h7f 5c5d 8i7g 1c1d 3i3h 9c9d";
+
+/** ☗ダイレクト向かい飛車: 3 手目に角交換して 8八飛、7七銀 */
+export const USI_DIRECT_MUKAI =
+  "position startpos moves 7g7f 3c3d 8h2b+ 3a2b 2h8h 8c8d 7i7h 5a4b 7h7g 4b3b 5i4h 7a6b 4h3h 6a5b";
+
+/** ☗阪田流向かい飛車: 角交換して 7七金・8八飛、☖は 8五歩 */
+export const USI_SAKATA_MUKAI =
+  "position startpos moves 7g7f 3c3d 8h2b+ 3a2b 6i7h 8c8d 7h7g 8d8e 2h8h 5a4b 5i4h 4b3b 4h3h 7a6b";
+
+/** 角換わり棒銀 (☗の銀が 3八 → 2七 → 2六) */
+export const USI_KAKU_BOGIN =
+  "position startpos moves 7g7f 8c8d 2g2f 4a3b 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i3h 7a6b 6i7h 6a5b 2f2e 5a4b 3h2g 1c1d 2g2f 9c9d";
+
+/** 角換わり早繰り銀 (☗の銀が 4八 → 3七 → 4六) */
+export const USI_KAKU_HAYAKURI =
+  "position startpos moves 7g7f 8c8d 2g2f 4a3b 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i4h 7a6b 6i7h 6a5b 3g3f 5a4b 4h3g 1c1d 3g4f 9c9d";
+
+/** 角換わり腰掛け銀 (☗の銀が 4八 → 4七 → 5六) */
+export const USI_KAKU_KOSHIKAKE =
+  "position startpos moves 7g7f 8c8d 2g2f 4a3b 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i4h 7a6b 6i7h 6a5b 4g4f 5a4b 4h4g 1c1d 4g5f 9c9d";
+
+/** ☖一手損角換わり: ☖が 2二の角で 8八の角を直接取る */
+export const USI_ITTEZON =
+  "position startpos moves 7g7f 3c3d 2g2f 2b8h+ 7i8h 3a2b 2f2e 8c8d 8h7g 7a6b 3i4h 6a5b 6i7h 5a4b";
+
 /** 将棋クエストの「棋譜ダウンロード」が出す KIF (手数は短縮)。レート付きの名前、開始日時なし、終局は「時間切れ」 */
 export const QUEST_KIF_TIMEOUT = `棋戦：Shogi Quest
 手合割：平手

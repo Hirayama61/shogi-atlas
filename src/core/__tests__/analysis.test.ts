@@ -153,7 +153,7 @@ describe("analysis", () => {
     const first = new Map(p.rates.firstBlunder.map((e) => [e.gameId, e] as const));
     expect(first.get(a.id)).toMatchObject({ ply: 14, by: "black", best: "1g1f", hit: true });
     expect(first.get(b.id)).toMatchObject({ ply: 4, by: "black", hit: false });
-    expect(p.byOpening.find((o) => o.name === "四間飛車")?.games).toBe(1);
+    expect(p.byOpening.find((o) => o.name === "ノーマル四間飛車")?.games).toBe(1);
     const md = profileToMarkdown(p);
     expect(md).toContain("# taro の弱点プロファイル");
     expect(md).toContain("四間飛車");

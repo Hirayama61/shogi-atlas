@@ -10,7 +10,7 @@ import {
 
 const source = { kind: "issue" as const, issue: 1 };
 
-/** テスト用の架空の対局 4 局 (taro の四間飛車 3 局 + 角換わり 1 局) */
+/** テスト用の架空の対局 4 局 (taro のノーマル四間飛車 3 局 + 角換わり 1 局) */
 export async function fixtureGames(): Promise<GameRecord[]> {
   const a = await parseKifu(USI_SHIKEN_VS_FUNA, { source, tags: ["taro"] });
   const b = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), {

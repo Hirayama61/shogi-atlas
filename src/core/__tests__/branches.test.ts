@@ -61,7 +61,12 @@ describe("branches", () => {
     const { a, b } = await games();
     const bad = flat.map((cp, ply) => (ply >= 19 ? -400 : cp));
     const [r] = review([a, b], [fakeAnalysis(a.id, flat), fakeAnalysis(b.id, bad, { 18: "1g1f" })]);
-    expect(r).toMatchObject({ ply: 18, turn: "black", kind: "mistake", opening: "四間飛車" });
+    expect(r).toMatchObject({
+      ply: 18,
+      turn: "black",
+      kind: "mistake",
+      opening: "ノーマル四間飛車",
+    });
     expect(r!.moves.map((m) => [m.label, m.count, m.judgement, m.bestLabel])).toEqual([
       ["▲1六歩", 1, "good", undefined],
       ["▲9六歩", 1, "mistake", "▲1六歩"],
@@ -106,9 +111,9 @@ describe("branches", () => {
     const d = { ...b, id: "d", opening: { ...b.opening, blackOpening: "三間飛車" } };
     const e = { ...a, id: "e" };
     const reviews = review([a, b, d, e], [fakeAnalysis(a.id, flat), fakeAnalysis(e.id, flat)]);
-    // 4 局が通る 18 手目の分岐点は 四間飛車 3 局 / 三間飛車 1 局 → 四間飛車
+    // 4 局が通る 18 手目の分岐点は ノーマル四間飛車 3 局 / 三間飛車 1 局 → ノーマル四間飛車
     const at18 = reviews.find((r) => r.gameIds.length === 4)!;
-    expect(at18.opening).toBe("四間飛車");
+    expect(at18.opening).toBe("ノーマル四間飛車");
 
     const mk = (opening: string, kind: BranchReview["kind"], key: string): BranchReview => ({
       key,

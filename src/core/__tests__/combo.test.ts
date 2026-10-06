@@ -86,7 +86,7 @@ describe("computeComboStats", () => {
       x.losses,
     ];
 
-    const shikenMino = s.openingCastle.find((x) => x.name === "四間飛車 × 本美濃");
+    const shikenMino = s.openingCastle.find((x) => x.name === "ノーマル四間飛車 × 本美濃");
     expect(shikenMino).toMatchObject({
       games: 2,
       wins: 1,
@@ -107,7 +107,7 @@ describe("computeComboStats", () => {
       ].sort(),
     );
 
-    expect(s.openingVsCastle.find((x) => x.name === "四間飛車 × 舟囲い")).toMatchObject({
+    expect(s.openingVsCastle.find((x) => x.name === "ノーマル四間飛車 × 舟囲い")).toMatchObject({
       games: 2,
       wins: 1,
       losses: 1,

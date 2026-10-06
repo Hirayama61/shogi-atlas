@@ -6,7 +6,7 @@ import { USI_ANAGUMA_VS_SHIKEN, USI_NO_CASTLE, USI_SHIKEN_VS_FUNA } from "./fixt
 const source = { kind: "paste" as const };
 
 async function games() {
-  // taro: 先手で四間飛車 (相手居飛車) を 2 局 (19 手目から分岐)、後手で四間飛車 (相手居飛車穴熊)、先手で判定不明
+  // taro: 先手でノーマル四間飛車 (相手居飛車) を 2 局 (19 手目から分岐)、後手でノーマル四間飛車 (相手居飛車穴熊)、先手で判定不明
   const a = await parseKifu(USI_SHIKEN_VS_FUNA, { source });
   const b = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
   const c = await parseKifu(USI_ANAGUMA_VS_SHIKEN, { source });
@@ -40,7 +40,7 @@ describe("portfolio", () => {
     const rows = black.opponents.flatMap((o) =>
       o.responses.map((r) => [o.vsOpening, r.opening, r.castle, r.games, r.wins, r.losses]),
     );
-    expect(rows).toContainEqual(["居飛車", "四間飛車", "本美濃", 2, 1, 1]);
+    expect(rows).toContainEqual(["居飛車", "ノーマル四間飛車", "本美濃", 2, 1, 1]);
     expect(p[2]?.opponents[0]?.vsOpening).toBe("居飛車穴熊");
     expect(p[2]?.opponents[0]?.responses[0]?.gameIds).toEqual([c.id]);
   });
@@ -73,7 +73,11 @@ describe("portfolio", () => {
     expect(portfolioCommonPositions(all, "taro", { side: "white", vsStyle: "ibisha" })).toEqual([]);
     // 応手まで指定しても絞れる
     expect(
-      portfolioCommonPositions(all, "taro", { ...cond, opening: "四間飛車", castle: "不明" }),
+      portfolioCommonPositions(all, "taro", {
+        ...cond,
+        opening: "ノーマル四間飛車",
+        castle: "不明",
+      }),
     ).toEqual([]);
   });
 });

@@ -22,7 +22,7 @@ const MIN_PLIES_FOR_JUDGE = 12;
 
 export const UNKNOWN = "不明";
 
-interface SideFeatures {
+export interface SideFeatures {
   style: SideStyle;
   /** 飛車が序盤で最も長く居た筋 (振り飛車なら 5 以上) */
   rookFile: number | null;
@@ -128,14 +128,203 @@ const FURI_NAME: Record<number, string> = {
   9: "向かい飛車",
 };
 
-function furibishaName(f: SideFeatures): string {
+type Side = "black" | "white";
+
+/**
+ * 戦法のルール。「駒配置 (すべて揃う) + 持ち駒 + 手数上限」で、条件を満たす局面が
+ * maxPly 手目までに 1 つでもあれば認定する (将棋ウォーズのエフェクト条件と同じ考え方)。
+ * 先手視点で書く: 大文字が自分の駒、小文字が相手の駒。後手は盤を回して同じルールを使う。
+ * 配置の多くは @shogi/classifier (MIT, jsr.io/@shogi/classifier v0.1.5 src/rules.ts) を参考にした。
+ */
+export interface OpeningRule {
+  name: string;
+  /** [file, rank, piece]。すべて揃うこと */
+  pieces: Array<[number, number, string]>;
+  /** 持ち駒にあること。"B" は自分、"b" は相手 */
+  hand?: string[];
+  /** 持ち駒に無いこと */
+  noHand?: string[];
+  /** 自分の角 (馬を含む) が盤上にあること (角道を止めた形の判定用) */
+  ownBishop?: boolean;
+  /** その局面に至る手で、自分の駒が from から to へ動いたこと */
+  moved?: { piece: string; from: [number, number]; to: [number, number] };
+  /** 振り飛車の筋 (SideFeatures.furiFile) の指定 */
+  file?: number;
+  /** 先手・後手の限定 */
+  side?: Side;
+  /** 盤面以外の特徴の条件 */
+  when?: (f: SideFeatures) => boolean;
+  maxPly: number;
+}
+
+/** 振り飛車側の戦法。上から順に試し、最初に当てはまったものを採る (細かいものを先に置く)。 */
+export const FURIBISHA_RULES: OpeningRule[] = [
   // 早石田の角交換は仕掛けの一部なので「角交換」を付けない
-  if (f.hayaishida) return "早石田";
+  { name: "早石田", pieces: [], when: (f) => f.hayaishida, maxPly: OPENING_PLIES },
+  {
+    name: "ダイレクト向かい飛車",
+    pieces: [
+      [7, 7, "S"],
+      [8, 8, "R"],
+    ],
+    hand: ["B"],
+    maxPly: OPENING_PLIES,
+  },
+  {
+    name: "阪田流向かい飛車",
+    pieces: [
+      [7, 7, "G"],
+      [8, 8, "R"],
+      [8, 7, "P"],
+      [8, 5, "p"],
+    ],
+    hand: ["B"],
+    maxPly: 20,
+  },
+  {
+    // 後手が角道を開けたまま 5四歩・5二飛
+    name: "ゴキゲン中飛車",
+    pieces: [
+      [5, 8, "R"],
+      [5, 6, "P"],
+      [6, 7, "P"],
+      [7, 6, "P"],
+      [8, 8, "B"],
+    ],
+    side: "white",
+    file: 5,
+    maxPly: 10,
+  },
+  {
+    name: "先手中飛車",
+    pieces: [
+      [5, 8, "R"],
+      [5, 6, "P"],
+      [6, 7, "P"],
+    ],
+    side: "black",
+    file: 5,
+    maxPly: 10,
+  },
+  {
+    name: "石田流本組",
+    pieces: [
+      [7, 6, "R"],
+      [7, 5, "P"],
+      [7, 7, "N"],
+    ],
+    noHand: ["B"],
+    file: 7,
+    maxPly: OPENING_PLIES,
+  },
+  // ノーマル = 6六歩で角道を止め、自分の角が盤上にある
+  {
+    name: "ノーマル四間飛車",
+    pieces: [
+      [6, 8, "R"],
+      [6, 6, "P"],
+    ],
+    ownBishop: true,
+    file: 6,
+    when: (f) => !f.bishopExchange,
+    maxPly: OPENING_PLIES,
+  },
+  {
+    name: "ノーマル三間飛車",
+    pieces: [
+      [7, 8, "R"],
+      [6, 6, "P"],
+    ],
+    ownBishop: true,
+    file: 7,
+    when: (f) => !f.bishopExchange && !f.ishida,
+    maxPly: OPENING_PLIES,
+  },
+];
+
+/** 角換わり (相居飛車で序盤に角交換) の中身。当てはまらなければ「角換わり」。 */
+export const KAKUGAWARI_RULES: OpeningRule[] = [
+  {
+    // 相手の角が 2二 に居るうちに自分から 8八 の角で取る (一手損)
+    name: "一手損角換わり",
+    pieces: [
+      [2, 8, "R"],
+      [8, 2, "r"],
+    ],
+    moved: { piece: "B", from: [8, 8], to: [2, 2] },
+    hand: ["B"],
+    maxPly: 20,
+  },
+  { name: "角換わり棒銀", pieces: [[2, 6, "S"]], hand: ["B", "b"], maxPly: 40 },
+  {
+    name: "角換わり早繰り銀",
+    pieces: [
+      [4, 6, "S"],
+      [3, 6, "P"],
+      [4, 7, "P"],
+    ],
+    hand: ["B", "b"],
+    maxPly: 40,
+  },
+  {
+    name: "角換わり腰掛け銀",
+    pieces: [
+      [5, 6, "S"],
+      [4, 6, "P"],
+      [5, 7, "P"],
+    ],
+    hand: ["B", "b"],
+    maxPly: 50,
+  },
+];
+
+function ruleHolds(rule: OpeningRule, views: BoardView[], ply: number): boolean {
+  const v = views[ply];
+  if (!v) return false;
+  if (!rule.pieces.every(([file, rank, piece]) => has(v, file, rank, piece))) return false;
+  if (rule.hand && !rule.hand.every((p) => inHand(v, p))) return false;
+  if (rule.noHand?.some((p) => inHand(v, p))) return false;
+  if (rule.ownBishop && ![...v.pieces.values()].some((p) => p === "B" || p === "+B")) return false;
+  if (rule.moved) {
+    const prev = views[ply - 1];
+    const { piece, from, to } = rule.moved;
+    if (!prev || !has(prev, from[0], from[1], piece)) return false;
+    if (has(v, from[0], from[1], piece) || !has(v, to[0], to[1], piece)) return false;
+  }
+  return true;
+}
+
+/** 上から順にルールを試し、最初に当てはまった戦法名を返す */
+export function matchOpeningRule(
+  rules: OpeningRule[],
+  views: BoardView[],
+  side: Side,
+  f: SideFeatures,
+): string | null {
+  for (const rule of rules) {
+    if (rule.side && rule.side !== side) continue;
+    if (rule.file !== undefined && rule.file !== f.furiFile) continue;
+    if (rule.when && !rule.when(f)) continue;
+    const last = Math.min(views.length - 1, rule.maxPly);
+    for (let ply = 1; ply <= last; ply++) if (ruleHolds(rule, views, ply)) return rule.name;
+  }
+  return null;
+}
+
+function furibishaName(f: SideFeatures, views: BoardView[], side: Side): string {
+  const ruled = matchOpeningRule(FURIBISHA_RULES, views, side, f);
+  if (ruled) return ruled;
   const base = f.ishida ? "石田流三間飛車" : (FURI_NAME[f.furiFile ?? 0] ?? "振り飛車");
   return f.bishopExchange ? `角交換${base}` : base;
 }
 
-function ibishaName(self: SideFeatures, opponent: SideFeatures, bothIbisha: boolean): string {
+function ibishaName(
+  self: SideFeatures,
+  opponent: SideFeatures,
+  bothIbisha: boolean,
+  views: BoardView[],
+  side: Side,
+): string {
   if (self.rookFile === 4) return "右四間飛車";
   if (!bothIbisha) {
     if (/穴熊/.test(self.castle)) return "居飛車穴熊";
@@ -143,7 +332,8 @@ function ibishaName(self: SideFeatures, opponent: SideFeatures, bothIbisha: bool
     return "居飛車";
   }
   if (self.yokofu || opponent.yokofu) return "横歩取り";
-  if (self.bishopExchange) return "角換わり";
+  if (self.bishopExchange)
+    return matchOpeningRule(KAKUGAWARI_RULES, views, side, self) ?? "角換わり";
   if (self.rookPawnAdvanced && opponent.rookPawnAdvanced) return "相掛かり";
   if (/矢倉/.test(self.castle)) return "矢倉";
   if (/雁木/.test(self.castle)) return "雁木";
@@ -175,9 +365,13 @@ export function classifyOpening(positions: string[]): OpeningInfo {
 
   const bothIbisha = info.shape === "aiIbisha";
   info.blackOpening =
-    black.style === "furibisha" ? furibishaName(black) : ibishaName(black, white, bothIbisha);
+    black.style === "furibisha"
+      ? furibishaName(black, blackViews, "black")
+      : ibishaName(black, white, bothIbisha, blackViews, "black");
   info.whiteOpening =
-    white.style === "furibisha" ? furibishaName(white) : ibishaName(white, black, bothIbisha);
+    white.style === "furibisha"
+      ? furibishaName(white, whiteViews, "white")
+      : ibishaName(white, black, bothIbisha, whiteViews, "white");
   return info;
 }
 

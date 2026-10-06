@@ -71,10 +71,10 @@ test.describe("一通りの画面", () => {
     await page.goto("#/player/taro");
     await page
       .locator(".panel", { hasText: "採用戦法" })
-      .getByRole("link", { name: "四間飛車" })
+      .getByRole("link", { name: "ノーマル四間飛車" })
       .click();
     await expect(page).toHaveURL(/#\/games\?player=taro&opening=[^&]+&openingSide=self$/);
-    await expect(page.getByText("絞り込み · taro · 四間飛車(本人)")).toBeVisible();
+    await expect(page.getByText("絞り込み · taro · ノーマル四間飛車(本人)")).toBeVisible();
     await expect(page.locator("ul.games li")).toHaveCount(3);
     await expect(page.getByText("3 / 4 局")).toBeVisible();
     // 条件を足して URL に乗せ、戻るで前の条件に戻り、一括で消す
@@ -87,7 +87,7 @@ test.describe("一通りの画面", () => {
     await page.getByRole("button", { name: "条件をすべて消す" }).click();
     await expect(page.getByText("4 / 4 局")).toBeVisible();
     // #6 の形式の URL も同じ絞り込みで開く
-    await page.goto(`#/player/taro/games/opening/${encodeURIComponent("四間飛車")}`);
+    await page.goto(`#/player/taro/games/opening/${encodeURIComponent("ノーマル四間飛車")}`);
     await expect(page.getByText("3 / 4 局")).toBeVisible();
 
     // 戦型ポートフォリオ: 畳まれた条件を開き、行から該当対局の一覧へ

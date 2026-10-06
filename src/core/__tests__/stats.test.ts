@@ -30,7 +30,7 @@ describe("stats", () => {
     expect(s.losses).toBe(1);
     expect(s.asBlack).toBe(2);
     expect(s.asWhite).toBe(1);
-    expect(s.openings.map((o) => [o.name, o.games, o.wins])).toEqual([["四間飛車", 3, 2]]);
+    expect(s.openings.map((o) => [o.name, o.games, o.wins])).toEqual([["ノーマル四間飛車", 3, 2]]);
     expect(s.castles[0]?.name).toBe("本美濃");
     expect(s.vsOpenings.map((o) => o.name).sort()).toEqual(["居飛車", "居飛車穴熊"]);
 

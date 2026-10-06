@@ -23,7 +23,7 @@ import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
 import { LossHelp } from "./LossHelp";
-import { hashFor, navigate, type GameFilterField } from "./router";
+import { fieldQuery, hashFor, navigate, type GameFilterField } from "./router";
 
 interface Props {
   name: string;
@@ -101,7 +101,7 @@ function BucketTable({
         <tbody>
           {rows.map((r) => {
             const route = link
-              ? { kind: "list" as const, filter: { ...link, value: r.name } }
+              ? { kind: "list" as const, query: fieldQuery(link.player, link.field, r.name) }
               : undefined;
             return (
               <tr
@@ -326,9 +326,8 @@ function PortfolioOpponentBlock({
           {opp.responses.map((r) => {
             const route = {
               kind: "list" as const,
-              filter: {
+              portfolio: {
                 player: name,
-                field: "portfolio" as const,
                 condition: { ...cond, opening: r.opening, castle: r.castle },
               },
             };

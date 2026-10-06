@@ -10,11 +10,13 @@ import {
 } from "../core/__tests__/fixtures";
 import { db } from "../db/db";
 import type { AnalysisRecord } from "../core/analysis";
+import App from "../App";
+import { outcomeFor, playerSide } from "../core/stats";
 import { GameList } from "./GameList";
 import { GameViewer } from "./GameViewer";
 import { PlayerList } from "./PlayerList";
 import { PlayerPage } from "./PlayerPage";
-import { parseHash } from "./router";
+import { fieldQuery, hashFor, parseHash, type ListQuery } from "./router";
 
 const source = { kind: "paste" as const };
 
@@ -74,16 +76,126 @@ describe("UI", () => {
     const { a, b, c } = await seed();
     // 3 局とも Sukonbu3 が先手
     const opening = b.opening.blackOpening;
-    render(<GameList filter={{ player: "Sukonbu3", field: "opening", value: opening }} />);
+    render(<GameList query={fieldQuery("Sukonbu3", "opening", opening)} />);
     const expected = [a, b, c].filter((g) => g.opening.blackOpening === opening).length;
-    await waitFor(() =>
-      expect(screen.getByText(`${expected} / ${expected} 局`)).toBeInTheDocument(),
-    );
-    expect(screen.getByText(opening)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(`${expected} / 3 局`)).toBeInTheDocument());
+    expect(screen.getByLabelText<HTMLSelectElement>("戦法").value).toBe(opening);
+    expect(screen.getByLabelText<HTMLSelectElement>("戦法の側").value).toBe("self");
     expect(c.opening.blackOpening).not.toBe(opening);
     expect(screen.queryByText("☖x2")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "← Sukonbu3" }));
     expect(location.hash).toBe("#/player/Sukonbu3");
+  });
+
+  describe("GameList の絞り込み", () => {
+    const count = (n: number, total = 3) =>
+      waitFor(() => expect(screen.getByText(`${n} / ${total} 局`)).toBeInTheDocument());
+    /** 選んで、URL 経由で画面に反映されるまで待つ */
+    const choose = async (label: string, value: string) => {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      await waitFor(() =>
+        expect(screen.getByLabelText<HTMLSelectElement>(label).value).toBe(value),
+      );
+    };
+    const query = (): ListQuery => {
+      const r = parseHash(location.hash);
+      return r.kind === "list" ? (r.query ?? {}) : {};
+    };
+    const optionValues = (label: string) =>
+      Array.from(screen.getByLabelText<HTMLSelectElement>(label).options).map((o) => o.value);
+
+    it("戦法と囲いを別々に選び、先手 / 後手 / どちらでも を切り替えられる", async () => {
+      const { a, b, c } = await seed();
+      const all = [a, b, c];
+      location.hash = "#/";
+      render(<App />);
+      await count(3);
+      const opening = b.opening.blackOpening;
+      const n = (f: (g: (typeof all)[number]) => boolean) => all.filter(f).length;
+      // 選択肢に局数が付く
+      expect(
+        screen.getByRole("option", {
+          name: `${opening} (${n((g) => [g.opening.blackOpening, g.opening.whiteOpening].includes(opening))})`,
+        }),
+      ).toBeInTheDocument();
+      await choose("戦法", opening);
+      await waitFor(() => expect(query()).toEqual({ opening }));
+      await count(n((g) => [g.opening.blackOpening, g.opening.whiteOpening].includes(opening)));
+      await choose("戦法の側", "white");
+      await waitFor(() => expect(query()).toEqual({ opening, openingSide: "white" }));
+      await count(n((g) => g.opening.whiteOpening === opening));
+      await choose("戦法の側", "black");
+      await count(n((g) => g.opening.blackOpening === opening));
+      // 対局者なしでは本人 / 相手は出ない
+      expect(optionValues("戦法の側")).toEqual(["", "black", "white"]);
+
+      await choose("戦法", "");
+      const castle = b.opening.whiteCastle;
+      await choose("囲い", castle);
+      await waitFor(() => expect(query()).toEqual({ openingSide: "black", castle }));
+      await count(n((g) => [g.opening.blackCastle, g.opening.whiteCastle].includes(castle)));
+      await choose("囲いの側", "white");
+      await count(n((g) => g.opening.whiteCastle === castle));
+      await choose("囲いの側", "black");
+      await count(n((g) => g.opening.blackCastle === castle));
+    });
+
+    it("勝敗で絞り込み、対局者を指定すると勝ち / 負けでも選べる", async () => {
+      const { a, b, c } = await seed();
+      const all = [a, b, c];
+      location.hash = "#/";
+      render(<App />);
+      await count(3);
+      expect(optionValues("勝敗")).toEqual(["", "black", "white", "other"]);
+      await choose("勝敗", "black");
+      await count(all.filter((g) => g.result === "black").length);
+      await choose("勝敗", "other");
+      await count(all.filter((g) => g.result === "draw" || g.result === "unknown").length);
+
+      await choose("勝敗", "");
+      await choose("対局者", "Sukonbu3");
+      await waitFor(() => expect(optionValues("勝敗")).toContain("loss"));
+      const mine = all.filter((g) => playerSide(g, "Sukonbu3") !== null);
+      await count(mine.length);
+      await choose("勝敗", "loss");
+      const losses = mine.filter(
+        (g) => outcomeFor(g.result, playerSide(g, "Sukonbu3")!) === "loss",
+      );
+      await count(losses.length);
+      expect(losses.length).toBeGreaterThan(0);
+      expect(query()).toEqual({ player: "Sukonbu3", result: "loss" });
+      // 対局者を外すと効かない条件も消える
+      await choose("対局者", "");
+      await waitFor(() => expect(query()).toEqual({}));
+    });
+
+    it("条件は URL から再現でき、組み合わせて一括で消せる", async () => {
+      const { a, b, c } = await seed();
+      const q: ListQuery = {
+        player: "Sukonbu3",
+        opening: b.opening.whiteOpening,
+        openingSide: "opponent",
+        result: "win",
+      };
+      location.hash = hashFor({ kind: "list", query: q });
+      render(<App />);
+      const expected = [a, b, c].filter((g) => {
+        const side = playerSide(g, "Sukonbu3");
+        if (!side) return false;
+        const opp = side === "black" ? g.opening.whiteOpening : g.opening.blackOpening;
+        return opp === q.opening && outcomeFor(g.result, side) === "win";
+      });
+      expect(expected.length).toBeGreaterThan(0);
+      await count(expected.length);
+      expect(screen.getByLabelText<HTMLSelectElement>("戦法の側").value).toBe("opponent");
+      expect(screen.getByLabelText<HTMLSelectElement>("勝敗").value).toBe("win");
+      await choose("出典の絞り込み", "quest");
+      await count(0);
+      fireEvent.click(screen.getByRole("button", { name: "条件をすべて消す" }));
+      await count(3);
+      expect(location.hash).toBe("#/");
+      expect(screen.queryByRole("button", { name: "条件をすべて消す" })).not.toBeInTheDocument();
+    });
   });
 
   it("PlayerList: 文字入力の絞り込み欄は無い", async () => {
@@ -136,15 +248,10 @@ describe("UI", () => {
     ] as const;
     for (const [title, field, value] of cases) {
       const link = within(table(title)).getByRole("link", { name: value });
-      expect(link).toHaveAttribute(
-        "href",
-        `#/player/Sukonbu3/games/${field}/${encodeURIComponent(value)}`,
-      );
+      const route = { kind: "list" as const, query: fieldQuery("Sukonbu3", field, value) };
+      expect(link).toHaveAttribute("href", hashFor(route));
       fireEvent.click(link.closest("tr")!);
-      expect(parseHash(location.hash)).toEqual({
-        kind: "list",
-        filter: { player: "Sukonbu3", field, value },
-      });
+      expect(parseHash(location.hash)).toEqual(route);
     }
   });
 
@@ -234,23 +341,22 @@ describe("UI", () => {
     const route = parseHash(location.hash);
     expect(route).toMatchObject({
       kind: "list",
-      filter: {
+      portfolio: {
         player: "Sukonbu3",
-        field: "portfolio",
         condition: { side: "black", opening: b.opening.blackOpening },
       },
     });
     cleanup();
-    if (route.kind !== "list" || !route.filter) throw new Error("unreachable");
-    render(<GameList filter={route.filter} />);
+    if (route.kind !== "list" || !route.portfolio) throw new Error("unreachable");
+    const portfolio = route.portfolio;
+    render(<GameList portfolio={portfolio} />);
     const expected = [b, c].filter(
       (g) =>
-        route.filter?.field === "portfolio" &&
-        g.opening.whiteOpening === route.filter.condition.vsOpening &&
+        g.opening.whiteOpening === portfolio.condition.vsOpening &&
         `${g.opening.blackOpening} + ${g.opening.blackCastle}` === label,
     ).length;
     await waitFor(() =>
-      expect(screen.getByText(new RegExp(`${expected} / ${expected} 局`))).toBeInTheDocument(),
+      expect(screen.getByText(new RegExp(`${expected} / 3 局`))).toBeInTheDocument(),
     );
     expect(screen.getByText(label)).toBeInTheDocument();
   });

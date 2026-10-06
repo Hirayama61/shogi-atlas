@@ -5,19 +5,44 @@ describe("router", () => {
   it("絞り込みつき一覧の URL を往復できる", () => {
     const route: Route = {
       kind: "list",
-      filter: { player: "a/b c", field: "vsOpening", value: "四間飛車" },
+      query: {
+        player: "a/b c&d",
+        service: "wars",
+        shape: "taikokei",
+        opening: "四間飛車",
+        openingSide: "opponent",
+        castle: "美濃囲い",
+        castleSide: "white",
+        result: "loss",
+      },
     };
     const hash = hashFor(route);
-    expect(hash.startsWith("#/player/")).toBe(true);
+    expect(hash.startsWith("#/games?")).toBe(true);
     expect(parseHash(hash)).toEqual(route);
+    expect(hashFor({ kind: "list", query: {} })).toBe("#/");
+    expect(parseHash("#/games?result=bogus&shape=x&openingSide=up")).toEqual({ kind: "list" });
+  });
+
+  it("#6 の対局者ページの URL は同じ条件に読み替える", () => {
+    expect(parseHash("#/player/a%2Fb/games/opening/%E5%9B%9B")).toEqual({
+      kind: "list",
+      query: { player: "a/b", opening: "四", openingSide: "self" },
+    });
+    expect(parseHash("#/player/a/games/castle/x")).toEqual({
+      kind: "list",
+      query: { player: "a", castle: "x", castleSide: "self" },
+    });
+    expect(parseHash("#/player/a/games/vsOpening/x")).toEqual({
+      kind: "list",
+      query: { player: "a", opening: "x", openingSide: "opponent" },
+    });
   });
 
   it("戦型ポートフォリオの行の URL を往復できる", () => {
     const route: Route = {
       kind: "list",
-      filter: {
+      portfolio: {
         player: "a/b",
-        field: "portfolio",
         condition: {
           side: "white",
           vsStyle: "furibisha",
@@ -30,6 +55,8 @@ describe("router", () => {
     const hash = hashFor(route);
     expect(hash).toContain("/portfolio/white/furibisha/");
     expect(parseHash(hash)).toEqual(route);
+    const withQuery: Route = { ...route, query: { result: "win" } };
+    expect(parseHash(hashFor(withQuery))).toEqual(withQuery);
     expect(parseHash("#/player/x/portfolio/up/ibisha/a/b/c")).toEqual({ kind: "list" });
   });
 

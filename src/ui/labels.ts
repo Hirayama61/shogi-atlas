@@ -2,8 +2,9 @@ import type { EndReason, GameRecord, GameResult, GameSummary, SideStyle } from "
 import { MATE_CP } from "../core/analysis";
 import { shortOpeningLabel, SIDE_STYLE_LABEL } from "../core/opening";
 import { matchesPortfolio } from "../core/portfolio";
-import { playerSide } from "../core/stats";
-import type { GameFilter, GameFilterField } from "./router";
+import { serviceOf } from "../core/source";
+import { outcomeFor, playerSide } from "../core/stats";
+import type { ListQuery, PortfolioFilter, ResultFilter, SideFilter } from "./router";
 
 export const RESULT_LABEL: Record<GameResult, string> = {
   black: "先手勝ち",
@@ -49,31 +50,74 @@ export function fmtCp(cp: number): string {
   return cp > 0 ? `+${cp}` : `${cp}`;
 }
 
-export const FILTER_FIELD_LABEL: Record<GameFilterField, string> = {
-  opening: "採用戦法",
-  castle: "囲い",
-  vsOpening: "相手の戦法",
-};
+/**
+ * 戦法・囲いの名前を、指定した側 (省けば先手・後手の両方) で取り出す。
+ * self / opponent は対局者を指定していて、その人の対局のときだけ意味を持つ (それ以外は両方)。
+ */
+function sideValues(
+  g: GameSummary,
+  side: SideFilter | undefined,
+  player: string | undefined,
+  black: string,
+  white: string,
+): string[] {
+  if (side === "black") return [black];
+  if (side === "white") return [white];
+  const ps = player && (side === "self" || side === "opponent") ? playerSide(g, player) : null;
+  if (ps) return (ps === "black") === (side === "self") ? [black] : [white];
+  return [black, white];
+}
 
-/** 対局者ページの集計 (computePlayerStats) と同じ見方で、その対局者の対局かつ該当の戦法・囲いか */
-export function matchesFilter(g: GameSummary, filter: GameFilter): boolean {
-  if (filter.field === "portfolio") return matchesPortfolio(g, filter.player, filter.condition);
-  const side = playerSide(g, filter.player);
-  if (side === null) return false;
-  const o = g.opening;
-  const value =
-    filter.field === "opening"
-      ? side === "black"
-        ? o.blackOpening
-        : o.whiteOpening
-      : filter.field === "castle"
-        ? side === "black"
-          ? o.blackCastle
-          : o.whiteCastle
-        : side === "black"
-          ? o.whiteOpening
-          : o.blackOpening;
-  return value === filter.value;
+export function openingValues(g: GameSummary, q: ListQuery): string[] {
+  return sideValues(g, q.openingSide, q.player, g.opening.blackOpening, g.opening.whiteOpening);
+}
+
+export function castleValues(g: GameSummary, q: ListQuery): string[] {
+  return sideValues(g, q.castleSide, q.player, g.opening.blackCastle, g.opening.whiteCastle);
+}
+
+function matchesResult(g: GameSummary, result: ResultFilter, player: string | undefined): boolean {
+  if (result === "black" || result === "white") return g.result === result;
+  if (result === "other") return g.result === "draw" || g.result === "unknown";
+  // 対局者を指定していなければ勝ち / 負けは効かせない
+  if (!player) return true;
+  const side = playerSide(g, player);
+  return side !== null && outcomeFor(g.result, side) === result;
+}
+
+/** 棋譜一覧の絞り込み条件をすべて満たすか */
+export function matchesQuery(g: GameSummary, q: ListQuery): boolean {
+  if (q.player && playerSide(g, q.player) === null) return false;
+  if (q.service && serviceOf(g) !== q.service) return false;
+  if (q.shape && g.opening.shape !== q.shape) return false;
+  if (q.opening && !openingValues(g, q).includes(q.opening)) return false;
+  if (q.castle && !castleValues(g, q).includes(q.castle)) return false;
+  if (q.result && !matchesResult(g, q.result, q.player)) return false;
+  return true;
+}
+
+/** 戦型ポートフォリオの行 (あれば) と絞り込み条件の両方を満たすか */
+export function matchesListRoute(
+  g: GameSummary,
+  query: ListQuery = {},
+  portfolio?: PortfolioFilter,
+): boolean {
+  if (portfolio && !matchesPortfolio(g, portfolio.player, portfolio.condition)) return false;
+  return matchesQuery(g, query);
+}
+
+/** 選択肢: 名前と局数 (局数の多い順) */
+export function countValues(
+  games: GameSummary[],
+  valuesOf: (g: GameSummary) => string[],
+): Array<{ value: string; games: number }> {
+  const counts = new Map<string, number>();
+  for (const g of games) {
+    for (const v of new Set(valuesOf(g))) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  return Array.from(counts, ([value, n]) => ({ value, games: n })).sort(
+    (a, b) => b.games - a.games || a.value.localeCompare(b.value),
+  );
 }
 
 export const SIDE_LABEL = { black: "先手", white: "後手" } as const;
@@ -83,11 +127,8 @@ export function portfolioConditionLabel(side: "black" | "white", vsStyle: SideSt
   return `${SIDE_LABEL[side]} / 相手: ${SIDE_STYLE_LABEL[vsStyle]}`;
 }
 
-/** 棋譜一覧の上に出す絞り込みの説明 */
-export function describeFilter(filter: GameFilter): { label: string; value: string } {
-  if (filter.field !== "portfolio") {
-    return { label: FILTER_FIELD_LABEL[filter.field], value: filter.value };
-  }
+/** 棋譜一覧の上に出す、戦型ポートフォリオの行の説明 */
+export function describePortfolio(filter: PortfolioFilter): { label: string; value: string } {
   const c = filter.condition;
   return {
     label: `${portfolioConditionLabel(c.side, c.vsStyle)} (${c.vsOpening ?? "すべて"})`,

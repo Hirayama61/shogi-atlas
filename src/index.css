@@ -436,3 +436,13 @@ ul.changelog-details li {
 .portfolio-opponent {
   margin: 8px 0 4px 8px;
 }
+details.filters summary {
+  cursor: pointer;
+}
+details.filters[open] summary {
+  margin-bottom: 10px;
+}
+details.filters select {
+  min-width: 0;
+  max-width: 100%;
+}

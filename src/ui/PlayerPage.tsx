@@ -47,6 +47,11 @@ function pct(wins: number, games: number): string {
   return games ? `${Math.round((wins / games) * 100)}%` : "-";
 }
 
+/** 本人の対局のうち何割か (分母は呼び出し側で決める) */
+function share(games: number, total: number): string {
+  return pct(games, total);
+}
+
 function pctOrDash(v: number | null): string {
   return v === null ? "-" : `${Math.round(v * 100)}%`;
 }
@@ -88,14 +93,17 @@ function BucketTableLoss({
 
 /**
  * 戦法・囲いの集計表。`link` を渡すと各行が、その対局者のその戦法・囲いの対局一覧へのリンクになる。
+ * 割合は `total` (本人の全対局数) に対する局数の割合。
  */
 function BucketTable({
   title,
   rows,
+  total,
   link,
 }: {
   title: string;
   rows: Bucket[];
+  total: number;
   link?: { player: string; field: GameFilterField };
 }) {
   if (rows.length === 0) return null;
@@ -110,6 +118,7 @@ function BucketTable({
             <th>勝</th>
             <th>敗</th>
             <th>勝率</th>
+            <th>割合</th>
           </tr>
         </thead>
         <tbody>
@@ -128,6 +137,7 @@ function BucketTable({
                 <td>{r.wins}</td>
                 <td>{r.losses}</td>
                 <td>{pct(r.wins, r.wins + r.losses)}</td>
+                <td>{share(r.games, total)}</td>
               </tr>
             );
           })}
@@ -517,6 +527,8 @@ function Portfolio({
   byId: Map<string, GameRecord>;
   name: string;
 }) {
+  const sideTotal = (side: PortfolioGroup["side"]) =>
+    groups.filter((g) => g.side === side).reduce((n, g) => n + g.games, 0);
   return (
     <div className="panel">
       <strong>戦型ポートフォリオ</strong>
@@ -527,13 +539,14 @@ function Portfolio({
         <details key={`${group.side}/${group.vsStyle}`} className="portfolio">
           <summary>
             {portfolioConditionLabel(group.side, group.vsStyle)} · {group.games} 局 {group.wins} 勝{" "}
-            {group.losses} 敗
+            {group.losses} 敗 · 割合 {share(group.games, sideTotal(group.side))}
           </summary>
           {group.opponents.map((opp) => (
             <PortfolioOpponentBlock
               key={opp.vsOpening}
               cond={{ side: group.side, vsStyle: group.vsStyle, vsOpening: opp.vsOpening }}
               opp={opp}
+              groupGames={group.games}
               games={games}
               byId={byId}
               name={name}
@@ -548,12 +561,15 @@ function Portfolio({
 function PortfolioOpponentBlock({
   cond,
   opp,
+  groupGames,
   games,
   byId,
   name,
 }: {
   cond: PortfolioCondition & { vsOpening: string };
   opp: PortfolioGroup["opponents"][number];
+  /** 割合の分母 (同じ先後 × 相手の大分類の局数) */
+  groupGames: number;
   games: GameRecord[];
   byId: Map<string, GameRecord>;
   name: string;
@@ -571,7 +587,8 @@ function PortfolioOpponentBlock({
   return (
     <div className="portfolio-opponent">
       <div className="muted">
-        相手: {opp.vsOpening} · {opp.games} 局 {opp.wins} 勝 {opp.losses} 敗
+        相手: {opp.vsOpening} · {opp.games} 局 {opp.wins} 勝 {opp.losses} 敗 · 割合{" "}
+        {share(opp.games, groupGames)}
       </div>
       <table className="stats">
         <thead>
@@ -581,6 +598,7 @@ function PortfolioOpponentBlock({
             <th>勝</th>
             <th>敗</th>
             <th>勝率</th>
+            <th>割合</th>
           </tr>
         </thead>
         <tbody>
@@ -602,6 +620,7 @@ function PortfolioOpponentBlock({
                 <td>{r.wins}</td>
                 <td>{r.losses}</td>
                 <td>{pct(r.wins, r.wins + r.losses)}</td>
+                <td>{share(r.games, opp.games)}</td>
               </tr>
             );
           })}
@@ -677,15 +696,22 @@ export function PlayerPage({ name }: Props) {
         <BucketTable
           title="採用戦法"
           rows={stats.openings}
+          total={stats.games}
           link={{ player: name, field: "opening" }}
         />
-        <BucketTable title="囲い" rows={stats.castles} link={{ player: name, field: "castle" }} />
+        <BucketTable
+          title="囲い"
+          rows={stats.castles}
+          total={stats.games}
+          link={{ player: name, field: "castle" }}
+        />
         <BucketTable
           title="相手の戦法別"
           rows={stats.vsOpenings}
+          total={stats.games}
           link={{ player: name, field: "vsOpening" }}
         />
-        <BucketTable title="持ち時間別" rows={stats.timeControls} />
+        <BucketTable title="持ち時間別" rows={stats.timeControls} total={stats.games} />
       </div>
 
       <ComboAnalysis combo={combo} name={name} />

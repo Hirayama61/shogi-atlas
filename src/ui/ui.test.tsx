@@ -320,6 +320,55 @@ describe("UI", () => {
     expect(parseHash(location.hash)).toMatchObject({ kind: "game", ply: 18 });
   });
 
+  it("PlayerPage: 戦法・囲い・持ち時間の表と戦型ポートフォリオに割合が出る", async () => {
+    const { b } = await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/3 局 · 1 勝 2 敗/)).toBeInTheDocument());
+    const pctOf = (n: number, d: number) => `${Math.round((n / d) * 100)}%`;
+    // 各表: 見出しの最後が「割合」で、値は 局 / 本人の全対局 (3 局)。合計は 3 局
+    for (const title of ["採用戦法", "囲い", "相手の戦法別", "持ち時間別"]) {
+      const table = screen.getByText(title).closest(".panel")!.querySelector("table")!;
+      const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent);
+      expect(heads).toEqual(["", "局", "勝", "敗", "勝率", "割合"]);
+      let sum = 0;
+      for (const tr of table.querySelectorAll("tbody tr")) {
+        const games = Number(tr.children[1]!.textContent);
+        sum += games;
+        expect(tr.children[5]!.textContent).toBe(pctOf(games, 3));
+      }
+      expect(sum).toBe(3);
+    }
+    const opening = within(screen.getByText("採用戦法").closest(".panel") as HTMLElement)
+      .getByRole("link", { name: b.opening.blackOpening })
+      .closest("tr")!;
+    expect(opening.children[5]!.textContent).toBe(
+      pctOf(Number(opening.children[1]!.textContent), 3),
+    );
+
+    const panel = screen.getByText("戦型ポートフォリオ").closest(".panel") as HTMLElement;
+    // グループの割合はその先後の対局 (見出しの「先手 n / 後手 m」) に対する割合
+    const [, black, white] = /先手 (\d+) \/ 後手 (\d+)/.exec(document.body.textContent!)!;
+    const sideGames = { 先手: Number(black), 後手: Number(white) };
+    for (const g of panel.querySelectorAll("details.portfolio")) {
+      const summary = g.querySelector("summary")!.textContent!;
+      const games = Number(/(\d+) 局/.exec(summary)![1]);
+      const side = summary.includes("先手") ? "先手" : "後手";
+      expect(summary).toContain(`割合 ${pctOf(games, sideGames[side])}`);
+      // 相手の戦法ごと: グループ内の割合。応手の各行: その相手の戦法の対局に対する割合
+      for (const block of g.querySelectorAll(".portfolio-opponent")) {
+        const head = block.querySelector(".muted")!.textContent!;
+        const oppGames = Number(/(\d+) 局/.exec(head)![1]);
+        expect(head).toContain(`割合 ${pctOf(oppGames, games)}`);
+        const heads = Array.from(block.querySelectorAll("thead th")).map((th) => th.textContent);
+        expect(heads.at(-1)).toBe("割合");
+        for (const tr of block.querySelectorAll("tbody tr")) {
+          const n = Number(tr.children[1]!.textContent);
+          expect(tr.children[5]!.textContent).toBe(pctOf(n, oppGames));
+        }
+      }
+    }
+  });
+
   it("PlayerPage: 戦型ポートフォリオは条件ごとに畳まれ、行から該当対局の一覧へ飛ぶ", async () => {
     const { b, c } = await seed();
     render(<PlayerPage name="Sukonbu3" />);

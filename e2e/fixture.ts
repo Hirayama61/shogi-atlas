@@ -69,6 +69,7 @@ export async function mockDataRepo(
   page: Page,
   games: GameRecord[],
   analyses: AnalysisRecord[] = [],
+  reports: Record<string, string> = {},
 ): Promise<void> {
   const headers = { "access-control-allow-origin": "*", "content-type": "application/json" };
   await page.route("https://api.github.com/**", (route) => {
@@ -88,6 +89,26 @@ export async function mockDataRepo(
         body: JSON.stringify({ schema: 1, analyses: index }),
       });
     }
+    // 対策レポート: players/ と players/<名前>/ の一覧、report.md の本文
+    if (path === "players") {
+      const dirs = Object.keys(reports).map((name) => ({ name, type: "dir", sha: "d" }));
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(dirs) });
+    }
+    const dir = /^players\/([^/]+)$/.exec(path)?.[1];
+    if (dir) {
+      const md = reports[decodeURIComponent(dir)];
+      const entries = md === undefined ? [] : [{ name: "report.md", type: "file", sha: "r1" }];
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(entries) });
+    }
+    const reportOf = /^players\/(.+)\/report\.md$/.exec(path)?.[1];
+    if (reportOf) {
+      const md = reports[decodeURIComponent(reportOf)];
+      return route.fulfill({
+        status: md === undefined ? 404 : 200,
+        headers: { ...headers, "content-type": "text/plain; charset=utf-8" },
+        body: md ?? "",
+      });
+    }
     const aid = /analysis\/(.+)\.json/.exec(path)?.[1];
     if (aid) {
       const a = analyses.find((x) => x.id === aid);
@@ -103,8 +124,9 @@ export async function syncWithMock(
   page: Page,
   games: GameRecord[],
   analyses: AnalysisRecord[] = [],
+  reports: Record<string, string> = {},
 ): Promise<void> {
-  await mockDataRepo(page, games, analyses);
+  await mockDataRepo(page, games, analyses, reports);
   await page.goto("#/settings");
   await page.fill("input[type=password]", "github_pat_dummy");
   await page.click("text=同期する");

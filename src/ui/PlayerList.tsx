@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { listPlayers } from "../core/stats";
 import { db } from "../db/db";
 import { formatDate } from "./labels";
+import { isReportUnseen } from "./reportSeen";
 import { navigate } from "./router";
 
 export function PlayerList() {
@@ -10,6 +11,11 @@ export function PlayerList() {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const players = useMemo(() => (games ? listPlayers(games) : []), [games]);
   const filtered = players.filter((p) => showAll || p.tracked);
+  const reports = useLiveQuery(() => db.reports.toArray().catch(() => []), []);
+  const unseenReports = useMemo(
+    () => new Set((reports ?? []).filter(isReportUnseen).map((r) => r.name)),
+    [reports],
+  );
 
   if (!games) return <p className="muted">読み込み中…</p>;
 
@@ -34,6 +40,11 @@ export function PlayerList() {
             <div className="game-title">
               {p.name}
               {p.rank ? <span className="muted"> {p.rank}</span> : null}
+              {unseenReports.has(p.name) && (
+                <span className="chip new" style={{ marginLeft: 8 }}>
+                  新しいレポート
+                </span>
+              )}
             </div>
             <div className="muted">
               {p.games} 局 · {p.wins} 勝 {p.losses} 敗 · 最終 {formatDate(p.latest)}

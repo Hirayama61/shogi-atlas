@@ -1,5 +1,6 @@
 import { normalizeAnalysis, type AnalysisIndex, type AnalysisRecord } from "../core/analysis";
 import { normalizeGame, normalizeSummary } from "../core/normalize";
+import type { ReportRecord } from "../core/report";
 import type { GameRecord, GameSummary } from "../core/types";
 import { upsertGames, db } from "../db/db";
 
@@ -59,10 +60,14 @@ export class GitHubFetchError extends Error {
 }
 
 /** Contents API から raw のファイル内容を取る。404 なら null。 */
-export async function fetchRaw(path: string, config: DataRepoConfig): Promise<string | null> {
+export async function fetchRaw(
+  path: string,
+  config: DataRepoConfig,
+  accept = "application/vnd.github.raw+json",
+): Promise<string | null> {
   const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${path}?ref=${encodeURIComponent(config.branch)}`;
   const headers: Record<string, string> = {
-    Accept: "application/vnd.github.raw+json",
+    Accept: accept,
     "X-GitHub-Api-Version": "2022-11-28",
   };
   if (config.token) headers.Authorization = `Bearer ${config.token}`;
@@ -81,7 +86,7 @@ export async function fetchRaw(path: string, config: DataRepoConfig): Promise<st
 }
 
 export interface PullProgress {
-  phase: "index" | "games" | "analyses" | "done";
+  phase: "index" | "games" | "analyses" | "reports" | "done";
   done: number;
   total: number;
 }
@@ -154,8 +159,79 @@ export async function pullFromDataRepo(
     analysesAdded = got.length;
   }
 
+  await pullReports(config, trackedPlayers(summaries), (doneR, totalR) =>
+    onProgress?.({ phase: "reports", done: doneR, total: totalR }),
+  );
+
   onProgress?.({ phase: "done", done, total: missing.length });
   return { ...result, total: summaries.length, analyses: analysesAdded };
+}
+
+/** 登録した対局者 (先手か後手の名前がその対局のタグに入っている人) */
+export function trackedPlayers(summaries: GameSummary[]): string[] {
+  const names = new Set<string>();
+  for (const s of summaries) {
+    for (const n of [s.black, s.white]) if (n && s.tags.includes(n)) names.add(n);
+  }
+  return [...names].sort();
+}
+
+interface DirEntry {
+  name: string;
+  type: string;
+  sha: string;
+}
+
+/** Contents API でディレクトリの中身を取る。無ければ空 */
+async function listDir(path: string, config: DataRepoConfig): Promise<DirEntry[]> {
+  const text = await fetchRaw(path, config, "application/vnd.github+json");
+  if (!text) return [];
+  const parsed = JSON.parse(text) as unknown;
+  return Array.isArray(parsed) ? (parsed as DirEntry[]) : [];
+}
+
+/**
+ * 登録した対局者ごとに players/<名前>/report.md を取る。
+ * 先にディレクトリの一覧を見て、レポートがある人だけ、blob の SHA が変わったときだけ取る
+ * (無い人に 404 を出さないため)。データリポジトリから消えたレポートはローカルからも消す。
+ */
+async function pullReports(
+  config: DataRepoConfig,
+  names: string[],
+  onProgress: (done: number, total: number) => void,
+): Promise<void> {
+  const tracked = new Set(names);
+  const dirs = (tracked.size ? await listDir("players", config) : []).filter(
+    (e) => e.type === "dir" && tracked.has(e.name),
+  );
+  const local = new Map((await db.reports.toArray()).map((r) => [r.name, r] as const));
+  const got: ReportRecord[] = [];
+  const present = new Set<string>();
+  let done = 0;
+  for (const dir of dirs) {
+    const base = `players/${encodeURIComponent(dir.name)}`;
+    const file = (await listDir(base, config)).find(
+      (e) => e.type === "file" && e.name === "report.md",
+    );
+    if (file) {
+      present.add(dir.name);
+      if (local.get(dir.name)?.hash !== file.sha) {
+        const text = await fetchRaw(`${base}/report.md`, config);
+        if (text !== null) {
+          got.push({
+            name: dir.name,
+            markdown: text,
+            hash: file.sha,
+            fetchedAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+    onProgress(++done, dirs.length);
+  }
+  if (got.length) await db.reports.bulkPut(got);
+  const gone = [...local.keys()].filter((n) => !present.has(n));
+  if (gone.length) await db.reports.bulkDelete(gone);
 }
 
 /** ローカルに無い、取り込み日時が変わった、解析の版が変わった、のいずれかなら取り直す */

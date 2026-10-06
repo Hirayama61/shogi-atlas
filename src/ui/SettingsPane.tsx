@@ -131,7 +131,9 @@ export function SettingsPane() {
                 ? "一覧を取得中…"
                 : progress.phase === "analyses"
                   ? `解析 ${progress.done} / ${progress.total}`
-                  : `${progress.done} / ${progress.total} 局`}
+                  : progress.phase === "reports"
+                    ? `対策レポート ${progress.done} / ${progress.total}`
+                    : `${progress.done} / ${progress.total} 局`}
             </span>
           )}
         </div>

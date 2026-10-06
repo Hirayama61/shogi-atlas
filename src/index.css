@@ -485,3 +485,48 @@ details.filters select {
   min-width: 0;
   max-width: 100%;
 }
+.report .chip.new {
+  margin-left: 8px;
+  background: var(--danger);
+  color: #fff;
+}
+.report-part {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.report-part:first-of-type {
+  margin-top: 6px;
+}
+.report-part > summary {
+  cursor: pointer;
+}
+.report-body {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.report-body h3,
+.report-body h4,
+.report-body h5 {
+  font-size: 15px;
+  margin: 12px 0 4px;
+}
+.report-body ul,
+.report-body ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+.report-body p {
+  margin: 4px 0;
+}
+.report-body code {
+  font-size: 12px;
+  word-break: break-all;
+}
+.report-body a.game-ref {
+  white-space: nowrap;
+}
+ul.games .chip.new {
+  background: var(--danger);
+  color: #fff;
+}

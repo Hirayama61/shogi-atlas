@@ -29,6 +29,7 @@ import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
 import { LossHelp } from "./LossHelp";
+import { ReportPanel } from "./Report";
 import {
   fieldQuery,
   hashFor,
@@ -639,6 +640,9 @@ export function PlayerPage({ name }: Props) {
     [games, name],
   );
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
+  const ownIds = useMemo(() => own.map((g) => g.id), [own]);
+  // テーブルが無い古い DB や同期前でも undefined になるだけ
+  const report = useLiveQuery(() => db.reports.get(name).catch(() => undefined), [name]);
   const combo = useMemo(() => {
     const map = new Map((analyses ?? []).map((a) => [a.id, a] as const));
     return computeComboStats(own, name, map);
@@ -666,6 +670,8 @@ export function PlayerPage({ name }: Props) {
           {pct(stats.wins, stats.wins + stats.losses)} · 先手 {stats.asBlack} / 後手 {stats.asWhite}
         </div>
       </div>
+
+      {report && <ReportPanel report={report} gameIds={ownIds} />}
 
       <div className="stats-grid">
         <BucketTable

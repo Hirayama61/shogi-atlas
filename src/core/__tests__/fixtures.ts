@@ -199,3 +199,40 @@ export const USI_TRY_WHITE = "position sfen K8/9/9/9/9/9/9/4k4/9 w - 1 moves 5h5
 
 /** ５一以外への玉の移動は終局扱いしない */
 export const USI_KING_MOVE_NOT_TRY = "position sfen 9/4K4/9/9/9/9/9/9/8k b - 1 moves 5b4a";
+
+/** 架空の対策レポート。gameId に対局 ID を入れると「痛かった手」の行がその対局を指す */
+export function fixtureReport(name: string, gameId: string): string {
+  return `# ${name} 対策レポート
+
+作成日 2026-10-05 (初回)。解析済み 2 局。
+
+## 1. 一言でいうとどういう相手か
+
+- 四間飛車党。序盤は手堅く、終盤で崩れる。
+  - 先手でも後手でも <b>四間飛車</b> を指す。
+
+## 2. こちらが採るべき作戦
+
+### こちらが先手 (${name} が後手)
+
+- 居飛車穴熊にする。
+- 急戦は避ける。
+
+### こちらが後手 (${name} が先手)
+
+- 角交換を狙う。
+
+## 3. 狙いどころ
+
+### 痛かった手
+
+1. **${gameId} 15手目 ▲1六歩** (最善 ▲1八香)。評価値 0 → −900。
+   sfen \`lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\`
+
+2. **${gameId.slice(0, 6)} 21手目 ▲3八銀** (最善 ▲4八銀)。
+
+---
+
+根拠: 架空のレポート
+`;
+}

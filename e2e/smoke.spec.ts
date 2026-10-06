@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fixtureReport } from "../src/core/__tests__/fixtures";
 import { fixtureAnalyses, fixtureGames, syncWithMock } from "./fixture";
 
 test.describe("一通りの画面", () => {
@@ -106,6 +107,33 @@ test.describe("一通りの画面", () => {
 
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
     expect(await page.locator("body").textContent()).not.toContain("undefined");
+  });
+
+  test("対策レポート: 同期 → 印 → 要点と全文 → 棋譜の手数へ", async ({ page }) => {
+    const games = await fixtureGames();
+    await syncWithMock(page, games, [], { taro: fixtureReport("taro", games[0]!.id) });
+
+    await page.goto("#/players");
+    const row = page.locator("ul.games li", { hasText: "taro" });
+    await expect(row.getByText("新しいレポート")).toBeVisible();
+    await row.click();
+
+    const panel = page.locator(".panel.report");
+    await expect(panel.getByText("新しいレポート")).toBeVisible();
+    const digest = panel.locator("details.report-part", { hasText: "対策の要点" });
+    await expect(digest.getByText("居飛車穴熊にする。")).toBeHidden();
+    await digest.locator("summary").click();
+    await expect(digest.getByText("居飛車穴熊にする。")).toBeVisible();
+    await expect(panel.getByText("新しいレポート")).toHaveCount(0);
+    await panel.locator("summary", { hasText: "全文" }).click();
+    await panel.getByRole("link", { name: `${games[0]!.id} 15手目` }).click();
+    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14$/);
+    await expect(page.getByText("14 手目")).toBeVisible();
+
+    await page.goto("#/players");
+    await expect(page.locator("ul.games li", { hasText: "taro" })).toBeVisible();
+    await expect(page.getByText("新しいレポート")).toHaveCount(0);
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 
   test("PWA のマニフェストと Service Worker が配信される", async ({ page }) => {

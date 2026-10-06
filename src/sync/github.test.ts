@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PARSER_VERSION } from "../core/normalize";
 import { parseKifu } from "../core/parse";
 import { toSummary } from "../core/types";
-import { USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
+import { fixtureReport, USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
 import { db } from "../db/db";
 import { DEFAULT_CONFIG, needsFetch, pullFromDataRepo, loadConfig, saveConfig } from "./github";
 
@@ -19,7 +19,8 @@ function mockRepo(files: Record<string, unknown>) {
       const path = m?.[1] ?? "";
       calls.push(path);
       if (!(path in files)) return new Response("not found", { status: 404 });
-      return new Response(JSON.stringify(files[path]), { status: 200 });
+      const body = files[path];
+      return new Response(typeof body === "string" ? body : JSON.stringify(body), { status: 200 });
     }),
   );
   return calls;
@@ -28,6 +29,7 @@ function mockRepo(files: Record<string, unknown>) {
 describe("pullFromDataRepo", () => {
   beforeEach(async () => {
     await db.games.clear();
+    await db.reports.clear();
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -117,5 +119,48 @@ describe("pullFromDataRepo", () => {
     calls.length = 0;
     expect(await pullFromDataRepo(config)).toEqual({ added: 0, updated: 0, total: 1, analyses: 0 });
     expect(calls).toEqual(["index.json", "analysis/index.json"]);
+  });
+
+  it("対局者ごとの対策レポートを、ある人だけ、変わったときだけ取り込み、消えたら消す", async () => {
+    const parsed = await parseKifu(WARS_KIF, { source, importedAt: "2026-01-01T00:00:00Z" });
+    const a = { ...parsed, black: "taro", white: "jiro", tags: ["taro", "jiro", "将棋ウォーズ"] };
+    const report = fixtureReport("taro", a.id);
+    const dir = (name: string) => ({ name, type: "dir", sha: "d" });
+    const reportEntry = (sha: string) => [
+      { name: "profile.md", type: "file", sha: "p" },
+      { name: "report.md", type: "file", sha },
+    ];
+    const files: Record<string, unknown> = {
+      "index.json": { schema: 1, updatedAt: "x", games: [toSummary(a)] },
+      [`games/${a.id}.json`]: a,
+      players: [dir("taro"), dir("jiro"), dir("other"), { name: "README.md", type: "file" }],
+      "players/taro": reportEntry("s1"),
+      "players/jiro": [{ name: "profile.md", type: "file", sha: "p" }],
+      "players/taro/report.md": report,
+    };
+    const calls = mockRepo(files);
+    await pullFromDataRepo(config);
+    // レポートの無い人 (jiro)、登録していない人 (other) の report.md は取りに行かない
+    expect(calls.filter((c) => c.startsWith("players"))).toEqual([
+      "players",
+      "players/taro",
+      "players/taro/report.md",
+      "players/jiro",
+    ]);
+    expect(await db.reports.get("taro")).toMatchObject({ markdown: report, hash: "s1" });
+    expect(await db.reports.get("jiro")).toBeUndefined();
+
+    calls.length = 0;
+    await pullFromDataRepo(config);
+    expect(calls).not.toContain("players/taro/report.md");
+
+    files["players/taro"] = reportEntry("s2");
+    files["players/taro/report.md"] = report + "\n追記";
+    await pullFromDataRepo(config);
+    expect(await db.reports.get("taro")).toMatchObject({ markdown: report + "\n追記", hash: "s2" });
+
+    files["players/taro"] = [];
+    await pullFromDataRepo(config);
+    expect(await db.reports.get("taro")).toBeUndefined();
   });
 });

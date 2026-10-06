@@ -38,7 +38,8 @@ data checkout -q main
 data pull -q --rebase origin main
 
 echo "== 受信箱"
-pnpm --silent inbox
+# Node の fetch は HTTPS_PROXY を読まない。クラウドセッションでは GitHub API の認証をプロキシが付けるので経由させる (Actions では無害)
+NODE_USE_ENV_PROXY=1 NODE_NO_WARNINGS=1 pnpm --silent inbox
 commit_if_changed "inbox: 棋譜を取り込み"
 
 echo "== 解析 (最大 ${MAX_GAMES} 局, 目安 ${TIME_BUDGET} 秒)"

@@ -32,7 +32,7 @@ GitHub Pages で公開し、スマホにインストールして使う。
 
 棋譜ライブラリは `tsshogi` (KIF / KI2 / CSA / USI / JKF の読み書き、合法手判定)。
 
-「対策レポート」は Claude のルーティン「将棋 対策レポート (毎日)」(毎日 05:52 JST に専用セッションで起動。新規セッションにはリポジトリが接続されないため) が `/write-reports` (`.claude/skills/write-reports/SKILL.md`) の手順で書く。
+「対策レポート」は Claude のルーティン「将棋 対策レポート」(毎日 05:52 JST に新しいセッションで起動。claude.ai の Routines 画面から作ったもので、本体とデータリポジトリが接続される) が `/write-reports` (`.claude/skills/write-reports/SKILL.md`) の手順で書く。
 入力はデータリポジトリの `players/<name>/profile.md` と `analysis/*.kif`、出力は `players/<name>/report.md`。前回のレポート以降に解析済みの対局が増えた人だけ書き直し、誰も増えていなければ何もしない。本体には何もコミットしない。
 手順を変えるときはスキルを直す (ルーティンのプロンプトは「スキルを読んで実行せよ」だけ)。
 
@@ -75,7 +75,7 @@ pnpm pipeline     # 上の inbox → analyze → build-profiles を回して com
 - 着手は `/work-issue` の手順で。1 時間おき (毎時 7 分 UTC) のルーティン「shogi-atlas Issue 作業」が専用の作業セッション (本体とデータリポジトリの両方を接続済み) を起こし、同じ手順で `ready` を 1 件ずつ拾う。
 - 会話の流れでそのまま着手してもよい。その場合も Issue を作り、`in-progress` を付けてから進める。
 - データリポジトリ (shogi-atlas-data) に触る Issue は `area:data` を付ける。ワークフローや README の変更、パーサー変更に伴う `pnpm reindex` などが該当する。作業セッションには `/home/user/shogi-atlas-data` に clone がある。無いセッションでは `add_repo` (owner: Hirayama61, repo: shogi-atlas-data, access: push) で接続してから clone する。
-- ルーティンが新規に立てるセッションにはリポジトリが接続されないので、ルーティンは必ず既存の作業セッションに向ける (persistent_session_id)。作業セッションが重くなったら新しく作り直してルーティンを付け替える。
+- ルーティンは claude.ai の Routines 画面から作る。画面から作ったルーティンは起動ごとに新しいセッションを作り、本体とデータリポジトリが接続された状態で始まる (Issue 作業・対策レポートがこの形)。エージェントが `create_trigger` で作ったルーティンにはリポジトリが接続されないので、その場合だけ既存のセッションに向ける (persistent_session_id)。取り込み・解析は今も専用セッション向けで、画面から作り直したら付け替える。
 - 自動化の見守りは毎朝のルーティン「shogi-atlas 見守り」が `/monitor-routines` の手順で行い、結果を Issue「運用ログ」(ラベル `ops`) にコメントする。人はそこだけ見ればよい。
 - 棋譜の取り込みと解析はルーティン「shogi-atlas 取り込み・解析 (2時間おき)」が専用セッションで `pnpm pipeline` を回す。すぐ取り込みたいときは claude.ai の Routines からそのルーティンを手動実行する。
 

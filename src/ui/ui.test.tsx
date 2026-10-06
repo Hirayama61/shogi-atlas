@@ -476,4 +476,50 @@ describe("UI", () => {
     expect(document.body.textContent).not.toContain("undefined");
     expect(document.body.textContent).not.toContain("NaN");
   });
+
+  it("PlayerPage: 率をタップすると内訳が開き、根拠の局面へ飛べる", async () => {
+    const { b } = await seed();
+    const cps = Array.from({ length: 21 }, (_, i) => (i >= 15 ? -900 : 0));
+    await db.analyses.put({
+      schema: 1,
+      id: b.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) =>
+        ply === 14 ? { ply, cp, best: "1g1f", pv: ["1g1f"] } : { ply, cp },
+      ),
+    });
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/解析済み 1 局/)).toBeInTheDocument());
+    expect(document.querySelector(".rate-breakdown")).toBeNull();
+
+    // 内訳が 0 件の率 (有利になった対局が無い) は「-」のまま開いても壊れない
+    const conversion = screen.getByRole("button", { name: /有利 \(\+300\) からの勝率/ });
+    expect(conversion).toHaveTextContent("-");
+    fireEvent.click(conversion);
+    expect(conversion).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("該当する対局はまだありません")).toBeInTheDocument();
+
+    // 先に大悪手: 15 手目の本人の大悪手。指す前の 14 手目を指す
+    fireEvent.click(screen.getByRole("button", { name: /先に大悪手を指す率/ }));
+    expect(conversion).toHaveAttribute("aria-expanded", "false");
+    const rows = document.querySelectorAll("details.rate-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("14手目");
+    expect(rows[0]).toHaveTextContent("自分が先");
+    // 盤面は開いたときだけ出す
+    expect(rows[0]!.querySelector("svg.board")).toBeNull();
+    (rows[0] as HTMLDetailsElement).open = true;
+    fireEvent(rows[0]!, new Event("toggle"));
+    await waitFor(() => expect(rows[0]!.querySelector("svg.board")).not.toBeNull());
+    expect(rows[0]).toHaveTextContent("自分の大悪手");
+    expect(rows[0]).toHaveTextContent("最善 1g1f");
+    fireEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: "局面を開く" }));
+    expect(location.hash).toBe(`#/game/${b.id}/14`);
+
+    // 不利から負けなかった率: 初めて -300 以下になった 15 手目
+    fireEvent.click(screen.getByRole("button", { name: /不利 \(-300\) から負けなかった率/ }));
+    expect(document.querySelectorAll("details.rate-row")[0]).toHaveTextContent("15手目");
+    expect(document.body.textContent).not.toContain("undefined");
+  });
 });

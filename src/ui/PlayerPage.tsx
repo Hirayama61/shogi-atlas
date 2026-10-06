@@ -1,7 +1,12 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { JUDGEMENT_LABEL, PHASE_LABEL } from "../core/analysis";
-import { buildPlayerProfile } from "../core/profile";
+import {
+  buildPlayerProfile,
+  type PlayerProfile,
+  type RateBreakdown,
+  type RateEvidence,
+} from "../core/profile";
 import {
   computePortfolio,
   portfolioCommonPositions,
@@ -252,6 +257,129 @@ function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
         highlightLosing
       />
     </div>
+  );
+}
+
+type RateKind = keyof RateBreakdown;
+
+const RATES: Array<{
+  kind: RateKind;
+  field: "conversionRate" | "resilienceRate" | "punishRate" | "firstBlunderRate";
+  label: string;
+  /** 内訳の説明 (どの局面を指しているか) */
+  note: string;
+  hit: string;
+  miss: string;
+}> = [
+  {
+    kind: "conversion",
+    field: "conversionRate",
+    label: "有利 (+300) からの勝率",
+    note: "評価値が初めて +300 以上になった局面",
+    hit: "勝った",
+    miss: "勝てなかった",
+  },
+  {
+    kind: "resilience",
+    field: "resilienceRate",
+    label: "不利 (-300) から負けなかった率",
+    note: "評価値が初めて -300 以下になった局面",
+    hit: "負けなかった",
+    miss: "負けた",
+  },
+  {
+    kind: "punish",
+    field: "punishRate",
+    label: "相手の大悪手を咎めた率",
+    note: "相手が大悪手 (対局で最も勝率を落とした手) を指した後の局面。最善は本人が指すべきだった手",
+    hit: "咎めて勝った",
+    miss: "勝てなかった",
+  },
+  {
+    kind: "firstBlunder",
+    field: "firstBlunderRate",
+    label: "先に大悪手を指す率",
+    note: "対局で最初の大悪手を指す前の局面",
+    hit: "自分が先",
+    miss: "相手が先",
+  },
+];
+
+/** 4 つの率。タップするとその率の内訳 (数えた対局と根拠の局面) が下に開く */
+function Rates({ profile }: { profile: PlayerProfile }) {
+  const [open, setOpen] = useState<RateKind | null>(null);
+  const current = RATES.find((r) => r.kind === open);
+  return (
+    <>
+      <div className="rates">
+        {RATES.map((r) => (
+          <button
+            key={r.kind}
+            type="button"
+            className={open === r.kind ? "active" : undefined}
+            aria-expanded={open === r.kind}
+            onClick={() => setOpen(open === r.kind ? null : r.kind)}
+          >
+            <strong>{pctOrDash(profile[r.field])}</strong>
+            <span>{r.label}</span>
+          </button>
+        ))}
+      </div>
+      {current && (
+        <div className="rate-breakdown">
+          <div className="muted">
+            {current.label} の内訳 · {profile.rates[current.kind].length} 局 · {current.note}
+          </div>
+          {profile.rates[current.kind].length === 0 && (
+            <p className="muted">該当する対局はまだありません</p>
+          )}
+          {profile.rates[current.kind].map((e) => (
+            <RateRow
+              key={`${e.gameId}-${e.ply}`}
+              e={e}
+              label={e.hit ? current.hit : current.miss}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** 内訳の 1 行。開いたときだけ盤面を出す */
+function RateRow({ e, label }: { e: RateEvidence; label: string }) {
+  const [shown, setShown] = useState(false);
+  const signed = (cp: number) => (cp > 0 ? `+${cp}` : `${cp}`);
+  return (
+    <details className="rate-row" onToggle={(ev) => setShown(ev.currentTarget.open)}>
+      <summary>
+        {e.startedAt?.slice(0, 10)} vs {e.opponent} · {e.ply}手目{" "}
+        <span className={e.hit ? "hit" : "mark"}>{label}</span>{" "}
+        <span className="muted">{signed(e.cp)}</span>
+      </summary>
+      {shown && (
+        <div className="detail-body">
+          <div style={{ maxWidth: 220 }}>
+            <Board sfen={e.sfen} flipped={e.side === "white"} />
+          </div>
+          <div>
+            {e.played && (
+              <div className="muted">
+                {e.by === e.side ? "自分" : "相手"}の大悪手 {e.played}
+                {e.best ? ` · 最善 ${e.best}` : ""}
+              </div>
+            )}
+            <button
+              className="ghost"
+              style={{ marginTop: 6 }}
+              onClick={() => navigate({ kind: "game", id: e.gameId, ply: e.ply })}
+            >
+              局面を開く
+            </button>
+          </div>
+        </div>
+      )}
+    </details>
   );
 }
 
@@ -569,24 +697,7 @@ export function PlayerPage({ name }: Props) {
               解析済み {profile.games} 局 · 1手あたり平均損失 {profile.averageLoss} cp
             </p>
             <LossHelp />
-            <div className="rates">
-              <div>
-                <strong>{pctOrDash(profile.conversionRate)}</strong>
-                <span>有利 (+300) からの勝率</span>
-              </div>
-              <div>
-                <strong>{pctOrDash(profile.resilienceRate)}</strong>
-                <span>不利 (-300) から負けなかった率</span>
-              </div>
-              <div>
-                <strong>{pctOrDash(profile.punishRate)}</strong>
-                <span>相手の大悪手を咎めた率</span>
-              </div>
-              <div>
-                <strong>{pctOrDash(profile.firstBlunderRate)}</strong>
-                <span>先に大悪手を指す率</span>
-              </div>
-            </div>
+            <Rates profile={profile} />
             <table className="stats">
               <thead>
                 <tr>

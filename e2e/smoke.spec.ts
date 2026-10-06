@@ -39,6 +39,13 @@ test.describe("一通りの画面", () => {
     await expect(page.getByText("痛かった手")).toBeVisible();
     await expect(page.locator("details.worst[open]")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "局面を開く" }).first()).toBeHidden();
+    // 率をタップすると内訳が開き、根拠の局面へ飛べる (15 手目で -900 → 初めて不利になった局面)
+    await page.getByRole("button", { name: /不利 \(-300\) から負けなかった率/ }).click();
+    await expect(page.locator("details.rate-row")).toHaveCount(1);
+    await page.locator("details.rate-row summary").click();
+    await page.locator("details.rate-row").getByRole("button", { name: "局面を開く" }).click();
+    await expect(page).toHaveURL(/#\/game\/f000000000000000\/15/);
+    await page.goBack();
     await page.locator("details.worst summary").first().click();
     await page.getByRole("button", { name: "局面を開く" }).first().click();
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);

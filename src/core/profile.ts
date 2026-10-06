@@ -44,6 +44,46 @@ export interface WorstMove {
   judgement: Judgement;
 }
 
+/** 率の内訳の 1 行。率の根拠になった対局と、その局面 */
+export interface RateEvidence {
+  gameId: string;
+  opponent: string;
+  startedAt?: string;
+  /** 本人の手番側 */
+  side: Side;
+  /** 根拠の局面の手数 (棋譜をこの手数で開く) */
+  ply: number;
+  /** その局面の局面キー (盤面表示用) */
+  sfen: string;
+  /** 本人視点の評価値 (その局面) */
+  cp: number;
+  /** 率の分子に数えたか (勝った・負けなかった・咎めた・自分が先) */
+  hit: boolean;
+  /** 根拠になった手 (大悪手の率のみ。USI) */
+  played?: string;
+  /** その手を指したのはどちらか (大悪手の率のみ) */
+  by?: Side;
+  /** その局面での最善手 (USI)。咎めた率では本人が指すべきだった手 */
+  best?: string;
+}
+
+/** 4 つの率の内訳。率はここから rateOf で導く */
+export interface RateBreakdown {
+  /** 評価値が初めて +300 以上になった局面 */
+  conversion: RateEvidence[];
+  /** 評価値が初めて -300 以下になった局面 */
+  resilience: RateEvidence[];
+  /** 相手の大悪手 (最も勝率を落としたもの) を指された後の局面 */
+  punish: RateEvidence[];
+  /** 対局で最初の大悪手を指す前の局面 */
+  firstBlunder: RateEvidence[];
+}
+
+/** 内訳から率を出す。内訳が無ければ null */
+export function rateOf(list: RateEvidence[]): number | null {
+  return list.length ? list.filter((e) => e.hit).length / list.length : null;
+}
+
 export interface PlayerProfile {
   name: string;
   /** 解析済みの対局数 */
@@ -62,6 +102,8 @@ export interface PlayerProfile {
   punishRate: number | null;
   /** 自分が先に大悪手を指した対局の割合 */
   firstBlunderRate: number | null;
+  /** 4 つの率の内訳 (対局の新しい順) */
+  rates: RateBreakdown;
   /** 勝率で見て最も痛かった手 (降順) */
   worstMoves: WorstMove[];
 }
@@ -89,6 +131,7 @@ export function buildPlayerProfile(
     resilienceRate: null,
     punishRate: null,
     firstBlunderRate: null,
+    rates: { conversion: [], resilience: [], punish: [], firstBlunder: [] },
     worstMoves: [],
   };
   const phaseLoss: Record<Phase, number> = { opening: 0, middlegame: 0, endgame: 0 };
@@ -97,14 +140,7 @@ export function buildPlayerProfile(
   const vsOpenings = new Map<string, OpeningAccuracy & { loss: number; moves: number }>();
   let totalLoss = 0;
   let totalMoves = 0;
-  let ahead = 0;
-  let aheadWon = 0;
-  let behind = 0;
-  let behindNotLost = 0;
-  let oppBlundered = 0;
-  let oppBlunderedWon = 0;
-  let anyBlunder = 0;
-  let firstBlunder = 0;
+  const rates = profile.rates;
   const worst: WorstMove[] = [];
 
   for (const game of games) {
@@ -142,23 +178,43 @@ export function buildPlayerProfile(
 
     // 形勢の推移 (本人視点)
     const sign = side === "black" ? 1 : -1;
-    const cps = review.curve.map((c) => c.cp * sign);
-    if (cps.some((cp) => cp >= ADVANTAGE)) {
-      ahead++;
-      if (outcome === "win") aheadWon++;
-    }
-    if (cps.some((cp) => cp <= -ADVANTAGE)) {
-      behind++;
-      if (outcome !== "loss") behindNotLost++;
-    }
-    if (theirs.some((m) => m.judgement === "blunder")) {
-      oppBlundered++;
-      if (outcome === "win") oppBlunderedWon++;
+    const evidence = (ply: number, hit: boolean): RateEvidence => {
+      const e: RateEvidence = {
+        gameId: game.id,
+        opponent: side === "black" ? game.white : game.black,
+        side,
+        ply,
+        sfen: game.positions[ply] ?? "",
+        cp: (review.curve.find((c) => c.ply === ply)?.cp ?? 0) * sign,
+        hit,
+      };
+      if (game.startedAt) e.startedAt = game.startedAt;
+      return e;
+    };
+    const aheadAt = review.curve.find((c) => c.cp * sign >= ADVANTAGE);
+    if (aheadAt) rates.conversion.push(evidence(aheadAt.ply, outcome === "win"));
+    const behindAt = review.curve.find((c) => c.cp * sign <= -ADVANTAGE);
+    if (behindAt) rates.resilience.push(evidence(behindAt.ply, outcome !== "loss"));
+    const oppBlunder = theirs
+      .filter((m) => m.judgement === "blunder")
+      .reduce<MoveReview | undefined>((a, m) => (a && a.swing >= m.swing ? a : m), undefined);
+    if (oppBlunder) {
+      // 相手の大悪手を指された後の局面。最善手は本人がそこで指すべきだった手
+      const e = evidence(oppBlunder.ply, outcome === "win");
+      e.played = oppBlunder.played;
+      e.by = oppBlunder.side;
+      const reply = analysis.plies.find((p) => p.ply === oppBlunder.ply)?.best;
+      if (reply) e.best = reply;
+      rates.punish.push(e);
     }
     const firstBlunderMove = review.moves.find((m) => m.judgement === "blunder");
     if (firstBlunderMove) {
-      anyBlunder++;
-      if (firstBlunderMove.side === side) firstBlunder++;
+      // 最初の大悪手を指す前の局面
+      const e = evidence(firstBlunderMove.ply - 1, firstBlunderMove.side === side);
+      e.played = firstBlunderMove.played;
+      e.by = firstBlunderMove.side;
+      if (firstBlunderMove.best) e.best = firstBlunderMove.best;
+      rates.firstBlunder.push(e);
     }
 
     for (const m of mine) {
@@ -182,10 +238,13 @@ export function buildPlayerProfile(
       .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
   profile.byOpening = finish(openings);
   profile.byOpponentOpening = finish(vsOpenings);
-  profile.conversionRate = ahead ? aheadWon / ahead : null;
-  profile.resilienceRate = behind ? behindNotLost / behind : null;
-  profile.punishRate = oppBlundered ? oppBlunderedWon / oppBlundered : null;
-  profile.firstBlunderRate = anyBlunder ? firstBlunder / anyBlunder : null;
+  const newest = (a: RateEvidence, b: RateEvidence) =>
+    (b.startedAt ?? "").localeCompare(a.startedAt ?? "");
+  for (const list of Object.values(rates)) list.sort(newest);
+  profile.conversionRate = rateOf(rates.conversion);
+  profile.resilienceRate = rateOf(rates.resilience);
+  profile.punishRate = rateOf(rates.punish);
+  profile.firstBlunderRate = rateOf(rates.firstBlunder);
   profile.worstMoves = worst.sort((a, b) => b.swing - a.swing).slice(0, options.worstMoves ?? 10);
   return profile;
 }

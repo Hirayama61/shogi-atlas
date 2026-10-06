@@ -12,7 +12,7 @@ import {
 } from "../analysis";
 import { annotatedKif } from "../annotate";
 import { parseKifu } from "../parse";
-import { buildPlayerProfile, profileToMarkdown } from "../profile";
+import { buildPlayerProfile, profileToMarkdown, rateOf } from "../profile";
 import { USI_SHIKEN_VS_FUNA, WARS_KIF } from "./fixtures";
 
 const source = { kind: "paste" as const };
@@ -107,6 +107,7 @@ describe("analysis", () => {
         fakeAnalysis(
           b.id,
           [0, 0, 0, 0, 0, -900, -900, -900, -900, -900, -900, -900, -900, -900, -900],
+          { 5: "8c8d" },
         ),
       ],
     ]);
@@ -123,11 +124,44 @@ describe("analysis", () => {
     expect(p.resilienceRate).toBe(0); // a で不利になり負けた
     expect(p.punishRate).toBe(1);
     expect(p.firstBlunderRate).toBe(0.5);
+    // 率は内訳から導かれる
+    expect(p.conversionRate).toBe(rateOf(p.rates.conversion));
+    expect(p.resilienceRate).toBe(rateOf(p.rates.resilience));
+    expect(p.punishRate).toBe(rateOf(p.rates.punish));
+    expect(p.firstBlunderRate).toBe(rateOf(p.rates.firstBlunder));
+    // 有利: b で初めて +300 を越えた 5 手目の局面
+    expect(p.rates.conversion).toEqual([
+      expect.objectContaining({ gameId: b.id, opponent: "y", ply: 5, cp: 900, hit: true }),
+    ]);
+    expect(p.rates.conversion[0]!.sfen).toBe(b.positions[5]);
+    // 不利: a で初めて -300 を越えた 15 手目の局面で、負けた
+    expect(p.rates.resilience).toEqual([
+      expect.objectContaining({ gameId: a.id, side: "black", ply: 15, cp: -900, hit: false }),
+    ]);
+    // 咎めた: b で相手が 5 手目に大悪手。最善手は本人 (後手) が 6 手目に指すべきだった手
+    expect(p.rates.punish).toEqual([
+      expect.objectContaining({
+        gameId: b.id,
+        ply: 5,
+        by: "black",
+        played: "2h6h",
+        best: "8c8d",
+        hit: true,
+      }),
+    ]);
+    // 先に大悪手: a は本人が先 (15 手目を指す前の局面)、b は相手が先
+    const first = new Map(p.rates.firstBlunder.map((e) => [e.gameId, e] as const));
+    expect(first.get(a.id)).toMatchObject({ ply: 14, by: "black", best: "1g1f", hit: true });
+    expect(first.get(b.id)).toMatchObject({ ply: 4, by: "black", hit: false });
     expect(p.byOpening.find((o) => o.name === "四間飛車")?.games).toBe(1);
     const md = profileToMarkdown(p);
     expect(md).toContain("# taro の弱点プロファイル");
     expect(md).toContain("四間飛車");
     expect(md).not.toContain("undefined");
+  });
+
+  it("内訳が空なら率は null", () => {
+    expect(rateOf([])).toBeNull();
   });
 
   it("解析つき KIF にコメントが入る", async () => {

@@ -2,6 +2,7 @@ export type Route =
   | { kind: "list" }
   | { kind: "players" }
   | { kind: "settings" }
+  | { kind: "updates" }
   | { kind: "game"; id: string; ply?: number }
   | { kind: "player"; name: string };
 
@@ -12,6 +13,7 @@ export function parseHash(hash: string): Route {
   if (player?.[1]) return { kind: "player", name: decodeURIComponent(player[1]) };
   if (hash.startsWith("#/players")) return { kind: "players" };
   if (hash.startsWith("#/settings")) return { kind: "settings" };
+  if (hash.startsWith("#/updates")) return { kind: "updates" };
   return { kind: "list" };
 }
 

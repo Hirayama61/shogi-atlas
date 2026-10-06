@@ -65,4 +65,20 @@ test.describe("一通りの画面", () => {
     expect(manifest).toBe(200);
     expect(sw).toBe(200);
   });
+
+  test("更新情報: タブの印が開くと消える", async ({ page }) => {
+    await page.goto("#/");
+    const tab = page.getByRole("button", { name: /更新情報/ });
+    await expect(tab.getByLabel("未読の更新あり")).toBeVisible();
+    await tab.click();
+    await expect(page).toHaveURL(/#\/updates/);
+    await expect(page.getByRole("heading", { name: "更新情報" })).toBeVisible();
+    await expect(page.locator("ul.changelog > li").first()).toContainText("更新情報の画面");
+    await expect(tab.getByLabel("未読の更新あり")).toHaveCount(0);
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: /更新情報/ }).getByLabel("未読の更新あり"),
+    ).toHaveCount(0);
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
+  });
 });

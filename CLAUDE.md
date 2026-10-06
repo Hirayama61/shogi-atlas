@@ -9,6 +9,10 @@ GitHub Pages で公開し、スマホにインストールして使う。
   棋譜の実データは非公開の `Hirayama61/shogi-atlas-data` に置く。この PWA は公開サイトなので、ビルド成果物に棋譜が混ざると公衆送信になる。
 - **将棋ウォーズや第三者サイトを自動クロールするコードを書かない。** 取得は手動 (棋譜コピー → データリポジトリの Issue に貼る) が前提。
 - トークンや秘密情報をコードに埋めない。
+- **ライセンスに気をつける。** 将棋 AI やライブラリを採用・更新する前にライセンスを確認し、公開サイト (ビルド成果物) に何を含めてよいかを判断する。
+  - やねうら王 (`@mizarjp/yaneuraou.k-p`) は GPL-3.0。今は `scripts/` (Node、非公開のデータリポジトリ向け) からしか使っていない。ブラウザ側に取り込む (ビルドに wasm を含める) ならサイト全体の配布条件が GPL の影響を受けるので、先に人に確認する。
+  - tsshogi は MIT、Dexie は Apache-2.0、React / Workbox は MIT。依存を足したら `node_modules/<pkg>/package.json` の `license` を見て、GPL 系や不明なものは Issue に書いて人の判断を仰ぐ。
+  - 棋譜サイトの利用規約も同じ扱い (自動取得しないのはそのため)。
 
 ## 構成
 
@@ -17,6 +21,7 @@ GitHub Pages で公開し、スマホにインストールして使う。
 - `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。読み出し時に normalize を通す。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。
+- `src/changelog.ts` アプリ内の「更新情報」タブに出す一覧。**機能を足したら 1 件足す** (日付・見出し・1〜2 行の補足)。追加した機能だけを書き、修正・内部変更・運用の変更は書かない。新しいものを先頭に置く。未読判定は最新の日付で行う。
 - `src/core/analysis.ts` エンジン解析の型と各手の評価 (損失・勝率の減少・疑問手/悪手/大悪手)。`src/core/profile.ts` 対局者の弱点プロファイル。`src/core/annotate.ts` 解析つき KIF。
 - `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。
 - `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。

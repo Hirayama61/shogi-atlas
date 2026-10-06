@@ -64,6 +64,18 @@ nav.tabs button {
   border-radius: 999px;
   font-size: 13px;
 }
+nav.tabs button .dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #c0392b;
+  vertical-align: middle;
+}
+nav.tabs button.active .dot {
+  background: #fff;
+}
 nav.tabs button.active {
   background: var(--accent);
   border-color: var(--accent);
@@ -392,4 +404,36 @@ table.stats td:first-child {
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+}
+
+ul.changelog {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+ul.changelog > li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+ul.changelog > li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.changelog-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.changelog-head time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+ul.changelog-details {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+ul.changelog-details li {
+  margin: 2px 0;
 }

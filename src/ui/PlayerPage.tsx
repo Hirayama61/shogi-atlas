@@ -17,13 +17,21 @@ import {
   type BranchOpeningGroup,
   type BranchReview,
 } from "../core/branches";
+import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
 import { computePlayerStats, playerSide, type Bucket, type CommonPosition } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
 import { LossHelp } from "./LossHelp";
-import { fieldQuery, hashFor, navigate, type GameFilterField } from "./router";
+import {
+  fieldQuery,
+  hashFor,
+  navigate,
+  type GameFilterField,
+  type ListQuery,
+  type SideFilter,
+} from "./router";
 
 interface Props {
   name: string;
@@ -119,6 +127,130 @@ function BucketTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** これより局数が少ない行は勝率を薄く出す (母数が小さいので) */
+const FEW_GAMES = 3;
+
+interface ComboRow extends Bucket {
+  averageLoss?: number | null;
+  query?: ListQuery;
+}
+
+/**
+ * 組み合わせ分析の 1 表。初期は畳んで見出しだけ出す。`query` のある行は絞り込み済みの一覧へのリンク。
+ * `highlightLosing` なら負け越している行を目立たせる。
+ */
+function ComboTable({
+  title,
+  summary,
+  rows,
+  showLoss,
+  highlightLosing,
+}: {
+  title: string;
+  summary?: string;
+  rows: ComboRow[];
+  showLoss?: boolean;
+  highlightLosing?: boolean;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <details className="combo">
+      <summary>
+        {title} <span className="muted">· {summary ?? `${rows.length} 通り`}</span>
+      </summary>
+      <table className="stats">
+        <thead>
+          <tr>
+            <th></th>
+            <th>局</th>
+            <th>勝</th>
+            <th>敗</th>
+            <th>勝率</th>
+            {showLoss && <th>平均損失</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const route = r.query ? { kind: "list" as const, query: r.query } : undefined;
+            const classes = [
+              route ? "link" : "",
+              highlightLosing && r.losses > r.wins ? "losing" : "",
+            ].filter(Boolean);
+            return (
+              <tr
+                key={r.name}
+                className={classes.length ? classes.join(" ") : undefined}
+                onClick={route ? () => navigate(route) : undefined}
+              >
+                <td>{route ? <a href={hashFor(route)}>{r.name}</a> : r.name}</td>
+                <td>{r.games}</td>
+                <td>{r.wins}</td>
+                <td>{r.losses}</td>
+                <td className={r.games < FEW_GAMES ? "muted" : undefined}>
+                  {pct(r.wins, r.wins + r.losses)}
+                </td>
+                {showLoss && <td>{r.averageLoss ?? "-"}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+function comboQuery(
+  player: string,
+  opening: string | undefined,
+  castle: string,
+  castleSide: SideFilter,
+): ListQuery {
+  const q: ListQuery = { player, castle, castleSide };
+  if (opening) {
+    q.opening = opening;
+    q.openingSide = "self";
+  }
+  return q;
+}
+
+/** 戦法 × 囲いの組み合わせ分析。表は 4 つで、どれも畳んである */
+function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
+  const withQuery = (rows: ComboBucket[], castleSide: SideFilter): ComboRow[] =>
+    rows.map((r) => ({ ...r, query: comboQuery(name, r.first, r.second, castleSide) }));
+  const losing = combo.vsCastles.filter((r) => r.losses > r.wins).length;
+  return (
+    <div className="panel">
+      <strong>戦法 × 囲い</strong>
+      <p className="muted">
+        戦法と囲いの組み合わせごとの成績。勝率が薄い行は {FEW_GAMES} 局未満なので局数を見る。
+      </p>
+      <ComboTable
+        title="自分の戦法 × 囲い"
+        rows={withQuery(combo.openingCastle, "self")}
+        showLoss
+      />
+      <ComboTable
+        title="攻め開始時の囲い"
+        summary="最初の駒交換の直前に囲いが完成していたか"
+        rows={combo.maturity}
+      />
+      <ComboTable
+        title="自分の戦法 × 相手の囲い"
+        rows={withQuery(combo.openingVsCastle, "opponent")}
+      />
+      <ComboTable
+        title="相手の囲い別"
+        summary={`${combo.vsCastles.length} 種${losing ? ` · 負け越し ${losing}` : ""}`}
+        rows={combo.vsCastles.map((r) => ({
+          ...r,
+          query: comboQuery(name, undefined, r.name, "opponent"),
+        }))}
+        highlightLosing
+      />
     </div>
   );
 }
@@ -379,6 +511,10 @@ export function PlayerPage({ name }: Props) {
     [games, name],
   );
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
+  const combo = useMemo(() => {
+    const map = new Map((analyses ?? []).map((a) => [a.id, a] as const));
+    return computeComboStats(own, name, map);
+  }, [own, analyses, name]);
   const portfolio = useMemo(() => computePortfolio(own, name), [own, name]);
   const branchGroups = useMemo(() => {
     if (!stats || !analyses) return [];
@@ -417,6 +553,8 @@ export function PlayerPage({ name }: Props) {
         />
         <BucketTable title="持ち時間別" rows={stats.timeControls} />
       </div>
+
+      <ComboAnalysis combo={combo} name={name} />
 
       <Portfolio groups={portfolio} games={own} byId={byId} name={name} />
 

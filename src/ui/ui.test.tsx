@@ -361,6 +361,67 @@ describe("UI", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
+  it("PlayerPage: 戦法 × 囲いの表は畳まれ、行から絞り込み済みの一覧へ飛ぶ", async () => {
+    const { b } = await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("戦法 × 囲い")).toBeInTheDocument());
+    const panel = screen.getByText("戦法 × 囲い").closest(".panel") as HTMLElement;
+    const sections = Array.from(panel.querySelectorAll("details.combo")) as HTMLDetailsElement[];
+    expect(sections.map((d) => d.querySelector("summary")!.textContent)).toEqual([
+      expect.stringContaining("自分の戦法 × 囲い"),
+      expect.stringContaining("攻め開始時の囲い"),
+      expect.stringContaining("自分の戦法 × 相手の囲い"),
+      expect.stringContaining("相手の囲い別"),
+    ]);
+    for (const d of sections) expect(d.open).toBe(false);
+    // 攻め開始時の囲いは 3 局すべてを数える
+    const maturityGames = Array.from(sections[1]!.querySelectorAll("tbody tr")).reduce(
+      (n, tr) => n + Number(tr.children[1]!.textContent),
+      0,
+    );
+    expect(maturityGames).toBe(3);
+
+    const cases = [
+      [
+        sections[0]!,
+        `${b.opening.blackOpening} × ${b.opening.blackCastle}`,
+        {
+          player: "Sukonbu3",
+          opening: b.opening.blackOpening,
+          openingSide: "self",
+          castle: b.opening.blackCastle,
+          castleSide: "self",
+        },
+      ],
+      [
+        sections[2]!,
+        `${b.opening.blackOpening} × ${b.opening.whiteCastle}`,
+        {
+          player: "Sukonbu3",
+          opening: b.opening.blackOpening,
+          openingSide: "self",
+          castle: b.opening.whiteCastle,
+          castleSide: "opponent",
+        },
+      ],
+      [
+        sections[3]!,
+        b.opening.whiteCastle,
+        { player: "Sukonbu3", castle: b.opening.whiteCastle, castleSide: "opponent" },
+      ],
+    ] as const;
+    for (const [section, label, query] of cases) {
+      const link = within(section).getByRole("link", { name: label });
+      fireEvent.click(link.closest("tr")!);
+      expect(parseHash(location.hash)).toEqual({ kind: "list", query });
+    }
+    // 負け越している相手の囲いは目立たせる
+    for (const tr of sections[3]!.querySelectorAll("tbody tr")) {
+      const [, , w, l] = Array.from(tr.children).map((td) => Number(td.textContent));
+      expect(tr.classList.contains("losing")).toBe(l! > w!);
+    }
+  });
+
   it("PlayerPage: 対局が無い人", async () => {
     render(<PlayerPage name="nobody" />);
     await waitFor(() => expect(screen.getByText(/nobody の対局がありません/)).toBeInTheDocument());

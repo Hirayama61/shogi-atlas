@@ -394,6 +394,17 @@ table.stats td:first-child {
 table.stats tr.link {
   cursor: pointer;
 }
+table.stats tr.losing td:first-child {
+  color: var(--danger);
+  font-weight: 700;
+}
+.combo {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.combo > summary {
+  cursor: pointer;
+}
 
 ul.changelog {
   list-style: none;

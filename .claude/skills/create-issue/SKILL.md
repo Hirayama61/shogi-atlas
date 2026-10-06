@@ -57,4 +57,11 @@ gh api -X POST repos/Hirayama61/shogi-atlas/issues -f title="..." -F body=@<本�
 
 ユーザーが「そのまま着手して」と言ったら、作成後に `/work-issue <番号>` の手順で続ける。
 
-着手をブロックする Issue があれば、本文の「参考情報」に「#<番号> が先」と書き、`blocked` ラベルを付ける。
+着手をブロックする Issue があれば、本文の「参考情報」に「#<番号> が先」と書き、GitHub の Issue dependencies で表す (`blocked` ラベルは使わない):
+
+```sh
+ID=$(gh api repos/Hirayama61/shogi-atlas/issues/<先行の番号> --jq .id)
+gh api -X POST repos/Hirayama61/shogi-atlas/issues/<新しい番号>/dependencies/blocked_by -F issue_id=$ID
+```
+
+マイルストーンも付ける (`-F milestone=<番号>`。今は 1 = フェーズ 1: 機能改善、2 = フェーズ 2: 学習と対局)。

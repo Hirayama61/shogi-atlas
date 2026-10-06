@@ -67,7 +67,9 @@ pnpm pipeline     # 上の inbox → analyze → build-profiles を回して com
 ## Issue 駆動の運用
 
 - やりたいことは Issue にする。起案は `/create-issue` (テンプレート `.github/ISSUE_TEMPLATE/work-item.md`、承認してから作成)。
-- 状態はラベル: `ready` (着手可) → `in-progress` (作業中) → 閉じて完了。人の判断待ちは `needs-input`、止まっていれば `blocked`。
+- 状態はラベル: `ready` (着手可) → `in-progress` (作業中) → 閉じて完了。人の判断待ちは `needs-input`。
+- 先行する Issue がある場合は GitHub の Issue dependencies (blocked by) で表す (`gh api -X POST repos/Hirayama61/shogi-atlas/issues/<番号>/dependencies/blocked_by -F issue_id=<先行 Issue の id>`)。`blocked` ラベルは使わない (削除済み)。先行が閉じれば自動的に着手できる扱いになる。
+- フェーズはマイルストーンで表す。「フェーズ 1: 機能改善」が今の対象で、「フェーズ 2: 学習と対局」(#8, #11 の構想) はフェーズ 1 が閉じてから分解して着手する。
 - 領域ラベル `area:core` / `area:app` / `area:scripts` / `area:infra` / `area:data` で衝突を避ける。同じ領域の Issue を同時に 2 つ進めない。
 - 着手は `/work-issue` の手順で。1 時間おき (毎時 7 分 UTC) のルーティン「shogi-atlas Issue 作業」が専用の作業セッション (本体とデータリポジトリの両方を接続済み) を起こし、同じ手順で `ready` を 1 件ずつ拾う。
 - 会話の流れでそのまま着手してもよい。その場合も Issue を作り、`in-progress` を付けてから進める。

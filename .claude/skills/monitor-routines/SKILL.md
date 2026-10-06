@@ -63,6 +63,7 @@ gh api "$R/issues?state=open&labels=ready" --jq '.[] | "#\(.number) \(.title)"'
 
 - `in-progress` のまま 6 時間以上更新が無いものは放置。コメントを残して `in-progress` を外し、`ready` に戻す。
 - `needs-input` は人の判断待ち。運用ログに列挙する (催促しない)。
+- 先行 Issue (dependencies の blocked_by) がすべて閉じているのに `ready` が付いていない Issue は、`ready` を付けてよい (構想 Issue やフェーズ 2 のものは除く)。
 
 ## 2. 一次対応
 

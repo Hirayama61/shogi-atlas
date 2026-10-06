@@ -28,7 +28,9 @@ gh api "$R/issues?state=open&labels=in-progress&per_page=100" --jq '.[] | "#\(.n
 ```
 
 - `in-progress` の Issue が持つ `area:*` ラベルと重なる `area:*` を持つ Issue は選ばない (同じ領域を同時に触らない)。
-- `needs-input` / `blocked` は選ばない。
+- `needs-input` は選ばない。
+- 先行 Issue が open のものは選ばない: `gh api "$R/issues/$N/dependencies/blocked_by" --jq '[.[] | select(.state == "open")] | length'` が 0 でなければ飛ばす。
+- マイルストーンが「フェーズ 2」以降のものは、フェーズ 1 のマイルストーンが閉じるまで選ばない (構想 Issue は `ready` にならないので通常は候補に出ない)。
 - `in-progress` のまま 6 時間以上更新が無い Issue は放置されたとみなし、その旨をコメントして `in-progress` を外してよい (選ぶのは次回)。
 - 残った候補から、古いものを優先して 1 件選ぶ。候補が無ければ「着手できる Issue はありません」と報告して終える。
 

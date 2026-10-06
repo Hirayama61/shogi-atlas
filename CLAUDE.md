@@ -32,8 +32,9 @@ GitHub Pages で公開し、スマホにインストールして使う。
 
 棋譜ライブラリは `tsshogi` (KIF / KI2 / CSA / USI / JKF の読み書き、合法手判定)。
 
-週次の「対策レポート」は Claude のルーティン (専用セッションに毎週月曜 05:52 JST に起動) が書く。
-入力はデータリポジトリの `players/<name>/profile.md` と `analysis/*.kif`、出力は `players/<name>/report.md`。本体には何もコミットしない。
+「対策レポート」は Claude のルーティン「将棋 対策レポート (毎日)」(専用セッションに毎日 05:52 JST に起動) が書く。
+入力はデータリポジトリの `players/<name>/profile.md` と `analysis/*.kif`、出力は `players/<name>/report.md`。前回のレポート以降に対局か解析が増えた人だけ書き直し、誰も増えていなければ何もしない。本体には何もコミットしない。
+ルーティンのプロンプトはそのセッション内からしか変えられないので、運用を変えるときは `send_message` でそのセッションに伝える。
 
 ## コマンド
 

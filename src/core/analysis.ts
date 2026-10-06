@@ -21,21 +21,26 @@ export interface AnalysisRecord {
   id: string;
   engine: { name: string; depth: number };
   analyzedAt: string;
-  /** 解析したときの対局の状態。reindex で手順が変わったら解析をやり直すために持つ */
-  game?: { importedAt: string; length: number };
+  /**
+   * 解析したときの対局の状態。reindex で手順が変わったら解析をやり直すために持つ。
+   * usi は解析した手順 ("position startpos moves ...")。古いレコードには無い。
+   */
+  game?: { importedAt: string; length: number; usi?: string };
   plies: PlyEval[];
 }
 
 /**
- * 対局が解析後に更新されていれば true。
- * importedAt が変わった (reindex された) か、局面数が手数と合わなければやり直す。
+ * 解析後に対局の手順が変わっていれば true。
+ * 解析結果は手順にしか依存しないので、importedAt (reindex で戦法ラベルだけ変わっても更新される) は見ない。
+ * 局面数が手数と合わないか、解析時の手順を持っていてそれが今の手順と違えばやり直す。
  */
 export function isAnalysisStale(
-  game: { importedAt: string; length: number },
+  game: { length: number; usi?: string },
   analysis: AnalysisRecord,
 ): boolean {
   if (analysis.plies.length !== game.length + 1) return true;
-  if (analysis.game && analysis.game.importedAt !== game.importedAt) return true;
+  const usi = analysis.game?.usi;
+  if (usi !== undefined && game.usi !== undefined && usi !== game.usi) return true;
   return false;
 }
 
@@ -64,7 +69,14 @@ export function normalizeAnalysis(raw: unknown): AnalysisRecord | null {
     analyzedAt: typeof r.analyzedAt === "string" ? r.analyzedAt : "",
     plies,
   };
-  if (r.game && typeof r.game === "object") out.game = r.game;
+  if (r.game && typeof r.game === "object") {
+    const g = r.game as Partial<NonNullable<AnalysisRecord["game"]>>;
+    out.game = {
+      importedAt: typeof g.importedAt === "string" ? g.importedAt : "",
+      length: typeof g.length === "number" ? g.length : plies.length - 1,
+    };
+    if (typeof g.usi === "string") out.game.usi = g.usi;
+  }
   return out;
 }
 

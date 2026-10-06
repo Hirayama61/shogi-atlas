@@ -75,7 +75,7 @@ async function analyzeGame(engine: Engine, game: GameRecord): Promise<AnalysisRe
     id: game.id,
     engine: { name: `${engine.name} v${ANALYZER_VERSION}`, depth },
     analyzedAt: new Date().toISOString(),
-    game: { importedAt: game.importedAt, length: game.length },
+    game: { importedAt: game.importedAt, length: game.length, usi: game.usi },
     plies,
   };
 }

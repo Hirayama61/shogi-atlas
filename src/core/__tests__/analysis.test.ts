@@ -3,6 +3,7 @@ import {
   MATE_CP,
   isAnalysisStale,
   judge,
+  normalizeAnalysis,
   phaseOf,
   reviewGame,
   reviewMoves,
@@ -140,14 +141,27 @@ describe("analysis", () => {
     expect(kif).toContain("*大悪手 (損失 1000)");
   });
 
-  it("対局が更新されたら解析は古いとみなす", () => {
-    const a = { ...fakeAnalysis("x", [0, 0, 0]), game: { importedAt: "t1", length: 2 } };
-    expect(isAnalysisStale({ importedAt: "t1", length: 2 }, a)).toBe(false);
-    expect(isAnalysisStale({ importedAt: "t2", length: 2 }, a)).toBe(true);
-    expect(isAnalysisStale({ importedAt: "t1", length: 5 }, a)).toBe(true);
-    // 古い解析 (game 無し) は局面数が合っていればそのまま使う
-    expect(isAnalysisStale({ importedAt: "t9", length: 2 }, fakeAnalysis("x", [0, 0, 0]))).toBe(
-      false,
-    );
+  it("手順が変わったときだけ解析は古いとみなす", () => {
+    const usi = "position startpos moves 7g7f 3c3d";
+    const a = { ...fakeAnalysis("x", [0, 0, 0]), game: { importedAt: "t1", length: 2, usi } };
+    expect(isAnalysisStale({ length: 2, usi }, a)).toBe(false);
+    // reindex で importedAt だけ変わった (戦法ラベルの更新など) なら解析し直さない
+    const reindexed = { importedAt: "t2", length: 2, usi };
+    expect(isAnalysisStale(reindexed, a)).toBe(false);
+    // 手順が変わった・手数が変わったならやり直す
+    expect(isAnalysisStale({ length: 2, usi: "position startpos moves 2g2f 8c8d" }, a)).toBe(true);
+    expect(isAnalysisStale({ length: 5, usi }, a)).toBe(true);
+  });
+
+  it("手順を持たない古い解析は手数が合えば使う", () => {
+    const old = { ...fakeAnalysis("x", [0, 0, 0]), game: { importedAt: "t1", length: 2 } };
+    const usi = "position startpos moves 7g7f 3c3d";
+    expect(isAnalysisStale({ length: 2, usi }, old)).toBe(false);
+    expect(isAnalysisStale({ length: 3, usi: `${usi} 2g2f` }, old)).toBe(true);
+    expect(isAnalysisStale({ length: 2, usi }, fakeAnalysis("x", [0, 0, 0]))).toBe(false);
+    // normalize しても手順を持たないまま読める
+    const n = normalizeAnalysis(JSON.parse(JSON.stringify(old)))!;
+    expect(n.game).toEqual({ importedAt: "t1", length: 2 });
+    expect(isAnalysisStale({ length: 2, usi }, n)).toBe(false);
   });
 });

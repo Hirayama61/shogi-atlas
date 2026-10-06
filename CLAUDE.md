@@ -65,6 +65,7 @@ pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新
 - 会話の流れでそのまま着手してもよい。その場合も Issue を作り、`in-progress` を付けてから進める。
 - データリポジトリ (shogi-atlas-data) に触る Issue は `area:data` を付ける。ワークフローや README の変更、パーサー変更に伴う `pnpm reindex` などが該当する。作業セッションには `/home/user/shogi-atlas-data` に clone がある。無いセッションでは `add_repo` (owner: Hirayama61, repo: shogi-atlas-data, access: push) で接続してから clone する。
 - ルーティンが新規に立てるセッションにはリポジトリが接続されないので、ルーティンは必ず既存の作業セッションに向ける (persistent_session_id)。作業セッションが重くなったら新しく作り直してルーティンを付け替える。
+- 自動化の見守りは毎朝のルーティン「shogi-atlas 見守り」が `/monitor-routines` の手順で行い、結果を Issue「運用ログ」(ラベル `ops`) にコメントする。人はそこだけ見ればよい。
 
 ## 方針
 

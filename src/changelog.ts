@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-06",
+    title: "対局者ページの戦法・囲いから棋譜一覧へ",
+    details: [
+      "採用戦法・囲い・相手の戦法の行をタップすると、その対局者のその戦法の対局だけが並ぶ。",
+      "棋譜一覧と対局者一覧の文字入力の絞り込み欄は外した。",
+    ],
+  },
+  {
+    date: "2026-10-06",
     title: "更新情報の画面",
     details: ["追加した機能をここで見られる。未読があると「更新情報」タブに印が付く。"],
   },

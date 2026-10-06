@@ -35,13 +35,19 @@ export default function App() {
     <>
       <header className="app">
         <nav className="tabs">
-          {tab("list", "棋譜", route.kind === "list" || route.kind === "game")}
-          {tab("players", "対局者", route.kind === "players" || route.kind === "player")}
+          {tab("list", "棋譜", (route.kind === "list" && !route.filter) || route.kind === "game")}
+          {tab(
+            "players",
+            "対局者",
+            route.kind === "players" ||
+              route.kind === "player" ||
+              (route.kind === "list" && !!route.filter),
+          )}
           {tab("updates", "更新情報", route.kind === "updates", unseen)}
           {tab("settings", "設定", route.kind === "settings")}
         </nav>
       </header>
-      {route.kind === "list" && <GameList />}
+      {route.kind === "list" && <GameList filter={route.filter} />}
       {route.kind === "players" && <PlayerList />}
       {route.kind === "player" && <PlayerPage name={route.name} />}
       {route.kind === "settings" && <SettingsPane />}

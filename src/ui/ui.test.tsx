@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseKifu } from "../core/parse";
 import {
@@ -14,6 +14,7 @@ import { GameList } from "./GameList";
 import { GameViewer } from "./GameViewer";
 import { PlayerList } from "./PlayerList";
 import { PlayerPage } from "./PlayerPage";
+import { parseHash } from "./router";
 
 const source = { kind: "paste" as const };
 
@@ -56,7 +57,7 @@ describe("UI", () => {
     expect(document.body.textContent).not.toContain("undefined");
   });
 
-  it("GameList: 出典サービスのバッジが出て、ウォーズ/クエストで絞り込める", async () => {
+  it("GameList: 出典サービスのバッジが出て、文字入力の絞り込み欄は無い", async () => {
     await seed();
     const q = await parseKifu(QUEST_KIF_TIMEOUT, { source });
     Object.assign(q, { startedAt: "2026-04-01T00:00:00" });
@@ -65,54 +66,31 @@ describe("UI", () => {
     await waitFor(() => expect(screen.getByText(/4 \/ 4 局/)).toBeInTheDocument());
     const badges = screen.getAllByLabelText("出典").map((el) => el.textContent);
     expect(badges).toEqual(["クエスト", "ウォーズ"]);
-
-    const input = screen.getByPlaceholderText(/絞り込み/);
-    fireEvent.change(input, { target: { value: "ウォーズ" } });
-    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
-    expect(screen.getByText("☖nemushi_")).toBeInTheDocument();
-    expect(screen.queryByText("☗alice")).not.toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: "クエスト" } });
-    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
-    expect(screen.getByText("☗alice")).toBeInTheDocument();
-    expect(screen.queryByText("☖nemushi_")).not.toBeInTheDocument();
-
-    // 既存の絞り込み (対局者) はそのまま
-    fireEvent.change(input, { target: { value: "x1" } });
-    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
-    expect(screen.getByText("☖x1")).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/絞り込み/)).not.toBeInTheDocument();
   });
 
-  it("GameList: 絞り込み欄のクリアボタンで全件に戻り、戦型の選択は残る", async () => {
-    await seed();
-    render(<GameList />);
-    await waitFor(() => expect(screen.getByText(/3 \/ 3 局/)).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
-
-    const select = screen.getByRole("combobox");
-    const shape = (select.querySelectorAll("option")[1] as HTMLOptionElement).value;
-    fireEvent.change(select, { target: { value: shape } });
-    const input = screen.getByPlaceholderText(/絞り込み/);
-    fireEvent.change(input, { target: { value: "x1" } });
-    fireEvent.click(screen.getByRole("button", { name: "クリア" }));
-
-    expect(input).toHaveValue("");
-    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
-    expect(select).toHaveValue(shape);
+  it("GameList: 絞り込み条件を渡すと、その対局者のその戦法の対局だけが出る", async () => {
+    const { a, b, c } = await seed();
+    // 3 局とも Sukonbu3 が先手
+    const opening = b.opening.blackOpening;
+    render(<GameList filter={{ player: "Sukonbu3", field: "opening", value: opening }} />);
+    const expected = [a, b, c].filter((g) => g.opening.blackOpening === opening).length;
+    await waitFor(() =>
+      expect(screen.getByText(`${expected} / ${expected} 局`)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(opening)).toBeInTheDocument();
+    expect(c.opening.blackOpening).not.toBe(opening);
+    expect(screen.queryByText("☖x2")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "← Sukonbu3" }));
+    expect(location.hash).toBe("#/player/Sukonbu3");
   });
 
-  it("PlayerList: 名前の絞り込み欄にクリアボタンが出る", async () => {
+  it("PlayerList: 文字入力の絞り込み欄は無い", async () => {
     await seed();
     render(<PlayerList />);
     await waitFor(() => expect(screen.getByText("Sukonbu3")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
-    const input = screen.getByPlaceholderText("名前で絞り込み");
-    fireEvent.change(input, { target: { value: "zzz" } });
-    await waitFor(() => expect(screen.getByText("0 人")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "クリア" }));
-    expect(input).toHaveValue("");
-    await waitFor(() => expect(screen.getByText("Sukonbu3")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 
   it("GameViewer: 盤面・戦法・囲い・同じ局面の対局が出る", async () => {
@@ -144,6 +122,30 @@ describe("UI", () => {
     expect(screen.getByText("採用戦法")).toBeInTheDocument();
     expect(screen.getByText("相手の戦法別")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
+  });
+
+  it("PlayerPage: 戦法・囲い・相手の戦法の行から絞り込み済みの一覧へ飛ぶ", async () => {
+    const { b } = await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/3 局 · 1 勝 2 敗/)).toBeInTheDocument());
+    const table = (title: string) => screen.getByText(title).closest(".panel") as HTMLElement;
+    const cases = [
+      ["採用戦法", "opening", b.opening.blackOpening],
+      ["囲い", "castle", b.opening.blackCastle],
+      ["相手の戦法別", "vsOpening", b.opening.whiteOpening],
+    ] as const;
+    for (const [title, field, value] of cases) {
+      const link = within(table(title)).getByRole("link", { name: value });
+      expect(link).toHaveAttribute(
+        "href",
+        `#/player/Sukonbu3/games/${field}/${encodeURIComponent(value)}`,
+      );
+      fireEvent.click(link.closest("tr")!);
+      expect(parseHash(location.hash)).toEqual({
+        kind: "list",
+        filter: { player: "Sukonbu3", field, value },
+      });
+    }
   });
 
   it("PlayerPage: 分岐点は戦法ごとにまとまり、1 局面 1 行で閉じている", async () => {

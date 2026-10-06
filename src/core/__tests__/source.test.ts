@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseKifu } from "../parse";
-import { SERVICE_LABEL, serviceFromQuery, serviceOf } from "../source";
+import { SERVICE_LABEL, serviceOf } from "../source";
 import { QUEST_KIF_TIMEOUT, USI_SHIKEN_VS_FUNA, WARS_KIF } from "./fixtures";
 
 const source = { kind: "paste" as const };
@@ -31,21 +31,5 @@ describe("serviceOf", () => {
     expect(serviceOf(await parseKifu(WARS_KIF, { source }))).toBe("wars");
     expect(serviceOf(await parseKifu(QUEST_KIF_TIMEOUT, { source }))).toBe("quest");
     expect(serviceOf(await parseKifu(USI_SHIKEN_VS_FUNA, { source }))).toBe("other");
-  });
-});
-
-describe("serviceFromQuery", () => {
-  it("「ウォーズ」「クエスト」を含む入力をサービスに対応づける", () => {
-    expect(serviceFromQuery("ウォーズ")).toBe("wars");
-    expect(serviceFromQuery("将棋ウォーズ")).toBe("wars");
-    expect(serviceFromQuery("wars")).toBe("wars");
-    expect(serviceFromQuery("クエスト")).toBe("quest");
-    expect(serviceFromQuery("shogi quest")).toBe("quest");
-  });
-
-  it("それ以外は null", () => {
-    expect(serviceFromQuery("")).toBeNull();
-    expect(serviceFromQuery("四間飛車")).toBeNull();
-    expect(serviceFromQuery("taro")).toBeNull();
   });
 });

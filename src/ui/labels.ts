@@ -1,6 +1,8 @@
 import type { EndReason, GameRecord, GameResult, GameSummary } from "../core/types";
 import { MATE_CP } from "../core/analysis";
 import { shortOpeningLabel } from "../core/opening";
+import { playerSide } from "../core/stats";
+import type { GameFilter, GameFilterField } from "./router";
 
 export const RESULT_LABEL: Record<GameResult, string> = {
   black: "先手勝ち",
@@ -44,4 +46,30 @@ export function fmtCp(cp: number): string {
   if (cp >= MATE_CP) return "先手勝勢 (詰み)";
   if (cp <= -MATE_CP) return "後手勝勢 (詰み)";
   return cp > 0 ? `+${cp}` : `${cp}`;
+}
+
+export const FILTER_FIELD_LABEL: Record<GameFilterField, string> = {
+  opening: "採用戦法",
+  castle: "囲い",
+  vsOpening: "相手の戦法",
+};
+
+/** 対局者ページの集計 (computePlayerStats) と同じ見方で、その対局者の対局かつ該当の戦法・囲いか */
+export function matchesFilter(g: GameSummary, filter: GameFilter): boolean {
+  const side = playerSide(g, filter.player);
+  if (side === null) return false;
+  const o = g.opening;
+  const value =
+    filter.field === "opening"
+      ? side === "black"
+        ? o.blackOpening
+        : o.whiteOpening
+      : filter.field === "castle"
+        ? side === "black"
+          ? o.blackCastle
+          : o.whiteCastle
+        : side === "black"
+          ? o.whiteOpening
+          : o.blackOpening;
+  return value === filter.value;
 }

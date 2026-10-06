@@ -4,23 +4,18 @@ import { listPlayers } from "../core/stats";
 import { db } from "../db/db";
 import { formatDate } from "./labels";
 import { navigate } from "./router";
-import { SearchInput } from "./SearchInput";
 
 export function PlayerList() {
-  const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const games = useLiveQuery(() => db.games.toArray(), []);
   const players = useMemo(() => (games ? listPlayers(games) : []), [games]);
-  const filtered = players.filter(
-    (p) => (showAll || p.tracked) && (!query || p.name.toLowerCase().includes(query.toLowerCase())),
-  );
+  const filtered = players.filter((p) => showAll || p.tracked);
 
   if (!games) return <p className="muted">読み込み中…</p>;
 
   return (
     <section>
       <div className="panel row">
-        <SearchInput value={query} onChange={setQuery} placeholder="名前で絞り込み" />
         <span className="muted">{filtered.length} 人</span>
         <label className="row muted">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />

@@ -8,7 +8,7 @@ import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate } from "./labels";
 import { LossHelp } from "./LossHelp";
-import { navigate } from "./router";
+import { hashFor, navigate, type GameFilterField } from "./router";
 
 interface Props {
   name: string;
@@ -57,7 +57,18 @@ function BucketTableLoss({
   );
 }
 
-function BucketTable({ title, rows }: { title: string; rows: Bucket[] }) {
+/**
+ * 戦法・囲いの集計表。`link` を渡すと各行が、その対局者のその戦法・囲いの対局一覧へのリンクになる。
+ */
+function BucketTable({
+  title,
+  rows,
+  link,
+}: {
+  title: string;
+  rows: Bucket[];
+  link?: { player: string; field: GameFilterField };
+}) {
   if (rows.length === 0) return null;
   return (
     <div className="panel">
@@ -73,15 +84,24 @@ function BucketTable({ title, rows }: { title: string; rows: Bucket[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.name}>
-              <td>{r.name}</td>
-              <td>{r.games}</td>
-              <td>{r.wins}</td>
-              <td>{r.losses}</td>
-              <td>{pct(r.wins, r.wins + r.losses)}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const route = link
+              ? { kind: "list" as const, filter: { ...link, value: r.name } }
+              : undefined;
+            return (
+              <tr
+                key={r.name}
+                className={route ? "link" : undefined}
+                onClick={route ? () => navigate(route) : undefined}
+              >
+                <td>{route ? <a href={hashFor(route)}>{r.name}</a> : r.name}</td>
+                <td>{r.games}</td>
+                <td>{r.wins}</td>
+                <td>{r.losses}</td>
+                <td>{pct(r.wins, r.wins + r.losses)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -165,9 +185,17 @@ export function PlayerPage({ name }: Props) {
       </div>
 
       <div className="stats-grid">
-        <BucketTable title="採用戦法" rows={stats.openings} />
-        <BucketTable title="囲い" rows={stats.castles} />
-        <BucketTable title="相手の戦法別" rows={stats.vsOpenings} />
+        <BucketTable
+          title="採用戦法"
+          rows={stats.openings}
+          link={{ player: name, field: "opening" }}
+        />
+        <BucketTable title="囲い" rows={stats.castles} link={{ player: name, field: "castle" }} />
+        <BucketTable
+          title="相手の戦法別"
+          rows={stats.vsOpenings}
+          link={{ player: name, field: "vsOpening" }}
+        />
         <BucketTable title="持ち時間別" rows={stats.timeControls} />
       </div>
 

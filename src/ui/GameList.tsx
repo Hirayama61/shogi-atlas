@@ -3,47 +3,41 @@ import { useMemo, useState } from "react";
 import { db } from "../db/db";
 import type { GameShape } from "../core/types";
 import { GAME_SHAPE_LABEL } from "../core/opening";
-import { SERVICE_LABEL, serviceFromQuery, serviceOf } from "../core/source";
-import { describeGame, formatDate } from "./labels";
-import { navigate } from "./router";
-import { SearchInput } from "./SearchInput";
+import { SERVICE_LABEL, serviceOf } from "../core/source";
+import { describeGame, FILTER_FIELD_LABEL, formatDate, matchesFilter } from "./labels";
+import { navigate, type GameFilter } from "./router";
 
-export function GameList() {
-  const [query, setQuery] = useState("");
+export function GameList({ filter }: { filter?: GameFilter }) {
   const [shape, setShape] = useState<GameShape | "">("");
   const games = useLiveQuery(() => db.games.orderBy("startedAt").reverse().toArray(), []);
 
-  const filtered = useMemo(() => {
-    if (!games) return [];
-    const q = query.trim().toLowerCase();
-    const service = serviceFromQuery(q);
-    return games.filter((g) => {
-      if (shape && g.opening.shape !== shape) return false;
-      if (!q) return true;
-      return (
-        (service !== null && serviceOf(g) === service) ||
-        g.black.toLowerCase().includes(q) ||
-        g.white.toLowerCase().includes(q) ||
-        g.opening.blackOpening.includes(q) ||
-        g.opening.whiteOpening.includes(q) ||
-        g.opening.blackCastle.includes(q) ||
-        g.opening.whiteCastle.includes(q) ||
-        g.tags.some((t) => t.toLowerCase().includes(q)) ||
-        (g.memo ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [games, query, shape]);
+  const scoped = useMemo(
+    () => (games && filter ? games.filter((g) => matchesFilter(g, filter)) : games),
+    [games, filter],
+  );
+  const filtered = useMemo(
+    () => (scoped ?? []).filter((g) => !shape || g.opening.shape === shape),
+    [scoped, shape],
+  );
 
-  if (!games) return <p className="muted">読み込み中…</p>;
+  if (!games || !scoped) return <p className="muted">読み込み中…</p>;
 
   return (
     <section>
+      {filter && (
+        <div className="panel row">
+          <button
+            className="ghost"
+            onClick={() => navigate({ kind: "player", name: filter.player })}
+          >
+            ← {filter.player}
+          </button>
+          <span>
+            {FILTER_FIELD_LABEL[filter.field]}: <strong>{filter.value}</strong>
+          </span>
+        </div>
+      )}
       <div className="panel row">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="対局者・戦法・囲い・タグ・ウォーズ/クエストで絞り込み"
-        />
         <select
           value={shape}
           onChange={(e) => setShape(e.target.value as GameShape | "")}
@@ -57,10 +51,10 @@ export function GameList() {
           ))}
         </select>
         <span className="muted">
-          {filtered.length} / {games.length} 局
+          {filtered.length} / {scoped.length} 局
         </span>
       </div>
-      {games.length === 0 && (
+      {games.length === 0 && !filter && (
         <div className="panel">
           <p>まだ棋譜がありません。</p>
           <p className="muted">

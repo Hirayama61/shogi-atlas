@@ -19,9 +19,8 @@ test.describe("一通りの画面", () => {
     await page.goto("#/");
     await expect(page.locator("ul.games li")).toHaveCount(4);
     await expect(page.getByText("4 / 4 局")).toBeVisible();
-    await page.getByPlaceholder(/絞り込み/).fill("角換わり");
-    await expect(page.locator("ul.games li")).toHaveCount(1);
-    await page.locator("ul.games li").first().click();
+    await expect(page.locator('input[type="search"]')).toHaveCount(0);
+    await page.locator("ul.games li", { hasText: "角換わり" }).click();
 
     await expect(page.locator("svg.board")).toBeVisible();
     await expect(page.getByText(/角換わり · 囲い:/).first()).toBeVisible();
@@ -54,6 +53,21 @@ test.describe("一通りの画面", () => {
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/18/);
     await expect(page.getByText("18 手目")).toBeVisible();
 
+    // 採用戦法の行から、その戦法の対局一覧へ
+    await page.goto("#/player/taro");
+    await page
+      .locator(".panel", { hasText: "採用戦法" })
+      .getByRole("link", { name: "四間飛車" })
+      .click();
+    await expect(page).toHaveURL(/#\/player\/taro\/games\/opening\//);
+    await expect(page.getByText("採用戦法: 四間飛車")).toBeVisible();
+    await expect(page.locator("ul.games li")).toHaveCount(3);
+    await expect(page.getByText("3 / 3 局")).toBeVisible();
+
+    // 外した検索ルートで開いてもトップの一覧になる
+    await page.goto("#/search");
+    await expect(page.locator("ul.games li")).toHaveCount(4);
+
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
     expect(await page.locator("body").textContent()).not.toContain("undefined");
   });
@@ -73,7 +87,9 @@ test.describe("一通りの画面", () => {
     await tab.click();
     await expect(page).toHaveURL(/#\/updates/);
     await expect(page.getByRole("heading", { name: "更新情報" })).toBeVisible();
-    await expect(page.locator("ul.changelog > li").first()).toContainText("更新情報の画面");
+    await expect(page.locator("ul.changelog > li").first()).toContainText(
+      "対局者ページの戦法・囲いから棋譜一覧へ",
+    );
     await expect(tab.getByLabel("未読の更新あり")).toHaveCount(0);
     await page.reload();
     await expect(

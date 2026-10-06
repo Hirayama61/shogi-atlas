@@ -8,7 +8,7 @@
 #   GITHUB_TOKEN  Issue の読み書きができるトークン (必須。受信箱処理が使う)
 #   MAX_GAMES     1 回で解析する最大局数 (既定: 20)
 #   TIME_BUDGET   解析の目安時間 (秒)。超えたら新しい対局を始めない (既定: 3000 = 50 分)。エンジンは 1 本で 4 コアを使い切るので並列にはしない
-#   DEPTH, ONLY   scripts/analyze.ts にそのまま渡す
+#   DEPTH, ONLY, MOVE_TIME_LIMIT   scripts/analyze.ts にそのまま渡す (MOVE_TIME_LIMIT は 1 局面の探索時間の上限 (秒)、既定 20)
 #   SKIP_PUSH     1 なら commit まで行い push しない (動作確認用)
 set -euo pipefail
 cd "$(dirname "$0")/.."

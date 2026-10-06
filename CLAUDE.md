@@ -46,7 +46,7 @@ pnpm test:coverage
 pnpm build        # tsc + vite build (dist/)
 pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
 pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
-pnpm analyze      # エンジン解析 (DATA_DIR, DEPTH, MAX_GAMES, ONLY)
+pnpm analyze      # エンジン解析 (DATA_DIR, DEPTH, MAX_GAMES, ONLY, MOVE_TIME_LIMIT)
 pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新 (DATA_DIR)
 pnpm pipeline     # 上の inbox → analyze → build-profiles を回して commit と push まで (DATA_DIR, GITHUB_TOKEN。MAX_GAMES, TIME_BUDGET, SKIP_PUSH で調整)
 ```

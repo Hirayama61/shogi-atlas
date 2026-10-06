@@ -21,6 +21,8 @@ export interface SearchResult {
   bestmove: string;
   pv: string[];
   depth: number;
+  /** 時間上限で探索を打ち切った (depth は到達した深さ) */
+  stopped: boolean;
 }
 
 export class Engine {
@@ -65,16 +67,32 @@ export class Engine {
     });
   }
 
-  /** 局面を深さ指定で探索する。usi は "position ..." の形。 */
-  async analyze(positionUsi: string, depth: number): Promise<SearchResult> {
+  /**
+   * 局面を深さ指定で探索する。usi は "position ..." の形。
+   * timeLimitMs を超えても bestmove が返らなければ stop を送り、それまでの最善手と評価値で打ち切る
+   * (探索が広がる局面で 1 局面に数十分かかるのを防ぐ)。0 以下なら上限なし。
+   */
+  async analyze(positionUsi: string, depth: number, timeLimitMs = 0): Promise<SearchResult> {
     this.lines = [];
     this.post(positionUsi);
+    let stopped = false;
+    let finished = false;
+    const timer =
+      timeLimitMs > 0
+        ? setTimeout(() => {
+            if (finished) return;
+            stopped = true;
+            this.post("stop");
+          }, timeLimitMs)
+        : undefined;
     const best = await this.send(`go depth ${depth}`, "bestmove");
+    finished = true;
+    if (timer) clearTimeout(timer);
     const bestmove = best.split(/\s+/)[1] ?? "resign";
     const info = this.lines
       .filter((l) => l.startsWith("info") && / score /.test(l) && !/ (lower|upper)bound/.test(l))
       .pop();
-    const result: SearchResult = { cp: null, mate: null, bestmove, pv: [], depth: 0 };
+    const result: SearchResult = { cp: null, mate: null, bestmove, pv: [], depth: 0, stopped };
     if (info) {
       const m = /depth (\d+).*? score (cp|mate) (-?\d+)(?: .*? pv (.+))?$/.exec(info);
       if (m) {

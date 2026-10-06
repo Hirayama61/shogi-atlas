@@ -14,6 +14,8 @@ export interface PlyEval {
   best?: string;
   /** 読み筋 (USI)。先頭が best */
   pv?: string[];
+  /** 到達した深さ。1 局面の時間上限で探索を打ち切った局面だけ記録する (無ければ engine.depth まで読んだ) */
+  depth?: number;
 }
 
 export interface AnalysisRecord {

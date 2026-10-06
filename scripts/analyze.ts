@@ -7,6 +7,7 @@
  *   THREADS       スレッド数 (既定: CPU 数、最大 4)
  *   MAX_GAMES     1 回の実行で解析する最大局数 (既定: 20)
  *   TIME_BUDGET   1 回の実行の目安時間 (秒)。超えたら新しい対局を始めない (既定: 5400)
+ *   MOVE_TIME_LIMIT 1 局面の探索時間の上限 (秒)。超えたら stop で打ち切り、到達した深さを plies[].depth に残す (既定: 20、0 で無制限)
  *   ONLY          対局者名。指定するとその人の対局だけを優先する
  */
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -28,6 +29,7 @@ const dataDir = path.resolve(process.env.DATA_DIR ?? "../shogi-atlas-data");
 const depth = Number(process.env.DEPTH ?? 14);
 const maxGames = Number(process.env.MAX_GAMES ?? 20);
 const timeBudget = Number(process.env.TIME_BUDGET ?? 5400) * 1000;
+const moveTimeLimit = Number(process.env.MOVE_TIME_LIMIT ?? 20) * 1000;
 const only = process.env.ONLY;
 
 export const ANALYZER_VERSION = 1;
@@ -50,27 +52,35 @@ function toBlackCp(
   return result;
 }
 
-async function analyzeGame(engine: Engine, game: GameRecord): Promise<AnalysisRecord> {
+async function analyzeGame(
+  engine: Engine,
+  game: GameRecord,
+): Promise<{ analysis: AnalysisRecord; stopped: number }> {
   const moves = game.usi
     .replace(/^position startpos( moves)?\s*/, "")
     .split(/\s+/)
     .filter(Boolean);
   const plies: PlyEval[] = [];
+  let stopped = 0;
   for (let ply = 0; ply <= moves.length; ply++) {
     const usi =
       ply === 0 ? "position startpos" : `position startpos moves ${moves.slice(0, ply).join(" ")}`;
-    const r = await engine.analyze(usi, depth);
+    const r = await engine.analyze(usi, depth, moveTimeLimit);
     const blackToMove = ply % 2 === 0;
     const { cp, mate } = toBlackCp(r.cp, r.mate, blackToMove);
     const entry: PlyEval = { ply, cp };
     if (mate !== undefined) entry.mate = mate;
+    if (r.stopped) {
+      stopped++;
+      entry.depth = r.depth;
+    }
     if (r.bestmove && r.bestmove !== "resign" && r.bestmove !== "win") {
       entry.best = r.bestmove;
       if (r.pv.length) entry.pv = r.pv.slice(0, 8);
     }
     plies.push(entry);
   }
-  return {
+  const analysis: AnalysisRecord = {
     schema: 1,
     id: game.id,
     engine: { name: `${engine.name} v${ANALYZER_VERSION}`, depth },
@@ -78,6 +88,7 @@ async function analyzeGame(engine: Engine, game: GameRecord): Promise<AnalysisRe
     game: { importedAt: game.importedAt, length: game.length, usi: game.usi },
     plies,
   };
+  return { analysis, stopped };
 }
 
 async function main(): Promise<void> {
@@ -112,6 +123,7 @@ async function main(): Promise<void> {
   const engine = await Engine.create();
   const started = Date.now();
   let done = 0;
+  let stoppedTotal = 0;
   try {
     for (const game of pending) {
       if (Date.now() - started > timeBudget) {
@@ -119,18 +131,24 @@ async function main(): Promise<void> {
         break;
       }
       const t = Date.now();
-      const analysis = await analyzeGame(engine, game);
+      const { analysis, stopped } = await analyzeGame(engine, game);
+      stoppedTotal += stopped;
       await writeFile(path.join(outDir, `${game.id}.json`), JSON.stringify(analysis) + "\n");
       await writeFile(path.join(outDir, `${game.id}.kif`), annotatedKif(game, analysis));
       done++;
       console.log(
-        `${game.id} ☗${game.black} vs ☖${game.white} ${game.length}手: ${Math.round((Date.now() - t) / 1000)}s`,
+        `${game.id} ☗${game.black} vs ☖${game.white} ${game.length}手: ${Math.round((Date.now() - t) / 1000)}s` +
+          (stopped ? ` (打ち切り ${stopped} 局面)` : ""),
       );
     }
   } finally {
     engine.quit();
   }
-  console.log(`解析完了: ${done} 局 (${Math.round((Date.now() - started) / 1000)}s)`);
+  console.log(
+    `解析完了: ${done} 局 (${Math.round((Date.now() - started) / 1000)}s` +
+      (stoppedTotal ? `, 時間上限で打ち切った局面 ${stoppedTotal}` : "") +
+      ")",
+  );
 }
 
 main().catch((e) => {

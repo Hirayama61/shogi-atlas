@@ -4,7 +4,7 @@ import type { GameRecord, GameSummary, OpeningInfo } from "./types";
  * 解析ロジックの版。戦法判定などを変えたら上げる。
  * アプリ側はこれが違うデータを「古い」とみなして取り直し、reindex はこれを書き込む。
  */
-export const PARSER_VERSION = 4;
+export const PARSER_VERSION = 5;
 
 export const UNKNOWN_LABEL = "不明";
 

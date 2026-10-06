@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { parseKifu } from "../parse";
 import { shortOpeningLabel } from "../opening";
 import {
+  USI_AIGAKARI_LATE_KAKU,
   USI_ANAGUMA_VS_SHIKEN,
+  USI_HAYAISHIDA,
+  USI_KAKU_SHIKEN,
   USI_KAKUGAWARI,
   USI_MIGIGYOKU,
   USI_NO_CASTLE,
+  USI_SHIKEN_LATE_KAKU,
   USI_SHIKEN_VS_FUNA,
   USI_YOKOFU,
 } from "./fixtures";
@@ -31,6 +35,35 @@ describe("classifyOpening", () => {
     expect(g.opening.blackOpening).toBe("角換わり");
     expect(g.opening.whiteOpening).toBe("角換わり");
     expect(shortOpeningLabel(g.opening)).toBe("角換わり");
+  });
+
+  it("仕掛けのあとの角交換では 角交換四間飛車 にしない", async () => {
+    const g = await parseKifu(USI_SHIKEN_LATE_KAKU, { source });
+    expect(g.length).toBe(26);
+    expect(g.opening.blackOpening).toBe("四間飛車");
+    expect(g.opening.whiteOpening).toBe("居飛車");
+  });
+
+  it("序盤に角交換してから振れば 角交換四間飛車", async () => {
+    const g = await parseKifu(USI_KAKU_SHIKEN, { source });
+    expect(g.length).toBe(18);
+    expect(g.opening.blackOpening).toBe("角交換四間飛車");
+    expect(shortOpeningLabel(g.opening)).toBe("☗角交換四間飛車");
+  });
+
+  it("相居飛車で仕掛けのあとに角交換しても 角換わり にしない", async () => {
+    const g = await parseKifu(USI_AIGAKARI_LATE_KAKU, { source });
+    expect(g.length).toBe(20);
+    expect(g.opening.shape).toBe("aiIbisha");
+    expect(g.opening.blackOpening).toBe("相掛かり");
+    expect(g.opening.whiteOpening).toBe("相掛かり");
+  });
+
+  it("8 手目以内に 7五歩 の三間飛車は 早石田 (角交換の接頭辞は付けない)", async () => {
+    const g = await parseKifu(USI_HAYAISHIDA, { source });
+    expect(g.length).toBe(16);
+    expect(g.opening.blackOpening).toBe("早石田");
+    expect(shortOpeningLabel(g.opening)).toBe("☗早石田");
   });
 
   it("横歩取り", async () => {

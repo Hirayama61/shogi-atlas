@@ -88,6 +88,22 @@ export const USI_SHIKEN_VS_FUNA =
 export const USI_KAKUGAWARI =
   "position startpos moves 7g7f 8c8d 2g2f 4a3b 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i4h 7a6b 6i7h 6a5b";
 
+/** ☗四間飛車: 6筋の歩交換 (20 手目が最初の駒交換) のあとで角交換になる。角交換型ではない */
+export const USI_SHIKEN_LATE_KAKU =
+  "position startpos moves 7g7f 8c8d 6g6f 3c3d 2h6h 8d8e 8h7g 7a6b 5i4h 5a4b 4h3h 4b3b 3h2h 6a5b 3i3h 5c5d 6f6e 1c1d 6e6d 6c6d 6h6d P*6c 6d6h 9c9d 7g2b+ 3a2b";
+
+/** ☗角交換四間飛車: 3 手目に角交換してから四間に振る */
+export const USI_KAKU_SHIKEN =
+  "position startpos moves 7g7f 3c3d 8h2b+ 3a2b 2h6h 8c8d 5i4h 8d8e 4h3h 5a4b 3h2h 4b3b 3i3h 7a6b 7i7h 6a5b 1g1f 1c1d";
+
+/** 相掛かり: 飛車先の歩交換 (8 手目が最初の駒交換) のあとで角交換になる。角換わりではない */
+export const USI_AIGAKARI_LATE_KAKU =
+  "position startpos moves 2g2f 8c8d 2f2e 8d8e 6i7h 4a3b 2e2d 2c2d 2h2d P*2c 2d2f 8e8f 8g8f 8b8f P*8g 8f8d 7g7f 3c3d 8h2b+ 3a2b";
+
+/** ☗早石田: 3 手目に 7五歩、5 手目に 7八飛。8 手目に角交換になる */
+export const USI_HAYAISHIDA =
+  "position startpos moves 7g7f 3c3d 7f7e 8c8d 2h7h 8d8e 5i4h 2b8h+ 7i8h 3a2b 4h3h 5a4b 3h2h 4b3b 3i3h 7a6b";
+
 /** 横歩取り (相居飛車) */
 export const USI_YOKOFU =
   "position startpos moves 7g7f 3c3d 2g2f 8c8d 2f2e 8d8e 6i7h 4a3b 2e2d 2c2d 2h2d 8e8f 8g8f 8b8f 2d3d 2b3c";

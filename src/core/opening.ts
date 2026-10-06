@@ -1,4 +1,13 @@
-import { bishopsOnBoard, fileOf, has, inHand, mirror, toBoardView, type BoardView } from "./board";
+import {
+  bishopsOnBoard,
+  fileOf,
+  firstCapturePly,
+  has,
+  inHand,
+  mirror,
+  toBoardView,
+  type BoardView,
+} from "./board";
 import { detectCastle, fallbackCastleLabel } from "./castle";
 import type { GameShape, OpeningInfo, SideStyle } from "./types";
 
@@ -6,6 +15,8 @@ import type { GameShape, OpeningInfo, SideStyle } from "./types";
 const OPENING_PLIES = 40;
 /** 囲い判定に使う最大手数 (囲いは戦法より遅れて完成する) */
 const CASTLE_PLIES = 80;
+/** 7五歩をこの手数以内に突いた三間飛車は早石田 (自分の 4 手目まで) */
+const HAYAISHIDA_PLIES = 8;
 /** これより短い対局は判定しない */
 const MIN_PLIES_FOR_JUDGE = 12;
 
@@ -17,7 +28,7 @@ interface SideFeatures {
   rookFile: number | null;
   /** 振り飛車として採用した筋 (5=中飛車 6=四間 7=三間 8=向かい) */
   furiFile: number | null;
-  /** 序盤 40 手以内に角交換が成立したか */
+  /** 角交換型か (対局の最初の駒交換が角交換)。仕掛けの途中で起きた角交換は含めない */
   bishopExchange: boolean;
   /** 横歩を取ったか (飛車が 3四 に来たか) */
   yokofu: boolean;
@@ -25,27 +36,50 @@ interface SideFeatures {
   rookPawnAdvanced: boolean;
   /** 石田流 (三間飛車 + 7五歩) */
   ishida: boolean;
+  /** 早石田 (三間飛車 + 8 手目以内に 7五歩) */
+  hayaishida: boolean;
   castle: string;
 }
 
+/**
+ * 角交換型か: 序盤の最初の駒交換が角交換 (最初に取られた駒が角で、直後に角を取り返して両者が角を持つ)。
+ * 仕掛けの結果として後から起きた角交換は戦法の選択ではないので含めない。
+ */
+function isBishopExchangeOpening(positions: string[], views: BoardView[]): boolean {
+  const ply = firstCapturePly(positions);
+  if (ply === null || ply + 1 > OPENING_PLIES) return false;
+  const before = views[ply - 1];
+  const taken = views[ply];
+  const retaken = views[ply + 1];
+  if (!before || !taken || !retaken) return false;
+  return (
+    bishopsOnBoard(taken) < bishopsOnBoard(before) &&
+    bishopsOnBoard(retaken) === 0 &&
+    inHand(retaken, "B") &&
+    inHand(retaken, "b")
+  );
+}
+
 /** 先手視点に揃えた局面列から片側の特徴を取る */
-function sideFeatures(views: BoardView[]): SideFeatures {
+function sideFeatures(views: BoardView[], bishopExchange: boolean): SideFeatures {
   const plies = Math.min(views.length - 1, OPENING_PLIES);
   const fileCount = new Map<number, number>();
-  let bishopExchange = false;
   let yokofu = false;
   let rookPawnAdvanced = false;
   let pawn75 = false;
+  let earlyPawn75 = false;
 
   for (let ply = 1; ply <= plies; ply++) {
     const v = views[ply];
     if (!v) continue;
     const f = fileOf(v, "R");
     if (f !== null) fileCount.set(f, (fileCount.get(f) ?? 0) + 1);
-    if (bishopsOnBoard(v) === 0 && inHand(v, "B") && inHand(v, "b")) bishopExchange = true;
     if (has(v, 3, 4, "R")) yokofu = true;
     if (ply <= 20 && has(v, 2, 5, "P")) rookPawnAdvanced = true;
-    if (has(v, 7, 5, "P")) pawn75 = true;
+    if (has(v, 7, 5, "P")) {
+      pawn75 = true;
+      if (ply <= HAYAISHIDA_PLIES) earlyPawn75 = true;
+    }
   }
 
   // 振り飛車の筋: 5 筋以上に居た手数が最も多い筋
@@ -81,6 +115,7 @@ function sideFeatures(views: BoardView[]): SideFeatures {
     yokofu,
     rookPawnAdvanced,
     ishida: furiFile === 7 && pawn75,
+    hayaishida: furiFile === 7 && earlyPawn75,
     castle: castleName,
   };
 }
@@ -94,6 +129,8 @@ const FURI_NAME: Record<number, string> = {
 };
 
 function furibishaName(f: SideFeatures): string {
+  // 早石田の角交換は仕掛けの一部なので「角交換」を付けない
+  if (f.hayaishida) return "早石田";
   const base = f.ishida ? "石田流三間飛車" : (FURI_NAME[f.furiFile ?? 0] ?? "振り飛車");
   return f.bishopExchange ? `角交換${base}` : base;
 }
@@ -119,8 +156,9 @@ function ibishaName(self: SideFeatures, opponent: SideFeatures, bothIbisha: bool
 export function classifyOpening(positions: string[]): OpeningInfo {
   const blackViews = positions.map(toBoardView);
   const whiteViews = blackViews.map(mirror);
-  const black = sideFeatures(blackViews);
-  const white = sideFeatures(whiteViews);
+  const bishopExchange = isBishopExchangeOpening(positions, blackViews);
+  const black = sideFeatures(blackViews, bishopExchange);
+  const white = sideFeatures(whiteViews, bishopExchange);
 
   const info: OpeningInfo = {
     black: black.style,

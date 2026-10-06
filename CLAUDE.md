@@ -18,8 +18,10 @@ GitHub Pages で公開し、スマホにインストールして使う。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。
 - `src/core/analysis.ts` エンジン解析の型と各手の評価 (損失・勝率の減少・疑問手/悪手/大悪手)。`src/core/profile.ts` 対局者の弱点プロファイル。`src/core/annotate.ts` 解析つき KIF。
-- `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。データリポジトリ側の `analyze.yml` から毎日呼ばれる。
-- `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。データリポジトリ側の GitHub Actions から呼ばれる。
+- `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。
+- `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。
+- `scripts/pipeline.sh` (`pnpm pipeline`) 上の 3 つを pull → 受信箱 → 解析 → プロファイル → commit → push の順に 1 本で回す。Claude のルーティン「shogi-atlas 取り込み・解析 (2時間おき)」が、本体とデータリポジトリを接続した専用セッション「棋譜データ取り込みルーティン」で 2 時間おきに実行する。1 回の解析は 10 局・25 分まで (`MAX_GAMES`, `TIME_BUDGET`)。
+  データリポジトリの `process-inbox.yml` と `analyze.yml` は定期実行せず、手動実行の予備としてだけ残す。データリポジトリは private なので Actions の実行時間は無料枠を消費する。定期処理を Actions に戻さない。
   運用は「対局者ごとに Issue を 1 本、タイトル = 対局者名、コメントに棋譜を貼る」。処理済みは `inbox-state.json` で管理し、Issue は閉じない。
   棋譜の取り込み経路はこれだけ。アプリ側に貼り付け取り込みは置かない (Issue 指定やラベル付けが不便なため外した)。
 
@@ -40,6 +42,7 @@ pnpm inbox        # Issue 受信箱の処理 (GITHUB_TOKEN, DATA_DIR が必要)
 pnpm reindex      # パーサー改良後に games/*.json を raw から解析し直す (DATA_DIR が必要)
 pnpm analyze      # エンジン解析 (DATA_DIR, DEPTH, MAX_GAMES, ONLY)
 pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新 (DATA_DIR)
+pnpm pipeline     # 上の inbox → analyze → build-profiles を回して commit と push まで (DATA_DIR, GITHUB_TOKEN。MAX_GAMES, TIME_BUDGET, SKIP_PUSH で調整)
 ```
 
 変更したら `pnpm check` を通してからコミットする。画面や同期に触ったら `pnpm build && pnpm e2e` も。CI は両方走る。
@@ -66,6 +69,7 @@ pnpm build-profiles  # 弱点プロファイルと analysis/index.json を更新
 - データリポジトリ (shogi-atlas-data) に触る Issue は `area:data` を付ける。ワークフローや README の変更、パーサー変更に伴う `pnpm reindex` などが該当する。作業セッションには `/home/user/shogi-atlas-data` に clone がある。無いセッションでは `add_repo` (owner: Hirayama61, repo: shogi-atlas-data, access: push) で接続してから clone する。
 - ルーティンが新規に立てるセッションにはリポジトリが接続されないので、ルーティンは必ず既存の作業セッションに向ける (persistent_session_id)。作業セッションが重くなったら新しく作り直してルーティンを付け替える。
 - 自動化の見守りは毎朝のルーティン「shogi-atlas 見守り」が `/monitor-routines` の手順で行い、結果を Issue「運用ログ」(ラベル `ops`) にコメントする。人はそこだけ見ればよい。
+- 棋譜の取り込みと解析はルーティン「shogi-atlas 取り込み・解析 (2時間おき)」が専用セッションで `pnpm pipeline` を回す。すぐ取り込みたいときは claude.ai の Routines からそのルーティンを手動実行する。
 
 ## 方針
 

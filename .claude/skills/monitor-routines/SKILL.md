@@ -1,6 +1,6 @@
 ---
 name: monitor-routines
-description: shogi-atlas の自動化 (Issue 作業の作業セッション、対策レポート、データリポジトリの GitHub Actions) を点検し、止まっているものを直し、結果を「運用ログ」Issue に記録する。毎朝のルーティンが使う。
+description: shogi-atlas の自動化 (Issue 作業の作業セッション、棋譜の取り込み・解析、対策レポート、データリポジトリの GitHub Actions) を点検し、止まっているものを直し、結果を「運用ログ」Issue に記録する。毎朝のルーティンが使う。
 ---
 
 # monitor-routines
@@ -12,9 +12,10 @@ GitHub の操作は `gh api` (REST)。セッションとルーティンの操作
 
 ### a. ルーティンと作業セッション
 
-`list_triggers` で次の 2 本を確認する。
+`list_triggers` で次の 3 本を確認する。
 
 - 「shogi-atlas Issue 作業 (2時間おき)」
+- 「shogi-atlas 取り込み・解析 (2時間おき)」(専用セッション「棋譜データ取り込みルーティン」で `pnpm pipeline` を回す)
 - 「将棋 対策レポート (週次)」
 
 それぞれについて:
@@ -24,6 +25,14 @@ GitHub の操作は `gh api` (REST)。セッションとルーティンの操作
   - `status_bucket` が FAILED、または `list_events` (kinds: result) の最新が `is_error` なら異常。
   - `used_tokens` が 700,000 を超えていたら「作り直し時期」。
 - 作業セッションの直近の結果 (`list_events` kinds: result, 最新 1 件の `result` 文) を読み、「push 権限が無い」「候補なし」「needs-input」のどれで終わったかを把握する。
+- 取り込み・解析セッションの直近の結果を読み、「完了」「変更なし」「失敗 (理由)」のどれで終わったかを把握する。あわせてデータリポジトリの最新コミットを見る:
+
+  ```sh
+  D=repos/Hirayama61/shogi-atlas-data
+  gh api "$D/commits?per_page=5" --jq '.[] | "\(.commit.committer.date) \(.commit.message | split("\n")[0])"'
+  ```
+
+  直近 24 時間に `inbox:` か `analysis:` のコミットが 1 つも無く、セッションの結果が「変更なし」でもないなら「取り込みが止まっている」。
 
 ### b. GitHub Actions (データリポジトリ)
 
@@ -32,8 +41,8 @@ D=repos/Hirayama61/shogi-atlas-data
 gh api "$D/actions/runs?per_page=20" --jq '.workflow_runs[] | "\(.created_at) \(.name) [\(.event)] \(.status) \(.conclusion)"'
 ```
 
-- `Process kifu inbox` は毎日 05:00 JST、`Engine analysis` は 05:30 JST に `schedule` で動くはず。直近 24 時間に schedule の実行が無ければ「定期実行が飛んだ」。
-- conclusion が failure のものがあれば異常。`gh api "$D/actions/runs/<id>/jobs"` で失敗ステップを見る (ログ本文は取れないことがある)。
+- `Process kifu inbox` と `Engine analysis` は定期実行しない (取り込みと解析はルーティンが行う)。`schedule` の実行が現れていたらワークフローに `schedule` が戻っているので異常 (private リポジトリの無料枠を消費する)。
+- 手動実行 (`workflow_dispatch`) の conclusion が failure のものがあれば異常。`gh api "$D/actions/runs/<id>/jobs"` で失敗ステップを見る (ログ本文は取れないことがある)。
 
 ### c. 本体の CI
 
@@ -57,10 +66,11 @@ gh api "$R/issues?state=open&labels=ready" --jq '.[] | "#\(.number) \(.title)"'
 
 ## 2. 一次対応
 
-- **定期実行が飛んだ**: `gh api -X POST "$D/actions/workflows/<file>/dispatches" -f ref=main` で手動起動する。3 日続けて飛ぶなら、ワークフローの `schedule` に時刻をもう 1 本足す Issue (`area:data`, `ready`) を起案する。
+- **取り込みが止まっている**: 取り込み・解析のルーティンを `fire_trigger` で 1 回起動する。それでもコミットが増えなければ、予備として `gh api -X POST "$D/actions/workflows/process-inbox.yml/dispatches" -f ref=main` で受信箱だけ手動起動し (`analyze.yml` は長く走って無料枠を使うので起動しない)、運用ログに「要確認」として書く。
+- **ワークフローに `schedule` が戻っている**: 外す Issue (`area:data`, `ready`) を起案する。
 - **Actions が失敗**: 原因がデータ (壊れた棋譜など) なら該当 Issue のコメントに書き、コードなら `ready` の Issue を起案する。同じ原因で 2 回目なら Issue の冒頭にその旨を書く。
 - **ルーティンの last_run が FAILED / セッションが FAILED**: `fire_trigger` で 1 回再実行する。再実行も失敗したら運用ログに「要確認」として書く。
-- **作業セッションが「push 権限が無い」で終わっていた**: セッションにリポジトリが接続されていない。`create_session` (source_url: https://github.com/Hirayama61/shogi-atlas, revision main, outcome_branch main, permission_mode auto) で作業セッションを作り直し、初回プロンプトで `add_repo` によるデータリポジトリ接続を指示し、`delete_trigger` → `create_trigger` (persistent_session_id を新セッションに) で付け替える。対策レポートの作業セッションも同様 (source_url はデータリポジトリ)。
+- **作業セッションが「push 権限が無い」で終わっていた**: セッションにリポジトリが接続されていない。`create_session` (source_url: https://github.com/Hirayama61/shogi-atlas, revision main, outcome_branch main, permission_mode auto) で作業セッションを作り直し、初回プロンプトで `add_repo` によるデータリポジトリ接続を指示し、`delete_trigger` → `create_trigger` (persistent_session_id を新セッションに) で付け替える。対策レポートの作業セッションも同様 (source_url はデータリポジトリ)。取り込み・解析のセッションも同様 (source_url は本体。初回プロンプトで `add_repo` によるデータリポジトリ接続と `/home/user/shogi-atlas-data` への clone を指示する)。
 - **used_tokens が 700,000 超**: 上と同じ手順で作り直して付け替える (壊れていなくても)。
 - **本体 CI が失敗**: `ready` の Issue を起案する (`area:infra` か失敗箇所の領域)。直前のコミットが分かるならそのコミット ID を本文に書く。
 - **Issue の放置**: 上記のとおり `ready` に戻す。
@@ -81,8 +91,9 @@ gh api -X POST "$R/issues/$N/comments" -F body=@<ファイル>
 ```
 ## YYYY-MM-DD 点検
 - 作業セッション: 正常 / 異常 (直近: #N 完了 / 候補なし / needs-input)
+- 取り込み・解析: 正常 / 異常 (直近のコミット M/D HH:MM、解析済み N 局)
 - 対策レポート: 正常 / 次回 M/D
-- Actions: 受信箱 ○ / 解析 ○ (解析済み N 局)
+- Actions: 手動実行の失敗なし / 失敗あり
 - 対応したこと: ... (無ければ「なし」)
 - 要確認: ... (無ければ書かない)
 ```

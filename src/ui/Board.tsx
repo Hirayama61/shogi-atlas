@@ -1,4 +1,5 @@
 import { parseBoardSfen } from "../core/position";
+import type { Side } from "../core/stats";
 
 const GLYPH: Record<string, string> = {
   P: "歩",
@@ -32,6 +33,12 @@ interface Props {
   lastMoveUsi?: string;
   /** 後手側から見た向きにする */
   flipped?: boolean;
+  /** 先手の対局者 (名前・段位など)。渡すと盤の上下に出す */
+  black?: string;
+  /** 後手の対局者 */
+  white?: string;
+  /** 本人 (登録した対局者) の側。名前を強調する */
+  tracked?: Side | null;
 }
 
 function parseHand(hand: string): Array<{ piece: string; count: number; black: boolean }> {
@@ -53,25 +60,43 @@ function parseHand(hand: string): Array<{ piece: string; count: number; black: b
   return out;
 }
 
-function HandRow({ hand, black }: { hand: string; black: boolean }) {
+interface SideRowProps {
+  hand: string;
+  black: boolean;
+  name?: string;
+  toMove: boolean;
+  tracked: boolean;
+}
+
+/** 盤の上下に出す 1 行: 先後の印・対局者名・手番・持ち駒 */
+function SideRow({ hand, black, name, toMove, tracked }: SideRowProps) {
   const pieces = parseHand(hand)
     .filter((p) => p.black === black)
     .sort((a, b) => HAND_ORDER.indexOf(a.piece) - HAND_ORDER.indexOf(b.piece));
+  const side = black ? "先手" : "後手";
   return (
-    <div className="hand" aria-label={black ? "先手の持ち駒" : "後手の持ち駒"}>
-      <span className="muted">{black ? "☗" : "☖"}</span>
-      {pieces.length === 0 && <span className="muted">なし</span>}
-      {pieces.map((p) => (
-        <span key={p.piece} className="piece">
-          {GLYPH[p.piece]}
-          {p.count > 1 ? p.count : ""}
+    <div className={`side-row${toMove ? " to-move" : ""}`} aria-label={side}>
+      <div className="side-name">
+        <span className={tracked ? "player tracked" : "player"}>
+          {black ? "☗" : "☖"}
+          {name ? ` ${name}` : ""}
         </span>
-      ))}
+        {toMove && <span className="turn-badge">手番</span>}
+      </div>
+      <div className="hand" aria-label={`${side}の持ち駒`}>
+        {pieces.length === 0 && <span className="muted">持ち駒なし</span>}
+        {pieces.map((p) => (
+          <span key={p.piece} className="piece">
+            {GLYPH[p.piece]}
+            {p.count > 1 ? p.count : ""}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-export function Board({ sfen, lastMoveUsi, flipped = false }: Props) {
+export function Board({ sfen, lastMoveUsi, flipped = false, black, white, tracked }: Props) {
   const [boardPart = "", turn = "b", handPart = "-"] = sfen.trim().split(/\s+/);
   const pieces = parseBoardSfen(boardPart);
   const target = lastMoveUsi ? lastMoveUsi.slice(2, 4) : "";
@@ -80,10 +105,20 @@ export function Board({ sfen, lastMoveUsi, flipped = false }: Props) {
 
   const cellX = (file: number) => PAD + (flipped ? file - 1 : 9 - file) * CELL;
   const cellY = (rank: number) => PAD + (flipped ? 9 - rank : rank - 1) * CELL;
+  const blackToMove = turn === "b";
+  const row = (isBlack: boolean) => (
+    <SideRow
+      hand={handPart}
+      black={isBlack}
+      name={isBlack ? black : white}
+      toMove={isBlack === blackToMove}
+      tracked={tracked === (isBlack ? "black" : "white")}
+    />
+  );
 
   return (
     <div className="board-wrap">
-      <HandRow hand={handPart} black={flipped} />
+      {row(flipped)}
       <svg className="board" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="盤面">
         <rect x={PAD} y={PAD} width={CELL * 9} height={CELL * 9} fill="var(--board)" />
         {targetFile > 0 && (
@@ -160,10 +195,7 @@ export function Board({ sfen, lastMoveUsi, flipped = false }: Props) {
           );
         })}
       </svg>
-      <HandRow hand={handPart} black={!flipped} />
-      <div className="muted" style={{ textAlign: "center" }}>
-        {turn === "b" ? "先手番" : "後手番"}
-      </div>
+      {row(!flipped)}
     </div>
   );
 }

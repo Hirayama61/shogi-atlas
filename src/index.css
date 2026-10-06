@@ -211,9 +211,33 @@ ul.games li:hover {
   flex-direction: column;
   gap: 6px;
 }
+.side-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.side-name {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  min-height: 20px;
+}
+.side-name .player.tracked {
+  font-weight: 700;
+}
+.turn-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--panel);
+  font-weight: 600;
+}
 .hand {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
   min-height: 28px;
   align-items: center;
   font-size: 14px;

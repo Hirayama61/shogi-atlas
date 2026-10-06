@@ -7,6 +7,8 @@ interface Props {
   moves: MoveReview[];
   currentPly: number;
   onSelect: (ply: number) => void;
+  /** 読み出しに添える手の説明 (指した手・判定・最善手)。無ければ評価値だけ */
+  describe?: (ply: number) => string;
 }
 
 const W = 600;
@@ -21,7 +23,7 @@ const MARK: Record<string, string> = { inaccuracy: "?!", mistake: "?", blunder: 
  * 評価値の推移 (先手視点)。1 系列の折れ線 + 0 の基準線 + 悪手の印。
  * ホバーで手数と評価値を出し、クリックでその手数に移動する。
  */
-export function EvalChart({ curve, moves, currentPly, onSelect }: Props) {
+export function EvalChart({ curve, moves, currentPly, onSelect, describe }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const clipId = useId();
   const maxPly = Math.max(1, curve.length - 1);
@@ -140,6 +142,7 @@ export function EvalChart({ curve, moves, currentPly, onSelect }: Props) {
         {shownCp !== undefined ? (
           <>
             <strong>{shown}手目</strong> 評価値 {fmtCp(shownCp)}
+            {describe?.(shown) ? ` · ${describe(shown)}` : ""}
           </>
         ) : (
           "　"

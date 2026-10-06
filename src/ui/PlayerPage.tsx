@@ -378,8 +378,8 @@ function RateRow({ e, label }: { e: RateEvidence; label: string }) {
           <div>
             {e.played && (
               <div className="muted">
-                {e.by === e.side ? "自分" : "相手"}の大悪手 {e.played}
-                {e.best ? ` · 最善 ${e.best}` : ""}
+                {e.by === e.side ? "自分" : "相手"}の大悪手 {e.playedLabel ?? e.played}
+                {e.best ? ` · 最善 ${e.bestLabel ?? e.best}` : ""}
               </div>
             )}
             <button
@@ -911,8 +911,8 @@ export function PlayerPage({ name }: Props) {
                   </div>
                   <div>
                     <div className="muted">
-                      {PHASE_LABEL[w.phase]} · 指し手 {w.played}
-                      {w.best ? ` · 最善 ${w.best}` : ""}
+                      {PHASE_LABEL[w.phase]} · 指し手 {w.playedLabel}
+                      {w.best ? ` · 最善 ${w.bestLabel ?? w.best}` : ""}
                     </div>
                     <button
                       className="ghost"

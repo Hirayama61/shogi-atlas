@@ -1,16 +1,17 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
-import { JUDGEMENT_LABEL, reviewGame, type GameReview } from "../core/analysis";
+import { JUDGEMENT_LABEL, reviewGame, type GameReview, type MoveReview } from "../core/analysis";
 import { annotatedKif } from "../core/annotate";
+import { formatUsiMove } from "../core/branches";
 import { importRecord } from "../core/parse";
 import { positionKey } from "../core/position";
-import { formatRating } from "../core/quest";
 import { GAME_SHAPE_LABEL } from "../core/opening";
+import { trackedSide } from "../core/stats";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
 import { EvalChart } from "./EvalChart";
 import { LossHelp } from "./LossHelp";
-import { describeGame, fmtCp, formatDate } from "./labels";
+import { describeGame, fmtCp, formatDate, playerLabel } from "./labels";
 import { navigate } from "./router";
 
 interface Props {
@@ -41,7 +42,10 @@ export function GameViewer({ id, initialPly }: Props) {
     [review],
   );
   const [ply, setPly] = useState(initialPly ?? 0);
-  const [flipped, setFlipped] = useState(false);
+  // 本人 (登録した対局者) が後手なら最初から後手を手前にする。「反転」で上書きできる (対局ごと)
+  const tracked = game ? trackedSide(game) : null;
+  const [flipOverride, setFlipOverride] = useState<{ id: string; value: boolean } | null>(null);
+  const flipped = flipOverride?.id === id ? flipOverride.value : tracked === "white";
   const [copied, setCopied] = useState("");
 
   const plies = useMemo<PlyInfo[]>(() => {
@@ -64,6 +68,20 @@ export function GameViewer({ id, initialPly }: Props) {
       return [];
     }
   }, [game]);
+
+  const sfenByPly = useMemo(() => new Map(plies.map((p) => [p.ply, p.sfen] as const)), [plies]);
+  const textByPly = useMemo(() => new Map(plies.map((p) => [p.ply, p.text] as const)), [plies]);
+  /** 最善手を符号 (例: △6二銀) にする。指す前の局面が無ければ USI のまま */
+  const bestLabel = (m: MoveReview): string =>
+    m.best ? formatUsiMove(sfenByPly.get(m.ply - 1) ?? "", m.best) : "";
+  const describeMove = (p: number): string => {
+    const m = reviewByPly.get(p);
+    if (!m) return "";
+    const parts = [textByPly.get(p) ?? ""];
+    if (m.judgement !== "good") parts.push(JUDGEMENT_LABEL[m.judgement]);
+    if (m.best) parts.push(`最善 ${bestLabel(m)}`);
+    return parts.filter(Boolean).join(" ");
+  };
 
   const current = plies[Math.min(ply, plies.length - 1)];
   const key = current ? positionKey(current.sfen) : "";
@@ -94,7 +112,14 @@ export function GameViewer({ id, initialPly }: Props) {
   return (
     <section className="viewer">
       <div>
-        <Board sfen={current.sfen} lastMoveUsi={current.usi} flipped={flipped} />
+        <Board
+          sfen={current.sfen}
+          lastMoveUsi={current.usi}
+          flipped={flipped}
+          black={playerLabel(game, "black")}
+          white={playerLabel(game, "white")}
+          tracked={tracked}
+        />
         <div className="controls" style={{ marginTop: 8 }}>
           <button className="ghost" onClick={() => setPly(0)}>
             |◀
@@ -114,7 +139,7 @@ export function GameViewer({ id, initialPly }: Props) {
           <button className="ghost" onClick={() => setPly(plies.length - 1)}>
             ▶|
           </button>
-          <button className="ghost" onClick={() => setFlipped((f) => !f)}>
+          <button className="ghost" onClick={() => setFlipOverride({ id, value: !flipped })}>
             反転
           </button>
         </div>
@@ -142,6 +167,7 @@ export function GameViewer({ id, initialPly }: Props) {
               moves={review.moves}
               currentPly={current.ply}
               onSelect={setPly}
+              describe={describeMove}
             />
             {(() => {
               const m = reviewByPly.get(current.ply);
@@ -155,7 +181,7 @@ export function GameViewer({ id, initialPly }: Props) {
                   <span className="muted">
                     {" "}
                     {fmtCp(m.cpBefore)} → {fmtCp(m.cpAfter)}
-                    {m.best ? ` · 最善 ${m.best}` : " · 最善"}
+                    {m.best ? ` · 最善 ${bestLabel(m)}` : " · これが最善"}
                   </span>
                 </p>
               );
@@ -194,18 +220,14 @@ export function GameViewer({ id, initialPly }: Props) {
               className={game.result === "black" ? "win" : ""}
               href={`#/player/${encodeURIComponent(game.black)}`}
             >
-              ☗{game.black}
-              {game.blackRank ? ` ${game.blackRank}` : ""}
-              {game.blackRating !== undefined ? ` ${formatRating(game.blackRating)}` : ""}
+              ☗{playerLabel(game, "black")}
             </a>
             {" vs "}
             <a
               className={game.result === "white" ? "win" : ""}
               href={`#/player/${encodeURIComponent(game.white)}`}
             >
-              ☖{game.white}
-              {game.whiteRank ? ` ${game.whiteRank}` : ""}
-              {game.whiteRating !== undefined ? ` ${formatRating(game.whiteRating)}` : ""}
+              ☖{playerLabel(game, "white")}
             </a>
           </div>
           <dl className="kv">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseKifu } from "../parse";
-import { computePlayerStats, listPlayers, outcomeFor } from "../stats";
+import { computePlayerStats, listPlayers, outcomeFor, trackedSide } from "../stats";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "./fixtures";
 
 const source = { kind: "paste" as const };
@@ -11,6 +11,13 @@ describe("stats", () => {
     expect(outcomeFor("black", "white")).toBe("loss");
     expect(outcomeFor("draw", "white")).toBe("draw");
     expect(outcomeFor("unknown", "white")).toBe("unknown");
+  });
+
+  it("trackedSide: タグに名前がある側が本人。両方か無ければ null", () => {
+    expect(trackedSide({ black: "a", white: "b", tags: ["a"] })).toBe("black");
+    expect(trackedSide({ black: "a", white: "b", tags: ["b", "大会相手"] })).toBe("white");
+    expect(trackedSide({ black: "a", white: "b", tags: ["a", "b"] })).toBeNull();
+    expect(trackedSide({ black: "a", white: "b", tags: [] })).toBeNull();
   });
 
   it("対局者の成績と分岐点をまとめる", async () => {

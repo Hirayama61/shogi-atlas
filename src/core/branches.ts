@@ -64,9 +64,13 @@ export function usiMoves(usi: string): string[] {
         .filter(Boolean);
 }
 
-/** USI の手を局面キーの局面で日本語表記にする (例: ▲6五歩)。表記できなければ USI のまま */
+/**
+ * USI の手を局面キー (または手数つきの SFEN) の局面で日本語表記にする (例: ▲6五歩)。
+ * 表記できなければ USI のまま。
+ */
 export function formatUsiMove(key: string, usi: string): string {
-  const pos = Position.newBySFEN(`${key} 1`);
+  const sfen = key.trim().split(/\s+/).length >= 4 ? key : `${key} 1`;
+  const pos = Position.newBySFEN(sfen);
   const move = pos?.createMoveByUSI(usi);
   if (!pos || !move || !pos.isValidMove(move)) return usi;
   return formatMove(pos, move)

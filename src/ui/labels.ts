@@ -2,6 +2,7 @@ import type { EndReason, GameRecord, GameResult, GameSummary, SideStyle } from "
 import { MATE_CP } from "../core/analysis";
 import { shortOpeningLabel, SIDE_STYLE_LABEL } from "../core/opening";
 import { matchesPortfolio } from "../core/portfolio";
+import { formatRating } from "../core/quest";
 import { serviceOf } from "../core/source";
 import { outcomeFor, playerSide } from "../core/stats";
 import type { ListQuery, PortfolioFilter, ResultFilter, SideFilter } from "./router";
@@ -121,6 +122,17 @@ export function countValues(
 }
 
 export const SIDE_LABEL = { black: "先手", white: "後手" } as const;
+
+/** 対局者の表示名: 名前に段位・レートを添える (例: "taro 二段 R1500") */
+export function playerLabel(g: GameSummary | GameRecord, side: "black" | "white"): string {
+  const parts = [g[side]];
+  const rank = side === "black" ? g.blackRank : g.whiteRank;
+  const rating = side === "black" ? g.blackRating : g.whiteRating;
+  if (rank) parts.push(rank);
+  const r = formatRating(rating);
+  if (r) parts.push(r);
+  return parts.join(" ");
+}
 
 /** 戦型ポートフォリオの条件の見出し (例: "先手 / 相手: 居飛車") */
 export function portfolioConditionLabel(side: "black" | "white", vsStyle: SideStyle): string {

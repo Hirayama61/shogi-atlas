@@ -218,6 +218,33 @@ describe("UI", () => {
     await waitFor(() => expect(screen.getByText("同じ局面を通った対局")).toBeInTheDocument());
   });
 
+  it("GameViewer: 盤の上下に対局者名と手番が出て、本人が後手なら後手を手前にする", async () => {
+    const { b, c } = await seed();
+    // b: 本人 (Sukonbu3) が先手 → 先手が手前 (下の行)。18 手目 (後手の手) を指した後なので先手番
+    render(<GameViewer id={b.id} initialPly={18} />);
+    await waitFor(() => expect(screen.getByText(/18 手目/)).toBeInTheDocument());
+    let rows = document.querySelectorAll(".side-row");
+    expect(rows[0]).toHaveTextContent("☖ x1");
+    expect(rows[1]).toHaveTextContent("☗ Sukonbu3");
+    expect(rows[1]).toHaveTextContent("手番");
+    expect(rows[0]).not.toHaveTextContent("手番");
+    expect(rows[1]!.querySelector(".player.tracked")).not.toBeNull();
+    expect(rows[0]!.querySelector(".player.tracked")).toBeNull();
+    cleanup();
+
+    // c を本人が後手の対局にする → 最初から後手が手前。「反転」で戻せる
+    await db.games.put({ ...c, black: "x2", white: "Sukonbu3", whiteRank: "三段" });
+    render(<GameViewer id={c.id} initialPly={0} />);
+    await waitFor(() => expect(screen.getByText(/0 手目/)).toBeInTheDocument());
+    rows = document.querySelectorAll(".side-row");
+    expect(rows[0]).toHaveTextContent("☗ x2");
+    expect(rows[1]).toHaveTextContent("☖ Sukonbu3 三段");
+    expect(rows[1]!.querySelector(".player.tracked")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "反転" }));
+    rows = document.querySelectorAll(".side-row");
+    expect(rows[0]).toHaveTextContent("☖ Sukonbu3");
+  });
+
   it("PlayerList: 登録した対局者だけを出し、切り替えで相手も出す", async () => {
     await seed();
     render(<PlayerList />);
@@ -485,7 +512,11 @@ describe("UI", () => {
       engine: { name: "fake", depth: 1 },
       analyzedAt: "2026-01-01T00:00:00Z",
       plies: cps.map((cp, ply) =>
-        ply === 7 ? { ply, cp, best: "7a6b", pv: ["7a6b"] } : { ply, cp },
+        ply === 7
+          ? { ply, cp, best: "7a6b", pv: ["7a6b"] }
+          : ply === 6
+            ? { ply, cp, best: "2g2f", pv: ["2g2f"] }
+            : { ply, cp },
       ),
     };
     await db.analyses.put(analysis);
@@ -497,6 +528,12 @@ describe("UI", () => {
     expect(screen.getAllByText("??").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/大悪手/).length).toBeGreaterThan(0);
     expect(screen.getByText(/-400 → \+600/)).toBeInTheDocument();
+    // 最善手は USI ではなく符号で出る
+    // 7 手目 (指した手 ▲7七角、最善 2g2f) に戻すと最善手が符号で出る
+    fireEvent.click(screen.getByRole("button", { name: "◀" }));
+    await waitFor(() => expect(screen.getByText(/7 手目/)).toBeInTheDocument());
+    expect(screen.getAllByText(/最善 ▲2六歩/).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain("2g2f");
     expect(screen.getByText("平均損失とは")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
   });
@@ -562,7 +599,7 @@ describe("UI", () => {
     fireEvent(rows[0]!, new Event("toggle"));
     await waitFor(() => expect(rows[0]!.querySelector("svg.board")).not.toBeNull());
     expect(rows[0]).toHaveTextContent("自分の大悪手");
-    expect(rows[0]).toHaveTextContent("最善 1g1f");
+    expect(rows[0]).toHaveTextContent("最善 ▲1六歩");
     fireEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: "局面を開く" }));
     expect(location.hash).toBe(`#/game/${b.id}/14`);
 

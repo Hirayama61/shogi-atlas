@@ -6,6 +6,7 @@ import {
   type Phase,
   reviewGame,
 } from "./analysis";
+import { formatUsiMove } from "./branches";
 import { outcomeFor, playerSide, type Side } from "./stats";
 import type { GameRecord } from "./types";
 
@@ -36,8 +37,13 @@ export interface WorstMove {
   phase: Phase;
   /** 指す前の局面キー (盤面表示用) */
   sfen: string;
+  /** 指した手 (USI) */
   played: string;
+  /** 指した手の表記 (例: ▲7六歩)。表記できなければ USI のまま */
+  playedLabel: string;
   best?: string;
+  /** 最善手の表記 */
+  bestLabel?: string;
   cpBefore: number;
   cpAfter: number;
   swing: number;
@@ -61,10 +67,14 @@ export interface RateEvidence {
   hit: boolean;
   /** 根拠になった手 (大悪手の率のみ。USI) */
   played?: string;
+  /** 根拠になった手の表記 (例: △3三角)。表記できなければ USI のまま */
+  playedLabel?: string;
   /** その手を指したのはどちらか (大悪手の率のみ) */
   by?: Side;
   /** その局面での最善手 (USI)。咎めた率では本人が指すべきだった手 */
   best?: string;
+  /** 最善手の表記 */
+  bestLabel?: string;
 }
 
 /** 4 つの率の内訳。率はここから rateOf で導く */
@@ -202,9 +212,13 @@ export function buildPlayerProfile(
       // 相手の大悪手を指された後の局面。最善手は本人がそこで指すべきだった手
       const e = evidence(oppBlunder.ply, outcome === "win");
       e.played = oppBlunder.played;
+      e.playedLabel = formatUsiMove(game.positions[oppBlunder.ply - 1] ?? "", oppBlunder.played);
       e.by = oppBlunder.side;
       const reply = analysis.plies.find((p) => p.ply === oppBlunder.ply)?.best;
-      if (reply) e.best = reply;
+      if (reply) {
+        e.best = reply;
+        e.bestLabel = formatUsiMove(e.sfen, reply);
+      }
       rates.punish.push(e);
     }
     const firstBlunderMove = review.moves.find((m) => m.judgement === "blunder");
@@ -212,8 +226,12 @@ export function buildPlayerProfile(
       // 最初の大悪手を指す前の局面
       const e = evidence(firstBlunderMove.ply - 1, firstBlunderMove.side === side);
       e.played = firstBlunderMove.played;
+      e.playedLabel = formatUsiMove(e.sfen, firstBlunderMove.played);
       e.by = firstBlunderMove.side;
-      if (firstBlunderMove.best) e.best = firstBlunderMove.best;
+      if (firstBlunderMove.best) {
+        e.best = firstBlunderMove.best;
+        e.bestLabel = formatUsiMove(e.sfen, firstBlunderMove.best);
+      }
       rates.firstBlunder.push(e);
     }
 
@@ -258,13 +276,17 @@ function toWorst(game: GameRecord, m: MoveReview, side: Side): WorstMove {
     phase: m.phase,
     sfen: game.positions[m.ply - 1] ?? "",
     played: m.played,
+    playedLabel: formatUsiMove(game.positions[m.ply - 1] ?? "", m.played),
     cpBefore: m.cpBefore,
     cpAfter: m.cpAfter,
     swing: m.swing,
     judgement: m.judgement,
   };
   if (game.startedAt) w.startedAt = game.startedAt;
-  if (m.best) w.best = m.best;
+  if (m.best) {
+    w.best = m.best;
+    w.bestLabel = formatUsiMove(w.sfen, m.best);
+  }
   return w;
 }
 

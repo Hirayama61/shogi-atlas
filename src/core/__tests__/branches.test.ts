@@ -55,6 +55,9 @@ describe("branches", () => {
     const start = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -";
     expect(formatUsiMove(start, "7g7f")).toBe("▲7六歩");
     expect(formatUsiMove(start, "7c7d")).toBe("7c7d");
+    // 手数つきの SFEN でも同じ
+    expect(formatUsiMove(`${start} 1`, "2g2f")).toBe("▲2六歩");
+    expect(formatUsiMove("", "7g7f")).toBe("7g7f");
   });
 
   it("本人の手番: 手ごとに回数・判定・最善手を出し、最善以外があれば悪手を指した分岐", async () => {

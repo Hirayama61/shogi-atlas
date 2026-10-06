@@ -176,6 +176,17 @@ export function findCommonPositions(games: GameRecord[], name: string): CommonPo
   );
 }
 
+/**
+ * 本人 (登録した対局者) の側。タグに名前が入っている側で、両方か どちらも入っていなければ null。
+ * 棋譜ビューアで本人側を手前にするために使う。
+ */
+export function trackedSide(g: Pick<GameSummary, "black" | "white" | "tags">): Side | null {
+  const black = g.tags.includes(g.black);
+  const white = g.tags.includes(g.white);
+  if (black === white) return null;
+  return black ? "black" : "white";
+}
+
 export interface PlayerSummary {
   name: string;
   games: number;

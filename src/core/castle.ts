@@ -88,6 +88,17 @@ export const CASTLES: CastlePattern[] = [
     minMatch: 3,
   },
   {
+    // 8九玉の前を 7七桂・8八銀・7八金で塞ぐ
+    name: "ミレニアム囲い",
+    king: [8, 9],
+    pieces: [
+      [7, 7, "N"],
+      [8, 8, "S"],
+      [7, 8, "G"],
+    ],
+    minMatch: 3,
+  },
+  {
     name: "天守閣美濃",
     king: [8, 7],
     pieces: [

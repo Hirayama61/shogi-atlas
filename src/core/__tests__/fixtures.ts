@@ -236,3 +236,41 @@ export function fixtureReport(name: string, gameId: string): string {
 根拠: 架空のレポート
 `;
 }
+
+// 対抗形の居飛車側 (☗居飛車 vs ☖ノーマル四間飛車)
+
+/** ☗斜め棒銀: 舟囲いから 5七銀左・4六銀 */
+export const USI_NANAME_BOGIN =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 6h7h 5a6b 4i5h 6b7b 7i6h 7b8b 6h5g 7a7b 2f2e 9c9d 5g4f 1c1d";
+
+/** ☗4五歩早仕掛け: 舟囲いから 3六歩・4六歩・3七桂・4五歩 */
+export const USI_45FU_HAYASHIKAKE =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 6h7h 5a6b 4i5h 6b7b 7i6h 7b8b 3g3f 7a7b 4g4f 9c9d 2i3g 1c1d 4f4e 6a5b";
+
+/** ☗対振り棒銀: 舟囲いから 3八銀・2七銀・2六銀 */
+export const USI_TAIFURI_BOGIN =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 6h7h 5a6b 4i5h 6b7b 2f2e 7b8b 3i3h 7a7b 3h2g 9c9d 2g2f 1c1d 7i6h 6a5b";
+
+/** ☗舟囲い急戦: 舟囲いから 3六歩・4六歩 (仕掛けの形は決まっていない) */
+export const USI_FUNA_KYUSEN =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 6h7h 5a6b 4i5h 6b7b 7i6h 7b8b 3g3f 7a7b 4g4f 9c9d 3i4h 1c1d 2f2e 6a5b";
+
+/** ☗へなちょこ急戦: 6八玉のまま 3六歩・3七銀・4六銀 */
+export const USI_HENACHOKO =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 4i5h 5a6b 3g3f 6b7b 3i4h 7b8b 4h3g 7a7b 3g4f 9c9d 2f2e 1c1d 6i7h 6a5b";
+
+/** ☗エルモ急戦: エルモ囲い (7九玉・7八金・6八銀) から 3七銀・4六銀 */
+export const USI_ELMO_KYUSEN =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 6i7h 8b4b 7i6h 5a6b 5i6i 6b7b 6i7i 7b8b 4i5h 7a7b 3g3f 9c9d 3i4h 1c1d 4h3g 6a5b 3g4f 4a5a";
+
+/** ☗ポンポン桂: 3六歩・3七桂から 4五桂と跳ねる */
+export const USI_PONPON_KEI =
+  "position startpos moves 7g7f 3c3d 2g2f 4c4d 5i6h 8b4b 6h7h 5a6b 4i5h 6b7b 3g3f 7b8b 2i3g 7a7b 3g4e 9c9d";
+
+/** ☗ミレニアム: 6六角・7七桂・8八銀・8九玉・7八金 */
+export const USI_MILLENNIUM =
+  "position startpos moves 7g7f 3c3d 8h7g 4c4d 7g6f 8b4b 8i7g 5a6b 7i8h 6b7b 5i6h 7b8b 6h7h 7a7b 7h8i 9c9d 6i7h 1c1d 4i5h 6a5b 2g2f 4a5a";
+
+/** ☗超速 vs ☖ゴキゲン中飛車: 2五歩・4八銀・3六歩・3七銀 */
+export const USI_CHOSOKU =
+  "position startpos moves 7g7f 3c3d 2g2f 5c5d 2f2e 8b5b 3i4h 5a6b 5i6h 6b7b 3g3f 7b8b 4h3g 9c9d";

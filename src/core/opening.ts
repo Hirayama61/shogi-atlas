@@ -278,6 +278,108 @@ export const KAKUGAWARI_RULES: OpeningRule[] = [
   },
 ];
 
+/**
+ * 対抗形の居飛車側の戦法。上から順に試し、最初に当てはまったものを採る (細かいものを先に置く)。
+ * どれにも当てはまらなければ囲い名 (居飛車穴熊・左美濃・ミレニアム) か「居飛車」に落ちる。
+ * 将棋ウォーズのエフェクト条件はこの環境から読めなかったので、条件は一般的な指し方からの見立て。
+ * 実戦の棋譜で外れていたら、ここの配置と手数を直す。
+ */
+export const IBISHA_VS_FURI_RULES: OpeningRule[] = [
+  {
+    // 対ゴキゲン中飛車で、早い 3七銀 (相手は 5二飛・5四歩)
+    name: "超速",
+    pieces: [
+      [3, 7, "S"],
+      [5, 2, "r"],
+      [5, 4, "p"],
+    ],
+    maxPly: 20,
+  },
+  {
+    // 3七桂 から 4五桂 と早く跳ねる
+    name: "ポンポン桂",
+    pieces: [],
+    moved: { piece: "N", from: [3, 7], to: [4, 5] },
+    maxPly: 30,
+  },
+  // へなちょこ急戦: 玉を囲わずに (居玉・6八玉・6九玉) 3六歩・4六銀と出る
+  ...(
+    [
+      [5, 9],
+      [6, 8],
+      [6, 9],
+    ] as const
+  ).map(([file, rank]): OpeningRule => ({
+    name: "へなちょこ急戦",
+    pieces: [
+      [file, rank, "K"],
+      [4, 6, "S"],
+      [3, 6, "P"],
+    ],
+    maxPly: 30,
+  })),
+  // エルモ急戦: エルモ囲い (7九玉・7八金・6八銀) から 4六銀 か 4五歩
+  ...(
+    [
+      [4, 6, "S"],
+      [4, 5, "P"],
+    ] as const
+  ).map((attack): OpeningRule => ({
+    name: "エルモ急戦",
+    pieces: [
+      [7, 9, "K"],
+      [7, 8, "G"],
+      [attack[0], attack[1], attack[2]],
+    ],
+    when: (f) => f.castle === "エルモ囲い",
+    maxPly: OPENING_PLIES,
+  })),
+  // 舟囲い急戦 (7八玉・5八金)。仕掛けの形で分け、どれでもなければ「舟囲い急戦」
+  {
+    // 5七銀左 から 4六銀
+    name: "斜め棒銀",
+    pieces: [
+      [7, 8, "K"],
+      [5, 8, "G"],
+    ],
+    moved: { piece: "S", from: [5, 7], to: [4, 6] },
+    when: (f) => f.castle === "舟囲い",
+    maxPly: OPENING_PLIES,
+  },
+  {
+    name: "対振り棒銀",
+    pieces: [
+      [7, 8, "K"],
+      [5, 8, "G"],
+      [2, 6, "S"],
+    ],
+    when: (f) => f.castle === "舟囲い",
+    maxPly: OPENING_PLIES,
+  },
+  {
+    name: "4五歩早仕掛け",
+    pieces: [
+      [7, 8, "K"],
+      [5, 8, "G"],
+      [4, 5, "P"],
+    ],
+    when: (f) => f.castle === "舟囲い",
+    maxPly: OPENING_PLIES,
+  },
+  {
+    // 3六歩・4六歩と急戦の構え (鷺宮定跡などはここに入る)
+    name: "舟囲い急戦",
+    pieces: [
+      [7, 8, "K"],
+      [5, 8, "G"],
+      [3, 6, "P"],
+      [4, 6, "P"],
+    ],
+    when: (f) => f.castle === "舟囲い",
+    maxPly: OPENING_PLIES,
+  },
+];
+
 function ruleHolds(rule: OpeningRule, views: BoardView[], ply: number): boolean {
   const v = views[ply];
   if (!v) return false;
@@ -327,8 +429,11 @@ function ibishaName(
 ): string {
   if (self.rookFile === 4) return "右四間飛車";
   if (!bothIbisha) {
+    const ruled = matchOpeningRule(IBISHA_VS_FURI_RULES, views, side, self);
+    if (ruled) return ruled;
     if (/穴熊/.test(self.castle)) return "居飛車穴熊";
     if (/左美濃|天守閣/.test(self.castle)) return "左美濃";
+    if (/ミレニアム/.test(self.castle)) return "ミレニアム";
     return "居飛車";
   }
   if (self.yokofu || opponent.yokofu) return "横歩取り";

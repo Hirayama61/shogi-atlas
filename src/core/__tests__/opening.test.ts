@@ -22,6 +22,15 @@ import {
   USI_SHIKEN_LATE_KAKU,
   USI_SHIKEN_VS_FUNA,
   USI_YOKOFU,
+  USI_NANAME_BOGIN,
+  USI_45FU_HAYASHIKAKE,
+  USI_TAIFURI_BOGIN,
+  USI_FUNA_KYUSEN,
+  USI_HENACHOKO,
+  USI_ELMO_KYUSEN,
+  USI_PONPON_KEI,
+  USI_MILLENNIUM,
+  USI_CHOSOKU,
 } from "./fixtures";
 
 const source = { kind: "paste" as const };
@@ -149,5 +158,29 @@ describe("classifyOpening", () => {
     expect(g.opening.shape).toBe("aiIbisha");
     expect(g.opening.whiteOpening).toBe("一手損角換わり");
     expect(g.opening.blackOpening).toBe("角換わり");
+  });
+
+  it.each([
+    ["斜め棒銀", USI_NANAME_BOGIN, "ノーマル四間飛車"],
+    ["4五歩早仕掛け", USI_45FU_HAYASHIKAKE, "ノーマル四間飛車"],
+    ["対振り棒銀", USI_TAIFURI_BOGIN, "ノーマル四間飛車"],
+    ["舟囲い急戦", USI_FUNA_KYUSEN, "ノーマル四間飛車"],
+    ["へなちょこ急戦", USI_HENACHOKO, "ノーマル四間飛車"],
+    ["エルモ急戦", USI_ELMO_KYUSEN, "ノーマル四間飛車"],
+    ["ポンポン桂", USI_PONPON_KEI, "ノーマル四間飛車"],
+    ["ミレニアム", USI_MILLENNIUM, "ノーマル四間飛車"],
+    ["超速", USI_CHOSOKU, "ゴキゲン中飛車"],
+  ] as const)("対抗形の居飛車側の細分化: %s", async (name, usi, furi) => {
+    const g = await parseKifu(usi, { source });
+    expect(g.opening.shape).toBe("taikokei");
+    expect(g.opening.blackOpening).toBe(name);
+    expect(g.opening.whiteOpening).toBe(furi);
+    // 一覧の短い表示は今までどおり振り飛車側の名前
+    expect(shortOpeningLabel(g.opening)).toBe(`☖${furi}`);
+  });
+
+  it("ミレニアム囲い", async () => {
+    const g = await parseKifu(USI_MILLENNIUM, { source });
+    expect(g.opening.blackCastle).toBe("ミレニアム囲い");
   });
 });

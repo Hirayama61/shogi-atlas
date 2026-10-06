@@ -322,6 +322,24 @@ table.stats td:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.branch-kind {
+  margin-top: 4px;
+  padding-left: 8px;
+}
+.branch-kind.mistake > .muted:first-child {
+  color: var(--danger);
+}
+.branch-moves {
+  display: block;
+  white-space: normal;
+  font-size: 13px;
+}
+.branch-more > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
 .detail-body {
   display: flex;
   gap: 12px;

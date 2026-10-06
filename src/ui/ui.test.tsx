@@ -168,6 +168,51 @@ describe("UI", () => {
     expect(panel.querySelector(".branch-group")?.textContent).toContain(b.opening.blackOpening);
   });
 
+  it("PlayerPage: 分岐点は戦法 × 判定で分かれ、本人の手と判定が出て、該当棋譜の手数へ飛べる", async () => {
+    const { b } = await seed();
+    const b2 = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
+    Object.assign(b2, {
+      black: "Sukonbu3",
+      white: "x3",
+      result: "white",
+      startedAt: "2026-04-01T00:00:00",
+      tags: ["Sukonbu3"],
+    });
+    await db.games.put(b2);
+    const flat = Array.from({ length: 21 }, () => 0);
+    const analysis = (id: string, cps: number[], best: Record<number, string> = {}) => ({
+      schema: 1 as const,
+      id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) => (best[ply] ? { ply, cp, best: best[ply] } : { ply, cp })),
+    });
+    await db.analyses.bulkPut([
+      analysis(b.id, flat),
+      analysis(
+        b2.id,
+        flat.map((cp, ply) => (ply >= 19 ? -400 : cp)),
+        { 18: "1g1f" },
+      ),
+    ]);
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/悪手を指した分岐 \(1\)/)).toBeInTheDocument());
+    const panel = screen
+      .getByText("分岐点", { selector: "strong" })
+      .closest(".panel") as HTMLElement;
+    const kind = panel.querySelector(".branch-kind.mistake") as HTMLElement;
+    expect(kind.closest(".branch-group")?.textContent).toContain(b.opening.blackOpening);
+    const branch = within(kind)
+      .getByText(/18 手目まで共通 · 2 局/)
+      .closest("details")!;
+    expect(branch.open).toBe(false);
+    expect(branch.querySelector("summary")?.textContent).toContain(
+      "本人の手: ▲1六歩 ×1 (最善) / ▲9六歩 ×1 (悪手, 最善 ▲1六歩)",
+    );
+    fireEvent.click(within(branch).getAllByRole("button")[0]!);
+    expect(parseHash(location.hash)).toMatchObject({ kind: "game", ply: 18 });
+  });
+
   it("PlayerPage: 戦型ポートフォリオは条件ごとに畳まれ、行から該当対局の一覧へ飛ぶ", async () => {
     const { b, c } = await seed();
     render(<PlayerPage name="Sukonbu3" />);

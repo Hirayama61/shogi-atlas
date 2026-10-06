@@ -49,6 +49,10 @@ test.describe("一通りの画面", () => {
       has: page.locator("strong", { hasText: /^分岐点$/ }),
     });
     await expect(branches.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
+    // 解析済みの a は最善、b は未解析 → 正しく指せた分岐
+    await expect(branches.locator(".branch-kind.correct")).toContainText(
+      "本人の手: ▲1六歩 ×1 (最善) / ▲9六歩 ×1 (未解析)",
+    );
     await expect(branches.locator(".branch svg.board")).toBeHidden();
     await branches.locator(".branch summary").first().click();
     await expect(branches.locator(".branch svg.board").first()).toBeVisible();

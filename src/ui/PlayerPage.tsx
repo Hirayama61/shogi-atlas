@@ -8,6 +8,15 @@ import {
   type PortfolioCondition,
   type PortfolioGroup,
 } from "../core/portfolio";
+import {
+  BRANCH_KIND_LABEL,
+  describeBranchMove,
+  groupBranchReviews,
+  reviewBranches,
+  type BranchMove,
+  type BranchOpeningGroup,
+  type BranchReview,
+} from "../core/branches";
 import { computePlayerStats, playerSide, type Bucket, type CommonPosition } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
@@ -117,37 +126,71 @@ function BucketTable({
 /** 分岐点の 1 グループに出す局面の数 */
 const BRANCHES_PER_GROUP = 3;
 
-interface BranchGroup {
-  /** その分岐点を通った対局での本人の戦法 (複数なら "/" でつなぐ) */
-  label: string;
-  positions: Array<CommonPosition & { flipped: boolean }>;
-}
-
 /**
- * 分岐点を本人の戦法でまとめる。同じ戦法の中では局数・手数の多い順 (commonPositions の順) を保つ。
- * 盤の向きはその局面を通った最初の対局で本人が後手かどうか。
+ * 戦法ごとのグループで、上限 BRANCHES_PER_GROUP 件を分類の順 (悪手を指した分岐が先) に割り振る。
+ * 上限を超えた分は分類ごとに「他 n 件」に畳む。
  */
-function groupBranches(
-  positions: CommonPosition[],
-  byId: Map<string, GameRecord>,
-  name: string,
-): BranchGroup[] {
-  const groups = new Map<string, BranchGroup>();
-  for (const p of positions) {
-    const games = p.gameIds.map((id) => byId.get(id)).filter((g) => g !== undefined);
-    const openings = new Set(
-      games.map((g) =>
-        playerSide(g, name) === "white" ? g.opening.whiteOpening : g.opening.blackOpening,
-      ),
-    );
-    const label = Array.from(openings).sort().join(" / ") || "不明";
-    const first = games[0];
-    const flipped = first ? playerSide(first, name) === "white" : false;
-    const group = groups.get(label) ?? { label, positions: [] };
-    group.positions.push({ ...p, flipped });
-    groups.set(label, group);
+function BranchOpeningBlock({
+  group,
+  byId,
+  name,
+}: {
+  group: BranchOpeningGroup;
+  byId: Map<string, GameRecord>;
+  name: string;
+}) {
+  const kinds: Array<BranchOpeningGroup["kinds"][number] & { shown: number }> = [];
+  let budget = BRANCHES_PER_GROUP;
+  for (const k of group.kinds) {
+    const shown = Math.min(budget, k.positions.length);
+    kinds.push({ ...k, shown });
+    budget -= shown;
   }
-  return Array.from(groups.values());
+  const flippedOf = (p: BranchReview) => {
+    const first = byId.get(p.gameIds[0] ?? "");
+    return first ? playerSide(first, name) === "white" : false;
+  };
+  return (
+    <div className="branch-group">
+      <div>
+        {group.opening} <span className="muted">· {group.total} 局面</span>
+      </div>
+      {kinds.map(({ kind, positions, shown: n }) => {
+        const shown = positions.slice(0, n);
+        const rest = positions.slice(n);
+        return (
+          <div key={kind} className={`branch-kind ${kind}`}>
+            <div className="muted">
+              {BRANCH_KIND_LABEL[kind]} ({positions.length})
+            </div>
+            {shown.map((p) => (
+              <BranchDetails
+                key={p.key}
+                p={{ ...p, flipped: flippedOf(p) }}
+                byId={byId}
+                name={name}
+                moves={p.moves}
+              />
+            ))}
+            {rest.length > 0 && (
+              <details className="branch-more">
+                <summary>他 {rest.length} 件</summary>
+                {rest.map((p) => (
+                  <BranchDetails
+                    key={p.key}
+                    p={{ ...p, flipped: flippedOf(p) }}
+                    byId={byId}
+                    name={name}
+                    moves={p.moves}
+                  />
+                ))}
+              </details>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /** 分岐点 1 件。開くと盤面と、その局面を通った対局へのボタンが出る */
@@ -155,15 +198,23 @@ function BranchDetails({
   p,
   byId,
   name,
+  moves,
 }: {
   p: CommonPosition & { flipped: boolean };
   byId: Map<string, GameRecord>;
   name: string;
+  /** 本人の手番の分岐点なら、本人が指した手の集計 */
+  moves?: BranchMove[];
 }) {
   return (
     <details className="branch">
       <summary>
         {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
+        {moves && moves.length > 0 && (
+          <span className="muted branch-moves">
+            本人の手: {moves.map(describeBranchMove).join(" / ")}
+          </span>
+        )}
       </summary>
       <div className="detail-body">
         <div style={{ maxWidth: 260 }}>
@@ -330,10 +381,11 @@ export function PlayerPage({ name }: Props) {
   );
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
   const portfolio = useMemo(() => computePortfolio(own, name), [own, name]);
-  const branchGroups = useMemo(
-    () => (stats ? groupBranches(stats.commonPositions, byId, name) : []),
-    [stats, byId, name],
-  );
+  const branchGroups = useMemo(() => {
+    if (!stats || !analyses) return [];
+    const map = new Map(analyses.map((a) => [a.id, a] as const));
+    return groupBranchReviews(reviewBranches(stats.commonPositions, own, map, name));
+  }, [stats, analyses, own, name]);
 
   if (!games || !stats) return <p className="muted">読み込み中…</p>;
   if (stats.games === 0) return <p className="error">{name} の対局がありません</p>;
@@ -458,22 +510,13 @@ export function PlayerPage({ name }: Props) {
         <strong>分岐点</strong>
         <p className="muted">
           2 局以上で同じ手順をたどり、そこから先で分かれた局面。手数が深いほどよく指す形。
+          本人の戦法ごとに、分岐点で本人が指した手のエンジン判定で分ける。
         </p>
         {stats.commonPositions.length === 0 && (
           <p className="muted">まだありません (同じ人の対局が 2 局以上必要)</p>
         )}
         {branchGroups.map((group) => (
-          <div key={group.label} className="branch-group">
-            <div className="muted">
-              {group.label} · {group.positions.length} 局面
-              {group.positions.length > BRANCHES_PER_GROUP
-                ? ` (上位 ${BRANCHES_PER_GROUP} 件)`
-                : ""}
-            </div>
-            {group.positions.slice(0, BRANCHES_PER_GROUP).map((p) => (
-              <BranchDetails key={p.key} p={p} byId={byId} name={name} />
-            ))}
-          </div>
+          <BranchOpeningBlock key={group.opening} group={group} byId={byId} name={name} />
         ))}
       </div>
 

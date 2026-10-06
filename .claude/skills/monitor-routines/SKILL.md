@@ -71,7 +71,7 @@ gh api "$R/issues?state=open&labels=ready" --jq '.[] | "#\(.number) \(.title)"'
 - **ワークフローに `schedule` が戻っている**: 外す Issue (`area:data`, `ready`) を起案する。
 - **Actions が失敗**: 原因がデータ (壊れた棋譜など) なら該当 Issue のコメントに書き、コードなら `ready` の Issue を起案する。同じ原因で 2 回目なら Issue の冒頭にその旨を書く。
 - **ルーティンの last_run が FAILED / セッションが FAILED**: `fire_trigger` で 1 回再実行する。再実行も失敗したら運用ログに「要確認」として書く。
-- **作業セッションが「push 権限が無い」で終わっていた**: セッションにリポジトリが接続されていない。`create_session` (source_url: https://github.com/Hirayama61/shogi-atlas, revision main, outcome_branch main, permission_mode auto) で作業セッションを作り直し、初回プロンプトで `add_repo` によるデータリポジトリ接続を指示し、`delete_trigger` → `create_trigger` (persistent_session_id を新セッションに) で付け替える。対策レポートの作業セッションも同様 (source_url はデータリポジトリ)。取り込み・解析のセッションも同様 (source_url は本体。初回プロンプトで `add_repo` によるデータリポジトリ接続と `/home/user/shogi-atlas-data` への clone を指示する)。
+- **作業セッションが「push 権限が無い」で終わっていた**: セッションにリポジトリが接続されていない。`create_session` (source_url: https://github.com/Hirayama61/shogi-atlas, revision main, outcome_branch main, permission_mode auto) で作業セッションを作り直し、初回プロンプトで `add_repo` によるデータリポジトリ接続を指示し、`delete_trigger` → `create_trigger` (persistent_session_id を新セッションに) で付け替える。対策レポートは画面から作った新規セッションのルーティンなので、この対応は不要 (失敗していれば原因を運用ログに書く)。取り込み・解析のセッションも同様 (source_url は本体。初回プロンプトで `add_repo` によるデータリポジトリ接続と `/home/user/shogi-atlas-data` への clone を指示する)。
 - **used_tokens が 700,000 超**: 上と同じ手順で作り直して付け替える (壊れていなくても)。
 - **本体 CI が失敗**: `ready` の Issue を起案する (`area:infra` か失敗箇所の領域)。直前のコミットが分かるならそのコミット ID を本文に書く。
 - **Issue の放置**: 上記のとおり `ready` に戻す。

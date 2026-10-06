@@ -101,7 +101,6 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
   const castles = new Map<string, Bucket>();
   const vsOpenings = new Map<string, Bucket>();
   const timeControls = new Map<string, Bucket>();
-  const byPosition = new Map<string, { ply: number; gameIds: Set<string>; wins: number }>();
   let latest: { at: string; rank?: string } | undefined;
 
   for (const g of games) {
@@ -124,7 +123,31 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
     const rank = rankOf(g, side);
     const at = g.startedAt ?? g.importedAt;
     if (!latest || at > latest.at) latest = { at, rank: rank ?? latest?.rank };
+  }
 
+  stats.openings = sorted(openings);
+  stats.castles = sorted(castles);
+  stats.vsOpenings = sorted(vsOpenings);
+  stats.timeControls = sorted(timeControls);
+  if (latest) {
+    stats.latest = latest.at;
+    if (latest.rank) stats.rank = latest.rank;
+  }
+
+  stats.commonPositions = findCommonPositions(games, name);
+  return stats;
+}
+
+/**
+ * 2 局以上で共通する局面のうち、そこから先が分かれるもの (分岐点)。
+ * `games` のうち `name` が指した対局だけを見る。条件で絞った対局集合を渡せば、その条件下の分岐点になる。
+ */
+export function findCommonPositions(games: GameRecord[], name: string): CommonPosition[] {
+  const byPosition = new Map<string, { ply: number; gameIds: Set<string>; wins: number }>();
+  for (const g of games) {
+    const side = playerSide(g, name);
+    if (side === null) continue;
+    const outcome = outcomeFor(g.result, side);
     const end = Math.min(g.positions.length - 1, COMMON_POSITION_PLIES);
     for (let ply = COMMON_POSITION_MIN_PLY; ply <= end; ply++) {
       const key = g.positions[ply];
@@ -138,15 +161,6 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
     }
   }
 
-  stats.openings = sorted(openings);
-  stats.castles = sorted(castles);
-  stats.vsOpenings = sorted(vsOpenings);
-  stats.timeControls = sorted(timeControls);
-  if (latest) {
-    stats.latest = latest.at;
-    if (latest.rank) stats.rank = latest.rank;
-  }
-
   // 同じ対局集合を持つ局面は最も深いものだけ残す (= そこから先で分かれる局面)
   const deepest = new Map<string, CommonPosition>();
   for (const [key, e] of byPosition) {
@@ -157,10 +171,9 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
       deepest.set(setKey, { key, ply: e.ply, gameIds: Array.from(e.gameIds).sort(), wins: e.wins });
     }
   }
-  stats.commonPositions = Array.from(deepest.values()).sort(
+  return Array.from(deepest.values()).sort(
     (a, b) => b.gameIds.length - a.gameIds.length || b.ply - a.ply,
   );
-  return stats;
 }
 
 export interface PlayerSummary {

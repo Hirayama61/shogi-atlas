@@ -4,7 +4,7 @@ import { db } from "../db/db";
 import type { GameShape } from "../core/types";
 import { GAME_SHAPE_LABEL } from "../core/opening";
 import { SERVICE_LABEL, serviceOf } from "../core/source";
-import { describeGame, FILTER_FIELD_LABEL, formatDate, matchesFilter } from "./labels";
+import { describeFilter, describeGame, formatDate, matchesFilter } from "./labels";
 import { navigate, type GameFilter } from "./router";
 
 export function GameList({ filter }: { filter?: GameFilter }) {
@@ -33,7 +33,7 @@ export function GameList({ filter }: { filter?: GameFilter }) {
             ← {filter.player}
           </button>
           <span>
-            {FILTER_FIELD_LABEL[filter.field]}: <strong>{filter.value}</strong>
+            {describeFilter(filter).label}: <strong>{describeFilter(filter).value}</strong>
           </span>
         </div>
       )}

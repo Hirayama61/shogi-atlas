@@ -45,11 +45,14 @@ test.describe("一通りの画面", () => {
     await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
     await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();
     await page.goBack();
-    await expect(page.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
-    await expect(page.locator(".branch svg.board")).toBeHidden();
-    await page.locator(".branch summary").first().click();
-    await expect(page.locator(".branch svg.board").first()).toBeVisible();
-    await page.locator(".branch button").first().click();
+    const branches = page.locator(".panel", {
+      has: page.locator("strong", { hasText: /^分岐点$/ }),
+    });
+    await expect(branches.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
+    await expect(branches.locator(".branch svg.board")).toBeHidden();
+    await branches.locator(".branch summary").first().click();
+    await expect(branches.locator(".branch svg.board").first()).toBeVisible();
+    await branches.locator(".branch button").first().click();
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/18/);
     await expect(page.getByText("18 手目")).toBeVisible();
 
@@ -63,6 +66,16 @@ test.describe("一通りの画面", () => {
     await expect(page.getByText("採用戦法: 四間飛車")).toBeVisible();
     await expect(page.locator("ul.games li")).toHaveCount(3);
     await expect(page.getByText("3 / 3 局")).toBeVisible();
+
+    // 戦型ポートフォリオ: 畳まれた条件を開き、行から該当対局の一覧へ
+    await page.goto("#/player/taro");
+    const portfolio = page.locator(".panel", { hasText: "戦型ポートフォリオ" });
+    await expect(portfolio.locator("details.portfolio[open]")).toHaveCount(0);
+    await portfolio.locator("details.portfolio summary").first().click();
+    await portfolio.locator("details.portfolio[open] tbody tr a").first().click();
+    await expect(page).toHaveURL(/#\/player\/taro\/portfolio\//);
+    await expect(page.getByText(/相手: /).first()).toBeVisible();
+    await expect(page.locator("ul.games li").first()).toBeVisible();
 
     // 外した検索ルートで開いてもトップの一覧になる
     await page.goto("#/search");

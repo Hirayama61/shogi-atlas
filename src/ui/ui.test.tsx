@@ -152,13 +152,62 @@ describe("UI", () => {
     const { b } = await seed();
     await db.games.put({ ...b, id: "b-copy", startedAt: "2026-04-01T00:00:00" });
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/手目まで共通 · 2 局/)).toBeInTheDocument());
-    const branch = screen.getByText(/手目まで共通 · 2 局/).closest("details");
+    await waitFor(() =>
+      expect(screen.getAllByText(/手目まで共通 · 2 局/).length).toBeGreaterThan(0),
+    );
+    const panel = screen
+      .getByText("分岐点", { selector: "strong" })
+      .closest(".panel") as HTMLElement;
+    const branch = within(panel)
+      .getByText(/手目まで共通 · 2 局/)
+      .closest("details");
     expect(branch).not.toBeNull();
     expect(branch!.open).toBe(false);
     expect(branch!.querySelector("summary svg")).toBeNull();
     expect(branch!.querySelectorAll("button")).toHaveLength(2);
-    expect(document.querySelector(".branch-group")?.textContent).toContain(b.opening.blackOpening);
+    expect(panel.querySelector(".branch-group")?.textContent).toContain(b.opening.blackOpening);
+  });
+
+  it("PlayerPage: 戦型ポートフォリオは条件ごとに畳まれ、行から該当対局の一覧へ飛ぶ", async () => {
+    const { b, c } = await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("戦型ポートフォリオ")).toBeInTheDocument());
+    const panel = screen.getByText("戦型ポートフォリオ").closest(".panel") as HTMLElement;
+    const groups = panel.querySelectorAll("details.portfolio");
+    expect(groups.length).toBeGreaterThan(0);
+    for (const g of groups) expect((g as HTMLDetailsElement).open).toBe(false);
+    // 先手の 2 局 (b, c) と後手の 1 局 (a) がすべて入る
+    const total = Array.from(groups).reduce(
+      (n, g) => n + Number(/(\d+) 局/.exec(g.querySelector("summary")!.textContent!)![1]),
+      0,
+    );
+    expect(total).toBe(3);
+
+    const label = `${b.opening.blackOpening} + ${b.opening.blackCastle}`;
+    const link = within(panel).getAllByRole("link", { name: label })[0]!;
+    fireEvent.click(link.closest("tr")!);
+    const route = parseHash(location.hash);
+    expect(route).toMatchObject({
+      kind: "list",
+      filter: {
+        player: "Sukonbu3",
+        field: "portfolio",
+        condition: { side: "black", opening: b.opening.blackOpening },
+      },
+    });
+    cleanup();
+    if (route.kind !== "list" || !route.filter) throw new Error("unreachable");
+    render(<GameList filter={route.filter} />);
+    const expected = [b, c].filter(
+      (g) =>
+        route.filter?.field === "portfolio" &&
+        g.opening.whiteOpening === route.filter.condition.vsOpening &&
+        `${g.opening.blackOpening} + ${g.opening.blackCastle}` === label,
+    ).length;
+    await waitFor(() =>
+      expect(screen.getByText(new RegExp(`${expected} / ${expected} 局`))).toBeInTheDocument(),
+    );
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
   it("PlayerPage: 対局が無い人", async () => {

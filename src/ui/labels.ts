@@ -1,6 +1,7 @@
-import type { EndReason, GameRecord, GameResult, GameSummary } from "../core/types";
+import type { EndReason, GameRecord, GameResult, GameSummary, SideStyle } from "../core/types";
 import { MATE_CP } from "../core/analysis";
-import { shortOpeningLabel } from "../core/opening";
+import { shortOpeningLabel, SIDE_STYLE_LABEL } from "../core/opening";
+import { matchesPortfolio } from "../core/portfolio";
 import { playerSide } from "../core/stats";
 import type { GameFilter, GameFilterField } from "./router";
 
@@ -56,6 +57,7 @@ export const FILTER_FIELD_LABEL: Record<GameFilterField, string> = {
 
 /** 対局者ページの集計 (computePlayerStats) と同じ見方で、その対局者の対局かつ該当の戦法・囲いか */
 export function matchesFilter(g: GameSummary, filter: GameFilter): boolean {
+  if (filter.field === "portfolio") return matchesPortfolio(g, filter.player, filter.condition);
   const side = playerSide(g, filter.player);
   if (side === null) return false;
   const o = g.opening;
@@ -72,4 +74,23 @@ export function matchesFilter(g: GameSummary, filter: GameFilter): boolean {
           ? o.whiteOpening
           : o.blackOpening;
   return value === filter.value;
+}
+
+export const SIDE_LABEL = { black: "先手", white: "後手" } as const;
+
+/** 戦型ポートフォリオの条件の見出し (例: "先手 / 相手: 居飛車") */
+export function portfolioConditionLabel(side: "black" | "white", vsStyle: SideStyle): string {
+  return `${SIDE_LABEL[side]} / 相手: ${SIDE_STYLE_LABEL[vsStyle]}`;
+}
+
+/** 棋譜一覧の上に出す絞り込みの説明 */
+export function describeFilter(filter: GameFilter): { label: string; value: string } {
+  if (filter.field !== "portfolio") {
+    return { label: FILTER_FIELD_LABEL[filter.field], value: filter.value };
+  }
+  const c = filter.condition;
+  return {
+    label: `${portfolioConditionLabel(c.side, c.vsStyle)} (${c.vsOpening ?? "すべて"})`,
+    value: `${c.opening} + ${c.castle}`,
+  };
 }

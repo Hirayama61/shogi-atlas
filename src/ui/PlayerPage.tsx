@@ -2,11 +2,17 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
 import { JUDGEMENT_LABEL, PHASE_LABEL } from "../core/analysis";
 import { buildPlayerProfile } from "../core/profile";
+import {
+  computePortfolio,
+  portfolioCommonPositions,
+  type PortfolioCondition,
+  type PortfolioGroup,
+} from "../core/portfolio";
 import { computePlayerStats, playerSide, type Bucket, type CommonPosition } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
-import { describeGame, formatDate } from "./labels";
+import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
 import { LossHelp } from "./LossHelp";
 import { hashFor, navigate, type GameFilterField } from "./router";
 
@@ -144,6 +150,167 @@ function groupBranches(
   return Array.from(groups.values());
 }
 
+/** 分岐点 1 件。開くと盤面と、その局面を通った対局へのボタンが出る */
+function BranchDetails({
+  p,
+  byId,
+  name,
+}: {
+  p: CommonPosition & { flipped: boolean };
+  byId: Map<string, GameRecord>;
+  name: string;
+}) {
+  return (
+    <details className="branch">
+      <summary>
+        {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
+      </summary>
+      <div className="detail-body">
+        <div style={{ maxWidth: 260 }}>
+          <Board sfen={p.key} flipped={p.flipped} />
+        </div>
+        <div className="row">
+          {p.gameIds.map((id) => {
+            const g = byId.get(id);
+            return (
+              <button
+                key={id}
+                className="ghost"
+                onClick={() => navigate({ kind: "game", id, ply: p.ply })}
+              >
+                {g
+                  ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
+                  : id}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+/**
+ * 戦型ポートフォリオ。条件 (本人の先後 × 相手の大分類) ごとに畳み、開くと相手の戦法名ごとに
+ * 本人の応手 (戦法 + 囲い) と、その条件下の分岐点が出る。
+ */
+function Portfolio({
+  groups,
+  games,
+  byId,
+  name,
+}: {
+  groups: PortfolioGroup[];
+  games: GameRecord[];
+  byId: Map<string, GameRecord>;
+  name: string;
+}) {
+  return (
+    <div className="panel">
+      <strong>戦型ポートフォリオ</strong>
+      <p className="muted">
+        先後と相手の戦型ごとに、どう応じたか。局数の少ない行は勝率より局数を見る。
+      </p>
+      {groups.map((group) => (
+        <details key={`${group.side}/${group.vsStyle}`} className="portfolio">
+          <summary>
+            {portfolioConditionLabel(group.side, group.vsStyle)} · {group.games} 局 {group.wins} 勝{" "}
+            {group.losses} 敗
+          </summary>
+          {group.opponents.map((opp) => (
+            <PortfolioOpponentBlock
+              key={opp.vsOpening}
+              cond={{ side: group.side, vsStyle: group.vsStyle, vsOpening: opp.vsOpening }}
+              opp={opp}
+              games={games}
+              byId={byId}
+              name={name}
+            />
+          ))}
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function PortfolioOpponentBlock({
+  cond,
+  opp,
+  games,
+  byId,
+  name,
+}: {
+  cond: PortfolioCondition & { vsOpening: string };
+  opp: PortfolioGroup["opponents"][number];
+  games: GameRecord[];
+  byId: Map<string, GameRecord>;
+  name: string;
+}) {
+  const branches = useMemo(
+    () =>
+      portfolioCommonPositions(games, name, cond).map((p) => ({
+        ...p,
+        flipped: cond.side === "white",
+      })),
+    // cond はレンダーごとに作り直されるので中身で比べる
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [games, name, cond.side, cond.vsStyle, cond.vsOpening],
+  );
+  return (
+    <div className="portfolio-opponent">
+      <div className="muted">
+        相手: {opp.vsOpening} · {opp.games} 局 {opp.wins} 勝 {opp.losses} 敗
+      </div>
+      <table className="stats">
+        <thead>
+          <tr>
+            <th>応手</th>
+            <th>局</th>
+            <th>勝</th>
+            <th>敗</th>
+            <th>勝率</th>
+          </tr>
+        </thead>
+        <tbody>
+          {opp.responses.map((r) => {
+            const route = {
+              kind: "list" as const,
+              filter: {
+                player: name,
+                field: "portfolio" as const,
+                condition: { ...cond, opening: r.opening, castle: r.castle },
+              },
+            };
+            const label = `${r.opening} + ${r.castle}`;
+            return (
+              <tr key={label} className="link" onClick={() => navigate(route)}>
+                <td>
+                  <a href={hashFor(route)}>{label}</a>
+                </td>
+                <td>{r.games}</td>
+                <td>{r.wins}</td>
+                <td>{r.losses}</td>
+                <td>{pct(r.wins, r.wins + r.losses)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {branches.length > 0 && (
+        <div className="branch-group">
+          <div className="muted">
+            この条件での分岐点 · {branches.length} 局面
+            {branches.length > BRANCHES_PER_GROUP ? ` (上位 ${BRANCHES_PER_GROUP} 件)` : ""}
+          </div>
+          {branches.slice(0, BRANCHES_PER_GROUP).map((p) => (
+            <BranchDetails key={p.key} p={p} byId={byId} name={name} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlayerPage({ name }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
@@ -162,6 +329,7 @@ export function PlayerPage({ name }: Props) {
     [games, name],
   );
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
+  const portfolio = useMemo(() => computePortfolio(own, name), [own, name]);
   const branchGroups = useMemo(
     () => (stats ? groupBranches(stats.commonPositions, byId, name) : []),
     [stats, byId, name],
@@ -198,6 +366,8 @@ export function PlayerPage({ name }: Props) {
         />
         <BucketTable title="持ち時間別" rows={stats.timeControls} />
       </div>
+
+      <Portfolio groups={portfolio} games={own} byId={byId} name={name} />
 
       <div className="panel">
         <strong>弱点プロファイル</strong>
@@ -301,32 +471,7 @@ export function PlayerPage({ name }: Props) {
                 : ""}
             </div>
             {group.positions.slice(0, BRANCHES_PER_GROUP).map((p) => (
-              <details key={p.key} className="branch">
-                <summary>
-                  {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
-                </summary>
-                <div className="detail-body">
-                  <div style={{ maxWidth: 260 }}>
-                    <Board sfen={p.key} flipped={p.flipped} />
-                  </div>
-                  <div className="row">
-                    {p.gameIds.map((id) => {
-                      const g = byId.get(id);
-                      return (
-                        <button
-                          key={id}
-                          className="ghost"
-                          onClick={() => navigate({ kind: "game", id, ply: p.ply })}
-                        >
-                          {g
-                            ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
-                            : id}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </details>
+              <BranchDetails key={p.key} p={p} byId={byId} name={name} />
             ))}
           </div>
         ))}

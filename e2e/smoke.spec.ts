@@ -38,12 +38,18 @@ test.describe("一通りの画面", () => {
     await expect(page.getByText("採用戦法")).toBeVisible();
     await expect(page.getByText(/解析済み 1 局/)).toBeVisible();
     await expect(page.getByText("痛かった手")).toBeVisible();
+    await expect(page.locator("details.worst[open]")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "局面を開く" }).first()).toBeHidden();
+    await page.locator("details.worst summary").first().click();
     await page.getByRole("button", { name: "局面を開く" }).first().click();
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);
     await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
     await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();
     await page.goBack();
     await expect(page.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
+    await expect(page.locator(".branch svg.board")).toBeHidden();
+    await page.locator(".branch summary").first().click();
+    await expect(page.locator(".branch svg.board").first()).toBeVisible();
     await page.locator(".branch button").first().click();
     await expect(page).toHaveURL(/#\/game\/f000000000000000\/18/);
     await expect(page.getByText("18 手目")).toBeVisible();

@@ -9,6 +9,7 @@ import { GAME_SHAPE_LABEL } from "../core/opening";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
 import { EvalChart } from "./EvalChart";
+import { LossHelp } from "./LossHelp";
 import { describeGame, fmtCp, formatDate } from "./labels";
 import { navigate } from "./router";
 
@@ -169,6 +170,10 @@ export function GameViewer({ id, initialPly }: Props) {
               <dd>
                 平均損失 {review.white.averageLoss} · 疑問手 {review.white.counts.inaccuracy} 悪手{" "}
                 {review.white.counts.mistake} 大悪手 {review.white.counts.blunder}
+              </dd>
+              <dt></dt>
+              <dd>
+                <LossHelp />
               </dd>
               <dt>エンジン</dt>
               <dd className="muted">

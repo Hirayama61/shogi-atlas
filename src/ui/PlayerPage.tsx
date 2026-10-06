@@ -2,10 +2,12 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
 import { JUDGEMENT_LABEL, PHASE_LABEL } from "../core/analysis";
 import { buildPlayerProfile } from "../core/profile";
-import { computePlayerStats, playerSide, type Bucket } from "../core/stats";
+import { computePlayerStats, playerSide, type Bucket, type CommonPosition } from "../core/stats";
+import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate } from "./labels";
+import { LossHelp } from "./LossHelp";
 import { navigate } from "./router";
 
 interface Props {
@@ -86,6 +88,42 @@ function BucketTable({ title, rows }: { title: string; rows: Bucket[] }) {
   );
 }
 
+/** 分岐点の 1 グループに出す局面の数 */
+const BRANCHES_PER_GROUP = 3;
+
+interface BranchGroup {
+  /** その分岐点を通った対局での本人の戦法 (複数なら "/" でつなぐ) */
+  label: string;
+  positions: Array<CommonPosition & { flipped: boolean }>;
+}
+
+/**
+ * 分岐点を本人の戦法でまとめる。同じ戦法の中では局数・手数の多い順 (commonPositions の順) を保つ。
+ * 盤の向きはその局面を通った最初の対局で本人が後手かどうか。
+ */
+function groupBranches(
+  positions: CommonPosition[],
+  byId: Map<string, GameRecord>,
+  name: string,
+): BranchGroup[] {
+  const groups = new Map<string, BranchGroup>();
+  for (const p of positions) {
+    const games = p.gameIds.map((id) => byId.get(id)).filter((g) => g !== undefined);
+    const openings = new Set(
+      games.map((g) =>
+        playerSide(g, name) === "white" ? g.opening.whiteOpening : g.opening.blackOpening,
+      ),
+    );
+    const label = Array.from(openings).sort().join(" / ") || "不明";
+    const first = games[0];
+    const flipped = first ? playerSide(first, name) === "white" : false;
+    const group = groups.get(label) ?? { label, positions: [] };
+    group.positions.push({ ...p, flipped });
+    groups.set(label, group);
+  }
+  return Array.from(groups.values());
+}
+
 export function PlayerPage({ name }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
@@ -102,6 +140,11 @@ export function PlayerPage({ name }: Props) {
         .filter((g) => playerSide(g, name) !== null)
         .sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? "")),
     [games, name],
+  );
+  const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
+  const branchGroups = useMemo(
+    () => (stats ? groupBranches(stats.commonPositions, byId, name) : []),
+    [stats, byId, name],
   );
 
   if (!games || !stats) return <p className="muted">読み込み中…</p>;
@@ -138,6 +181,7 @@ export function PlayerPage({ name }: Props) {
             <p className="muted">
               解析済み {profile.games} 局 · 1手あたり平均損失 {profile.averageLoss} cp
             </p>
+            <LossHelp />
             <div className="rates">
               <div>
                 <strong>{pctOrDash(profile.conversionRate)}</strong>
@@ -182,28 +226,31 @@ export function PlayerPage({ name }: Props) {
             </div>
             <strong>痛かった手</strong>
             {profile.worstMoves.map((w) => (
-              <div key={`${w.gameId}-${w.ply}`} className="worst">
-                <div style={{ maxWidth: 220 }}>
-                  <Board sfen={w.sfen} flipped={w.side === "white"} />
-                </div>
-                <div>
+              <details key={`${w.gameId}-${w.ply}`} className="worst">
+                <summary>
+                  {w.startedAt?.slice(0, 10)} vs {w.opponent} · {w.ply}手目{" "}
+                  <span className="mark">{JUDGEMENT_LABEL[w.judgement]}</span>{" "}
+                  <span className="muted">勝率 -{Math.round(w.swing * 100)}%</span>
+                </summary>
+                <div className="detail-body">
+                  <div style={{ maxWidth: 220 }}>
+                    <Board sfen={w.sfen} flipped={w.side === "white"} />
+                  </div>
                   <div>
-                    {w.startedAt?.slice(0, 10)} vs {w.opponent} · {w.ply}手目{" "}
-                    <span className="mark">{JUDGEMENT_LABEL[w.judgement]}</span>
+                    <div className="muted">
+                      {PHASE_LABEL[w.phase]} · 指し手 {w.played}
+                      {w.best ? ` · 最善 ${w.best}` : ""}
+                    </div>
+                    <button
+                      className="ghost"
+                      style={{ marginTop: 6 }}
+                      onClick={() => navigate({ kind: "game", id: w.gameId, ply: w.ply - 1 })}
+                    >
+                      局面を開く
+                    </button>
                   </div>
-                  <div className="muted">
-                    {PHASE_LABEL[w.phase]} · 指し手 {w.played}
-                    {w.best ? ` · 最善 ${w.best}` : ""} · 勝率 -{Math.round(w.swing * 100)}%
-                  </div>
-                  <button
-                    className="ghost"
-                    style={{ marginTop: 6 }}
-                    onClick={() => navigate({ kind: "game", id: w.gameId, ply: w.ply - 1 })}
-                  >
-                    局面を開く
-                  </button>
                 </div>
-              </div>
+              </details>
             ))}
           </>
         )}
@@ -217,42 +264,42 @@ export function PlayerPage({ name }: Props) {
         {stats.commonPositions.length === 0 && (
           <p className="muted">まだありません (同じ人の対局が 2 局以上必要)</p>
         )}
-        {stats.commonPositions.slice(0, 8).map((p) => (
-          <div key={p.key} className="branch">
-            <div style={{ maxWidth: 260 }}>
-              <Board
-                sfen={p.key}
-                flipped={
-                  own.find((g) => g.id === p.gameIds[0])
-                    ? playerSide(
-                        own.find((g) => g.id === p.gameIds[0])!,
-                        name,
-                      ) === "white"
-                    : false
-                }
-              />
+        {branchGroups.map((group) => (
+          <div key={group.label} className="branch-group">
+            <div className="muted">
+              {group.label} · {group.positions.length} 局面
+              {group.positions.length > BRANCHES_PER_GROUP
+                ? ` (上位 ${BRANCHES_PER_GROUP} 件)`
+                : ""}
             </div>
-            <div>
-              <div>
-                {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
-              </div>
-              <div className="row" style={{ marginTop: 6 }}>
-                {p.gameIds.map((id) => {
-                  const g = own.find((x) => x.id === id);
-                  return (
-                    <button
-                      key={id}
-                      className="ghost"
-                      onClick={() => navigate({ kind: "game", id, ply: p.ply })}
-                    >
-                      {g
-                        ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
-                        : id}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {group.positions.slice(0, BRANCHES_PER_GROUP).map((p) => (
+              <details key={p.key} className="branch">
+                <summary>
+                  {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
+                </summary>
+                <div className="detail-body">
+                  <div style={{ maxWidth: 260 }}>
+                    <Board sfen={p.key} flipped={p.flipped} />
+                  </div>
+                  <div className="row">
+                    {p.gameIds.map((id) => {
+                      const g = byId.get(id);
+                      return (
+                        <button
+                          key={id}
+                          className="ghost"
+                          onClick={() => navigate({ kind: "game", id, ply: p.ply })}
+                        >
+                          {g
+                            ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
+                            : id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </details>
+            ))}
           </div>
         ))}
       </div>

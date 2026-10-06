@@ -146,6 +146,19 @@ describe("UI", () => {
     expect(document.body.textContent).not.toContain("undefined");
   });
 
+  it("PlayerPage: 分岐点は戦法ごとにまとまり、1 局面 1 行で閉じている", async () => {
+    const { b } = await seed();
+    await db.games.put({ ...b, id: "b-copy", startedAt: "2026-04-01T00:00:00" });
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText(/手目まで共通 · 2 局/)).toBeInTheDocument());
+    const branch = screen.getByText(/手目まで共通 · 2 局/).closest("details");
+    expect(branch).not.toBeNull();
+    expect(branch!.open).toBe(false);
+    expect(branch!.querySelector("summary svg")).toBeNull();
+    expect(branch!.querySelectorAll("button")).toHaveLength(2);
+    expect(document.querySelector(".branch-group")?.textContent).toContain(b.opening.blackOpening);
+  });
+
   it("PlayerPage: 対局が無い人", async () => {
     render(<PlayerPage name="nobody" />);
     await waitFor(() => expect(screen.getByText(/nobody の対局がありません/)).toBeInTheDocument());
@@ -172,6 +185,7 @@ describe("UI", () => {
     expect(screen.getAllByText("??").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/大悪手/).length).toBeGreaterThan(0);
     expect(screen.getByText(/-400 → \+600/)).toBeInTheDocument();
+    expect(screen.getByText("平均損失とは")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
   });
 
@@ -189,6 +203,13 @@ describe("UI", () => {
     await waitFor(() => expect(screen.getByText(/解析済み 1 局/)).toBeInTheDocument());
     expect(screen.getByText("痛かった手")).toBeInTheDocument();
     expect(screen.getByText("局面を開く")).toBeInTheDocument();
+    // 痛かった手・分岐点は初期状態で閉じている
+    expect(document.querySelectorAll("details.worst").length).toBeGreaterThan(0);
+    expect(document.querySelector("details.worst[open], details.branch[open]")).toBeNull();
+    // 平均損失の意味と目安
+    expect(screen.getByText("平均損失とは")).toBeInTheDocument();
+    expect(document.body.textContent).toContain("最善手を指した場合と比べて");
+    expect(document.body.textContent).toContain("120 以上で疑問手");
     expect(document.body.textContent).not.toContain("undefined");
     expect(document.body.textContent).not.toContain("NaN");
   });

@@ -118,11 +118,14 @@ export interface MoveReview {
   judgement: Judgement;
 }
 
+/** 1 手の損失 (cp) の判定の閾値。勝率の減少幅でも判定する (judge)。 */
+export const LOSS_THRESHOLD = { inaccuracy: 120, mistake: 350, blunder: 800 } as const;
+
 /** 勝率の減少幅から評価する。cp の損失だけだと大差の局面で過剰に反応するため。 */
 export function judge(swing: number, loss: number): Judgement {
-  if (swing >= 0.25 || loss >= 800) return "blunder";
-  if (swing >= 0.12 || loss >= 350) return "mistake";
-  if (swing >= 0.05 || loss >= 120) return "inaccuracy";
+  if (swing >= 0.25 || loss >= LOSS_THRESHOLD.blunder) return "blunder";
+  if (swing >= 0.12 || loss >= LOSS_THRESHOLD.mistake) return "mistake";
+  if (swing >= 0.05 || loss >= LOSS_THRESHOLD.inaccuracy) return "inaccuracy";
   return "good";
 }
 

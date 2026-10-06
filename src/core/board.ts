@@ -61,3 +61,25 @@ export function bishopsOnBoard(view: BoardView): number {
   for (const p of view.pieces.values()) if (/^\+?[bB]$/.test(p)) n++;
   return n;
 }
+
+/** 盤上の駒の数 (先後問わず) */
+export function piecesOnBoard(positionKey: string): number {
+  return toBoardView(positionKey).pieces.size;
+}
+
+/**
+ * 最初の駒交換 (攻め開始) の手数。駒が初めて取られた手 = 盤上の駒が前の局面より減った手。
+ * positions は局面キー列 (index 0 が開始局面)。駒を取る手が無ければ null。
+ * 戦法判定 (角交換型など) と組み合わせ分析で同じ定義を使う。
+ */
+export function firstCapturePly(positions: string[]): number | null {
+  let prev = positions[0] === undefined ? 0 : piecesOnBoard(positions[0]);
+  for (let ply = 1; ply < positions.length; ply++) {
+    const key = positions[ply];
+    if (key === undefined) continue;
+    const n = piecesOnBoard(key);
+    if (n < prev) return ply;
+    prev = n;
+  }
+  return null;
+}

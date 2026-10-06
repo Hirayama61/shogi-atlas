@@ -54,7 +54,7 @@ export interface BranchReview extends CommonPosition {
 
 const SEVERITY: Record<Judgement, number> = { good: 0, inaccuracy: 1, mistake: 2, blunder: 3 };
 
-function usiMoves(usi: string): string[] {
+export function usiMoves(usi: string): string[] {
   const i = usi.indexOf(" moves ");
   return i < 0
     ? []

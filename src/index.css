@@ -340,6 +340,39 @@ table.stats td:first-child {
   font-size: 13px;
   padding: 4px 0;
 }
+.lines {
+  margin-top: 8px;
+}
+.lines > summary,
+.line-branch > summary {
+  cursor: pointer;
+}
+.line-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 4px 0;
+}
+.line-move {
+  background: none;
+  border: none;
+  padding: 2px 2px;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  cursor: pointer;
+}
+.line-move[aria-pressed="true"] {
+  background: var(--border);
+  border-radius: 4px;
+}
+.line-fork {
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+.line-branch > summary {
+  padding: 2px 0;
+}
 .detail-body {
   display: flex;
   gap: 12px;

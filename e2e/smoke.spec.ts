@@ -96,6 +96,18 @@ test.describe("一通りの画面", () => {
     const portfolio = page.locator(".panel", { hasText: "戦型ポートフォリオ" });
     await expect(portfolio.locator("details.portfolio[open]")).toHaveCount(0);
     await portfolio.locator("details.portfolio summary").first().click();
+    // 相手の戦法ごとの繰り返し手順: 18 手目まで 2 局が同じ。手をタップすると盤面と対局へのボタン
+    const lines = portfolio.locator("details.portfolio[open] details.lines").first();
+    await expect(lines.locator("summary")).toContainText("幹 18 手目まで 2 局");
+    await lines.locator("summary").click();
+    await expect(lines.locator(".line-move").first()).toHaveText("▲7六歩 (2)");
+    await expect(lines.locator("svg.board")).toBeHidden();
+    await lines.getByRole("button", { name: "△5四歩" }).click();
+    await expect(lines.locator("svg.board")).toBeVisible();
+    await lines.locator(".detail-body button").first().click();
+    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/18$/);
+    await page.goBack();
+    await portfolio.locator("details.portfolio summary").first().click();
     await portfolio.locator("details.portfolio[open] tbody tr a").first().click();
     await expect(page).toHaveURL(/#\/player\/taro\/portfolio\//);
     await expect(page.getByText(/相手: /).first()).toBeVisible();

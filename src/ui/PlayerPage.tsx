@@ -7,8 +7,10 @@ import {
   type RateBreakdown,
   type RateEvidence,
 } from "../core/profile";
+import { findRepeatedLines, straightFrom, trunkOf, type LineNode } from "../core/lines";
 import {
   computePortfolio,
+  matchesPortfolio,
   portfolioCommonPositions,
   type PortfolioCondition,
   type PortfolioGroup,
@@ -491,24 +493,153 @@ function BranchDetails({
         <div style={{ maxWidth: 260 }}>
           <Board sfen={p.key} flipped={p.flipped} />
         </div>
-        <div className="row">
-          {p.gameIds.map((id) => {
-            const g = byId.get(id);
-            return (
-              <button
-                key={id}
-                className="ghost"
-                onClick={() => navigate({ kind: "game", id, ply: p.ply })}
-              >
-                {g
-                  ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
-                  : id}
-              </button>
-            );
-          })}
-        </div>
+        <GameButtons gameIds={p.gameIds} ply={p.ply} byId={byId} name={name} />
       </div>
     </details>
+  );
+}
+
+/** 対局へのボタン。押すとその対局の `ply` 手目へ飛ぶ */
+function GameButtons({
+  gameIds,
+  ply,
+  byId,
+  name,
+}: {
+  gameIds: string[];
+  ply: number;
+  byId: Map<string, GameRecord>;
+  name: string;
+}) {
+  return (
+    <div className="row">
+      {gameIds.map((id) => {
+        const g = byId.get(id);
+        return (
+          <button key={id} className="ghost" onClick={() => navigate({ kind: "game", id, ply })}>
+            {g
+              ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
+              : id}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 本人が繰り返している手順。分岐の無いところは手を 1 列に並べ (局数は変わったところに出す)、
+ * 分かれるところでは分かれた先を局数の多い順に畳んで出す。手をタップすると盤面と対局へのボタンが出る。
+ */
+function RepeatedLines({
+  root,
+  byId,
+  name,
+  flipped,
+}: {
+  root: LineNode;
+  byId: Map<string, GameRecord>;
+  name: string;
+  flipped: boolean;
+}) {
+  const trunk = trunkOf(root);
+  const tip = trunk[trunk.length - 1];
+  if (!tip) return null;
+  return (
+    <details className="lines">
+      <summary>
+        繰り返している手順 · 幹 {tip.ply} 手目まで {tip.gameIds.length} 局
+      </summary>
+      <p className="muted">
+        2
+        局以上が同じ手順をたどった手だけを出す。括弧はそこまで同じ手順だった局数。手をタップすると盤面が出る。
+      </p>
+      <LineFork nodes={root.children} byId={byId} name={name} flipped={flipped} />
+    </details>
+  );
+}
+
+function LineFork({
+  nodes,
+  byId,
+  name,
+  flipped,
+}: {
+  nodes: LineNode[];
+  byId: Map<string, GameRecord>;
+  name: string;
+  flipped: boolean;
+}) {
+  if (nodes.length === 1)
+    return <LineSegment node={nodes[0]!} byId={byId} name={name} flipped={flipped} />;
+  return (
+    <div className="line-fork">
+      <div className="muted">分岐 · {nodes.length} 通り</div>
+      {nodes.map((n) => (
+        <details key={n.usi} className="line-branch">
+          <summary>
+            {n.label} ({n.gameIds.length} 局 · {n.wins} 勝)
+          </summary>
+          <LineSegment node={n} byId={byId} name={name} flipped={flipped} />
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function LineSegment({
+  node,
+  byId,
+  name,
+  flipped,
+}: {
+  node: LineNode;
+  byId: Map<string, GameRecord>;
+  name: string;
+  flipped: boolean;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const moves = straightFrom(node);
+  const last = moves[moves.length - 1]!;
+  const current = selected === null ? undefined : moves[selected];
+  return (
+    <div className="line">
+      <div className="line-moves">
+        {moves.map((m, i) => {
+          const changed = i === 0 || m.gameIds.length !== moves[i - 1]!.gameIds.length;
+          return (
+            <button
+              key={m.ply}
+              type="button"
+              className="line-move"
+              aria-pressed={selected === i}
+              title={`${m.ply} 手目 · ${m.gameIds.length} 局`}
+              onClick={() => setSelected(selected === i ? null : i)}
+            >
+              {m.label}
+              {changed && <span className="muted"> ({m.gameIds.length})</span>}
+            </button>
+          );
+        })}
+      </div>
+      {current && (
+        <div className="detail-body">
+          <div style={{ maxWidth: 260 }}>
+            <Board sfen={current.key} flipped={flipped} />
+          </div>
+          <div>
+            <div className="muted">
+              {current.ply} 手目 {current.label} · {current.gameIds.length} 局 · {name} の{" "}
+              {current.wins} 勝
+            </div>
+            <GameButtons gameIds={current.gameIds} ply={current.ply} byId={byId} name={name} />
+          </div>
+        </div>
+      )}
+      {last.children.length > 0 && (
+        <LineFork nodes={last.children} byId={byId} name={name} flipped={flipped} />
+      )}
+    </div>
   );
 }
 
@@ -584,6 +715,15 @@ function PortfolioOpponentBlock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [games, name, cond.side, cond.vsStyle, cond.vsOpening],
   );
+  const line = useMemo(
+    () =>
+      findRepeatedLines(
+        games.filter((g) => matchesPortfolio(g, name, cond)),
+        name,
+      )[0],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [games, name, cond.side, cond.vsStyle, cond.vsOpening],
+  );
   return (
     <div className="portfolio-opponent">
       <div className="muted">
@@ -626,6 +766,9 @@ function PortfolioOpponentBlock({
           })}
         </tbody>
       </table>
+      {line && (
+        <RepeatedLines root={line} byId={byId} name={name} flipped={cond.side === "white"} />
+      )}
       {branches.length > 0 && (
         <div className="branch-group">
           <div className="muted">

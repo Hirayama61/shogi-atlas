@@ -87,8 +87,9 @@ test.describe("一通りの画面", () => {
     await tab.click();
     await expect(page).toHaveURL(/#\/updates/);
     await expect(page.getByRole("heading", { name: "更新情報" })).toBeVisible();
-    await expect(page.locator("ul.changelog > li").first()).toContainText(
-      "対局者ページの戦法・囲いから棋譜一覧へ",
+    // 先頭の見出しは機能を足すたびに変わるので、日付つきの項目が並ぶことだけ見る
+    await expect(page.locator("ul.changelog > li").first().locator("time")).toHaveText(
+      /^\d{4}-\d{2}-\d{2}$/,
     );
     await expect(tab.getByLabel("未読の更新あり")).toHaveCount(0);
     await page.reload();

@@ -4,6 +4,7 @@ import { listPlayers } from "../core/stats";
 import { db } from "../db/db";
 import { formatDate } from "./labels";
 import { navigate } from "./router";
+import { SearchInput } from "./SearchInput";
 
 export function PlayerList() {
   const [query, setQuery] = useState("");
@@ -19,20 +20,7 @@ export function PlayerList() {
   return (
     <section>
       <div className="panel row">
-        <input
-          type="search"
-          placeholder="名前で絞り込み"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 180,
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--bg)",
-          }}
-        />
+        <SearchInput value={query} onChange={setQuery} placeholder="名前で絞り込み" />
         <span className="muted">{filtered.length} 人</span>
         <label className="row muted">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />

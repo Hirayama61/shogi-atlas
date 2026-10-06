@@ -83,6 +83,38 @@ describe("UI", () => {
     expect(screen.getByText("☖x1")).toBeInTheDocument();
   });
 
+  it("GameList: 絞り込み欄のクリアボタンで全件に戻り、戦型の選択は残る", async () => {
+    await seed();
+    render(<GameList />);
+    await waitFor(() => expect(screen.getByText(/3 \/ 3 局/)).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
+
+    const select = screen.getByRole("combobox");
+    const shape = (select.querySelectorAll("option")[1] as HTMLOptionElement).value;
+    fireEvent.change(select, { target: { value: shape } });
+    const input = screen.getByPlaceholderText(/絞り込み/);
+    fireEvent.change(input, { target: { value: "x1" } });
+    fireEvent.click(screen.getByRole("button", { name: "クリア" }));
+
+    expect(input).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
+    expect(select).toHaveValue(shape);
+  });
+
+  it("PlayerList: 名前の絞り込み欄にクリアボタンが出る", async () => {
+    await seed();
+    render(<PlayerList />);
+    await waitFor(() => expect(screen.getByText("Sukonbu3")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
+    const input = screen.getByPlaceholderText("名前で絞り込み");
+    fireEvent.change(input, { target: { value: "zzz" } });
+    await waitFor(() => expect(screen.getByText("0 人")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "クリア" }));
+    expect(input).toHaveValue("");
+    await waitFor(() => expect(screen.getByText("Sukonbu3")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "クリア" })).not.toBeInTheDocument();
+  });
+
   it("GameViewer: 盤面・戦法・囲い・同じ局面の対局が出る", async () => {
     const { a, b } = await seed();
     render(<GameViewer id={b.id} initialPly={18} />);

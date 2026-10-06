@@ -6,6 +6,7 @@ import { GAME_SHAPE_LABEL } from "../core/opening";
 import { SERVICE_LABEL, serviceFromQuery, serviceOf } from "../core/source";
 import { describeGame, formatDate } from "./labels";
 import { navigate } from "./router";
+import { SearchInput } from "./SearchInput";
 
 export function GameList() {
   const [query, setQuery] = useState("");
@@ -38,19 +39,10 @@ export function GameList() {
   return (
     <section>
       <div className="panel row">
-        <input
-          type="search"
-          placeholder="対局者・戦法・囲い・タグ・ウォーズ/クエストで絞り込み"
+        <SearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 180,
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--bg)",
-          }}
+          onChange={setQuery}
+          placeholder="対局者・戦法・囲い・タグ・ウォーズ/クエストで絞り込み"
         />
         <select
           value={shape}

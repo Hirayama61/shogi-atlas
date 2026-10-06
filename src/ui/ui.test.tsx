@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseKifu } from "../core/parse";
-import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
+import {
+  QUEST_KIF_TIMEOUT,
+  USI_ANAGUMA_VS_SHIKEN,
+  USI_SHIKEN_VS_FUNA,
+  WARS_KIF,
+} from "../core/__tests__/fixtures";
 import { db } from "../db/db";
 import type { AnalysisRecord } from "../core/analysis";
 import { GameList } from "./GameList";
@@ -49,6 +54,33 @@ describe("UI", () => {
     expect(screen.getByText("☖nemushi_")).toBeInTheDocument();
     expect(screen.getAllByText(/四間飛車/).length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toContain("undefined");
+  });
+
+  it("GameList: 出典サービスのバッジが出て、ウォーズ/クエストで絞り込める", async () => {
+    await seed();
+    const q = await parseKifu(QUEST_KIF_TIMEOUT, { source });
+    Object.assign(q, { startedAt: "2026-04-01T00:00:00" });
+    await db.games.put(q);
+    render(<GameList />);
+    await waitFor(() => expect(screen.getByText(/4 \/ 4 局/)).toBeInTheDocument());
+    const badges = screen.getAllByLabelText("出典").map((el) => el.textContent);
+    expect(badges).toEqual(["クエスト", "ウォーズ"]);
+
+    const input = screen.getByPlaceholderText(/絞り込み/);
+    fireEvent.change(input, { target: { value: "ウォーズ" } });
+    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
+    expect(screen.getByText("☖nemushi_")).toBeInTheDocument();
+    expect(screen.queryByText("☗alice")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "クエスト" } });
+    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
+    expect(screen.getByText("☗alice")).toBeInTheDocument();
+    expect(screen.queryByText("☖nemushi_")).not.toBeInTheDocument();
+
+    // 既存の絞り込み (対局者) はそのまま
+    fireEvent.change(input, { target: { value: "x1" } });
+    await waitFor(() => expect(screen.getByText(/1 \/ 4 局/)).toBeInTheDocument());
+    expect(screen.getByText("☖x1")).toBeInTheDocument();
   });
 
   it("GameViewer: 盤面・戦法・囲い・同じ局面の対局が出る", async () => {

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { db } from "../db/db";
 import type { GameShape } from "../core/types";
 import { GAME_SHAPE_LABEL } from "../core/opening";
+import { SERVICE_LABEL, serviceFromQuery, serviceOf } from "../core/source";
 import { describeGame, formatDate } from "./labels";
 import { navigate } from "./router";
 
@@ -14,10 +15,12 @@ export function GameList() {
   const filtered = useMemo(() => {
     if (!games) return [];
     const q = query.trim().toLowerCase();
+    const service = serviceFromQuery(q);
     return games.filter((g) => {
       if (shape && g.opening.shape !== shape) return false;
       if (!q) return true;
       return (
+        (service !== null && serviceOf(g) === service) ||
         g.black.toLowerCase().includes(q) ||
         g.white.toLowerCase().includes(q) ||
         g.opening.blackOpening.includes(q) ||
@@ -37,7 +40,7 @@ export function GameList() {
       <div className="panel row">
         <input
           type="search"
-          placeholder="対局者・戦法・囲い・タグで絞り込み"
+          placeholder="対局者・戦法・囲い・タグ・ウォーズ/クエストで絞り込み"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{
@@ -75,25 +78,33 @@ export function GameList() {
         </div>
       )}
       <ul className="games">
-        {filtered.map((g) => (
-          <li key={g.id} onClick={() => navigate({ kind: "game", id: g.id })}>
-            <div className="game-title">
-              <span className={g.result === "black" ? "win" : ""}>☗{g.black}</span>
-              {" vs "}
-              <span className={g.result === "white" ? "win" : ""}>☖{g.white}</span>
-            </div>
-            <div className="muted">
-              {formatDate(g.startedAt)} · {describeGame(g)}
-            </div>
-            <div>
-              {g.tags.map((t) => (
-                <span key={t} className="chip">
-                  {t}
-                </span>
-              ))}
-            </div>
-          </li>
-        ))}
+        {filtered.map((g) => {
+          const service = serviceOf(g);
+          return (
+            <li key={g.id} onClick={() => navigate({ kind: "game", id: g.id })}>
+              <div className="game-title">
+                {service !== "other" && (
+                  <span className={`badge ${service}`} aria-label="出典">
+                    {SERVICE_LABEL[service]}
+                  </span>
+                )}
+                <span className={g.result === "black" ? "win" : ""}>☗{g.black}</span>
+                {" vs "}
+                <span className={g.result === "white" ? "win" : ""}>☖{g.white}</span>
+              </div>
+              <div className="muted">
+                {formatDate(g.startedAt)} · {describeGame(g)}
+              </div>
+              <div>
+                {g.tags.map((t) => (
+                  <span key={t} className="chip">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

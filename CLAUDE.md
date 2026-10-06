@@ -21,7 +21,7 @@ GitHub Pages で公開し、スマホにインストールして使う。
 - `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。読み出し時に normalize を通す。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。
-- `src/changelog.ts` アプリ内の「更新情報」タブに出す一覧。**機能を足したら 1 件足す** (日付・見出し・1〜2 行の補足)。追加した機能だけを書き、修正・内部変更・運用の変更は書かない。新しいものを先頭に置く。未読判定は最新の日付で行う。
+- `src/changelog.ts` アプリ内の「更新情報」タブに出す一覧。**画面で見える機能を足したら、同じコミットで 1 件足す** (日付・見出し・1〜2 行の補足)。追加した機能だけを書き、修正・内部変更・運用の変更は書かない。core だけで画面が変わらない Issue (例: 集計関数の追加) は書かず、その UI を足す Issue で書く。新しいものを先頭に置く。未読判定は最新の日付で行う。
 - `src/core/analysis.ts` エンジン解析の型と各手の評価 (損失・勝率の減少・疑問手/悪手/大悪手)。`src/core/profile.ts` 対局者の弱点プロファイル。`src/core/annotate.ts` 解析つき KIF。
 - `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。
 - `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。

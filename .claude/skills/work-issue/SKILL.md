@@ -45,6 +45,7 @@ gh api -X POST "$R/issues/$N/comments" -f body="着手します (セッション
 
 - Issue 本文の「達成したい状態」「スコープ」「制約」「完了条件」に従う。本文に無いことはやらない。
 - CLAUDE.md の約束事を守る (棋譜データを本体に入れない、クロールしない、テストを足す、`PARSER_VERSION` のルール)。
+- 画面で見える機能を足したら `src/changelog.ts` の先頭に 1 件足す (日付・見出し・1〜2 行の補足)。core だけの Issue では書かない。
 - 本文の前提が間違っている、判断が要る、完了条件を満たせないと分かったら、理由をコメントして `needs-input` を付け (`gh api -X POST "$R/issues/$N/labels" -f 'labels[]=needs-input'`)、`in-progress` を外し (`gh api -X DELETE "$R/issues/$N/labels/in-progress"`)、変更は push せずに終える。
 
 ## 5. 検証

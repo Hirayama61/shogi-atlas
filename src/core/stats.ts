@@ -1,4 +1,5 @@
 import { formatRating } from "./quest";
+import { SELF_NAME } from "./self";
 import type { GameRecord, GameResult, GameSummary } from "./types";
 
 /** 分岐点の抽出に使う手数の範囲。序盤数手は誰でも同じなので除く。 */
@@ -188,11 +189,16 @@ export function findCommonPositions(games: GameRecord[], name: string): CommonPo
 
 /**
  * 本人 (登録した対局者) の側。タグに名前が入っている側で、両方か どちらも入っていなければ null。
+ * 自分 (`SELF_NAME`) と登録した相手の対局では相手の側を返す (相手の対策のために見るので、今までどおり相手を手前にする)。
  * 棋譜ビューアで本人側を手前にするために使う。
  */
 export function trackedSide(g: Pick<GameSummary, "black" | "white" | "tags">): Side | null {
   const black = g.tags.includes(g.black);
   const white = g.tags.includes(g.white);
+  if (black && white) {
+    if (g.black === SELF_NAME && g.white !== SELF_NAME) return "white";
+    if (g.white === SELF_NAME && g.black !== SELF_NAME) return "black";
+  }
   if (black === white) return null;
   return black ? "black" : "white";
 }
@@ -245,6 +251,9 @@ export function listPlayers(games: GameSummary[]): PlayerSummary[] {
     .map((p) => ({ ...p, tags: Array.from(new Set(p.tags.filter((t) => t !== p.name))) }))
     .sort(
       (a, b) =>
-        Number(b.tracked) - Number(a.tracked) || b.games - a.games || a.name.localeCompare(b.name),
+        Number(b.tracked) - Number(a.tracked) ||
+        Number(b.name === SELF_NAME) - Number(a.name === SELF_NAME) ||
+        b.games - a.games ||
+        a.name.localeCompare(b.name),
     );
 }

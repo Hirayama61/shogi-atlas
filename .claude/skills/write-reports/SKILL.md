@@ -36,7 +36,7 @@ git -C /home/user/shogi-atlas-data checkout -q main && git -C /home/user/shogi-a
 - `players/<名前>/profile.md` と `profile.json`: 段階別の精度、戦法別の精度、有利を活かす率、粘り、相手の大悪手を咎めた率、先に大悪手を指す率、痛かった手。
 - `analysis/<id>.kif`: 評価値と最善手をコメントに入れた棋譜。`games/<id>.json` に対局のメタ情報 (対局者、戦型、囲い、結果、持ち時間)。
 - `players/<名前>/report.md`: 前回のレポート。書き直すときは前回の内容を引き継ぎ、増えた対局で裏付けが変わった箇所を直す (丸ごと書き直してもよいが、前回と矛盾する断定を残さない)。
-- その人の対局は `index.json` で名前が `black` か `white` に入っているもの。解析があるのは `analysis/index.json` に id があるもの。
+- その人の対局は `index.json` で名前が `black` か `white` に入っているもの。自分 (`players/自分/`) だけは、`index.json` の `self` にある ID のどれかが入っているもの (複数の ID を 1 人にまとめている)。解析があるのは `analysis/index.json` に id があるもの。
 
 ## 4. 出力
 

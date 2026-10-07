@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { fixtureReport } from "../src/core/__tests__/fixtures";
-import { fixtureAnalyses, fixtureGames, syncWithMock } from "./fixture";
+import { fixtureAnalyses, fixtureGames, fixtureSelfGames, syncWithMock } from "./fixture";
 
 test.describe("一通りの画面", () => {
   test.beforeEach(async ({ page }) => {
@@ -237,6 +237,42 @@ test.describe("一通りの画面", () => {
     await expect(
       page.getByRole("button", { name: /更新情報/ }).getByLabel("未読の更新あり"),
     ).toHaveCount(0);
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
+  });
+
+  test("自分の 2 つの ID が「自分」1 人にまとまり、どの画面にも ID が出ない", async ({ page }) => {
+    const { games, self } = await fixtureSelfGames();
+    await syncWithMock(page, games, [], {}, self);
+    const noIds = async () => {
+      const html = await page.content();
+      for (const id of self) expect(html).not.toContain(id);
+      for (const id of self) expect(decodeURIComponent(page.url())).not.toContain(id);
+    };
+
+    await page.goto("#/");
+    await expect(page.locator("ul.games li")).toHaveCount(3);
+    await noIds();
+
+    await page.click("text=対局者");
+    const first = page.locator("ul.games li").first();
+    await expect(first).toContainText("自分");
+    await expect(first).toContainText("3 局 · 2 勝 1 敗");
+    await expect(page.locator("ul.games li")).toHaveCount(2);
+    await noIds();
+
+    await first.click();
+    await expect(page).toHaveURL(/#\/player\/%E8%87%AA%E5%88%86$/);
+    await expect(page.locator(".profile-card")).toContainText("マイページ");
+    await expect(page.locator(".profile-card")).toContainText("0/3 局");
+    await noIds();
+
+    // 相手のページは今までどおり。相手との対局は相手が手前
+    await page.goto("#/player/rival");
+    await expect(page.locator(".profile-card")).toContainText("0/1 局");
+    await page.goto(`#/game/${games[2]!.id}`);
+    await expect(page.locator(".side-row").nth(1)).toContainText("☗ rival");
+    await expect(page.locator(".side-row").nth(0)).toContainText("☖ 自分");
+    await noIds();
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 });

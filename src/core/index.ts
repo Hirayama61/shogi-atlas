@@ -9,6 +9,7 @@ export * from "./mate";
 export * from "./hash";
 export * from "./normalize";
 export * from "./stats";
+export * from "./self";
 export * from "./combo";
 export * from "./analysis";
 export * from "./profile";

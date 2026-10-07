@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseIssueBody, playerFromTitle } from "./inbox";
+import { parseIssueBody, playerFromTitle, selfIdsFromIssues } from "./inbox";
 import { WARS_KIF } from "../src/core/__tests__/fixtures";
 
 describe("parseIssueBody", () => {
@@ -40,5 +40,20 @@ describe("playerFromTitle", () => {
     expect(playerFromTitle("棋譜: Sukonbu3")).toBe("Sukonbu3");
     expect(playerFromTitle("nemushi_")).toBe("nemushi_");
     expect(playerFromTitle("棋譜: ")).toBeUndefined();
+  });
+});
+
+describe("selfIdsFromIssues", () => {
+  it("`自分` ラベルの Issue のタイトルを自分の ID 一覧にする", () => {
+    const label = (...names: string[]) => names.map((name) => ({ name }));
+    expect(
+      selfIdsFromIssues([
+        { title: "me_wars", labels: label("自分") },
+        { title: "棋譜: me_quest", labels: label("自分", "kifu") },
+        { title: "rival", labels: label("大会相手") },
+        { title: "PR", labels: label("自分"), pull_request: {} },
+        { title: "me_wars", labels: label("自分") },
+      ]),
+    ).toEqual(["me_quest", "me_wars"]);
   });
 });

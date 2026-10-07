@@ -4,7 +4,7 @@ import { PARSER_VERSION } from "../core/normalize";
 import { parseKifu } from "../core/parse";
 import { toSummary } from "../core/types";
 import { fixtureReport, USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
-import { db } from "../db/db";
+import { db, getSelfIds } from "../db/db";
 import { DEFAULT_CONFIG, needsFetch, pullFromDataRepo, loadConfig, saveConfig } from "./github";
 
 const source = { kind: "paste" as const };
@@ -162,5 +162,45 @@ describe("pullFromDataRepo", () => {
     files["players/taro"] = [];
     await pullFromDataRepo(config);
     expect(await db.reports.get("taro")).toBeUndefined();
+  });
+
+  it("index.json の self を自分の ID 一覧として取り込み、変わったら全局を取り直す", async () => {
+    const a = await parseKifu(WARS_KIF, { source, importedAt: "2026-01-01T00:00:00Z" });
+    const files: Record<string, unknown> = {
+      "index.json": { schema: 1, updatedAt: "x", games: [toSummary(a)] },
+      [`games/${a.id}.json`]: a,
+      players: [{ name: "自分", type: "dir", sha: "d" }],
+      [`players/${encodeURIComponent("自分")}`]: [{ name: "report.md", type: "file", sha: "s" }],
+      [`players/${encodeURIComponent("自分")}/report.md`]: "# 自分 対策レポート",
+    };
+    const calls = mockRepo(files);
+    await pullFromDataRepo(config);
+    expect((await db.games.get(a.id))?.black).toBe("Sukonbu3");
+    expect(await db.reports.get("自分")).toBeUndefined();
+
+    files["index.json"] = { schema: 1, updatedAt: "x", games: [toSummary(a)], self: ["Sukonbu3"] };
+    calls.length = 0;
+    await pullFromDataRepo(config);
+    expect([...getSelfIds()]).toEqual(["Sukonbu3"]);
+    expect(calls).toContain(`games/${a.id}.json`);
+    const g = await db.games.get(a.id);
+    expect(g?.black).toBe("自分");
+    expect(g?.tags).toContain("自分");
+    expect(g?.raw).not.toContain("Sukonbu3");
+    expect(JSON.parse(localStorage.getItem("shogi-atlas.self") ?? "[]")).toEqual(["Sukonbu3"]);
+    // 自分のレポートは players/自分/ から取る
+    expect((await db.reports.get("自分"))?.markdown).toBe("# 自分 対策レポート");
+
+    // 保存されている対局そのものは書き換えない (読み出しで置き換えるだけ)
+    const stored = await db.games.toCollection().raw().toArray();
+    expect(stored[0]?.black).toBe("Sukonbu3");
+
+    calls.length = 0;
+    await pullFromDataRepo(config);
+    expect(calls).not.toContain(`games/${a.id}.json`);
+
+    files["index.json"] = { schema: 1, updatedAt: "x", games: [toSummary(a)] };
+    await pullFromDataRepo(config);
+    expect((await db.games.get(a.id))?.black).toBe("Sukonbu3");
   });
 });

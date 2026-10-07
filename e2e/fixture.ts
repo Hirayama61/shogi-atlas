@@ -47,6 +47,25 @@ export async function fixtureGames(): Promise<GameRecord[]> {
   return [a, b, c, d].map((g, i) => ({ ...g, id: `f${i}`.padEnd(16, "0") }));
 }
 
+/** 自分の 2 つの ID (将棋ウォーズとクエスト) の対局 2 局と、登録した相手 rival と自分の対局 1 局 */
+export async function fixtureSelfGames(): Promise<{ games: GameRecord[]; self: string[] }> {
+  const self = ["me_wars", "me_quest"];
+  const a = await parseKifu(USI_SHIKEN_VS_FUNA, { source, tags: ["me_wars", "自分"] });
+  const b = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), {
+    source,
+    tags: ["me_quest", "自分"],
+  });
+  const c = await parseKifu(USI_ANAGUMA_VS_SHIKEN, { source, tags: ["rival"] });
+  Object.assign(a, { black: "me_wars", white: "x1", result: "black", blackRank: "二段" });
+  Object.assign(a, { startedAt: "2026-10-01T10:00:00" });
+  Object.assign(b, { black: "me_quest", white: "x2", result: "white", blackRating: 1500 });
+  Object.assign(b, { startedAt: "2026-10-02T10:00:00" });
+  Object.assign(c, { black: "rival", white: "me_wars", result: "white" });
+  Object.assign(c, { startedAt: "2026-10-03T10:00:00" });
+  const games = [a, b, c].map((g, i) => ({ ...g, id: `e${i}`.padEnd(16, "0") }));
+  return { games, self };
+}
+
 /** 先頭の対局に架空のエンジン解析を付ける (15 手目で先手が大悪手) */
 export function fixtureAnalyses(games: GameRecord[]): AnalysisRecord[] {
   const g = games[0]!;
@@ -70,6 +89,7 @@ export async function mockDataRepo(
   games: GameRecord[],
   analyses: AnalysisRecord[] = [],
   reports: Record<string, string> = {},
+  self: string[] = [],
 ): Promise<void> {
   const headers = { "access-control-allow-origin": "*", "content-type": "application/json" };
   await page.route("https://api.github.com/**", (route) => {
@@ -78,7 +98,7 @@ export async function mockDataRepo(
       return route.fulfill({
         status: 200,
         headers,
-        body: JSON.stringify({ schema: 1, updatedAt: "x", games: games.map(toSummary) }),
+        body: JSON.stringify({ schema: 1, updatedAt: "x", games: games.map(toSummary), self }),
       });
     }
     if (path === "analysis/index.json") {
@@ -125,8 +145,9 @@ export async function syncWithMock(
   games: GameRecord[],
   analyses: AnalysisRecord[] = [],
   reports: Record<string, string> = {},
+  self: string[] = [],
 ): Promise<void> {
-  await mockDataRepo(page, games, analyses, reports);
+  await mockDataRepo(page, games, analyses, reports, self);
   await page.goto("#/settings");
   await page.fill("input[type=password]", "github_pat_dummy");
   await page.click("text=同期する");

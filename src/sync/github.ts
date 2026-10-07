@@ -1,8 +1,9 @@
 import { normalizeAnalysis, type AnalysisIndex, type AnalysisRecord } from "../core/analysis";
 import { normalizeGame, normalizeSummary } from "../core/normalize";
 import type { ReportRecord } from "../core/report";
+import { applySelf, normalizeSelfIds } from "../core/self";
 import type { GameRecord, GameSummary } from "../core/types";
-import { upsertGames, db } from "../db/db";
+import { upsertGames, db, getSelfIds, setSelfIds } from "../db/db";
 
 export interface DataRepoConfig {
   owner: string;
@@ -101,14 +102,18 @@ export async function pullFromDataRepo(
   onProgress?.({ phase: "index", done: 0, total: 0 });
   const indexText = await fetchRaw("index.json", config);
   if (!indexText) return { added: 0, updated: 0, total: 0, analyses: 0 };
-  const parsed = JSON.parse(indexText) as { games?: unknown[] };
+  const parsed = JSON.parse(indexText) as { games?: unknown[]; self?: unknown };
   const summaries = (parsed.games ?? [])
     .map(normalizeSummary)
     .filter((s): s is GameSummary => s !== null);
+  // 自分の ID 一覧が変わったら全局を取り直す (書き込みで画面の読み出しをやり直させるため)
+  const selfChanged = setSelfIds(normalizeSelfIds(parsed.self));
   const remoteIds = summaries.map((g) => g.id);
   const local = await db.games.where("id").anyOf(remoteIds).toArray();
   const localById = new Map(local.map((g) => [g.id, g] as const));
-  const missing = summaries.filter((s) => needsFetch(localById.get(s.id), s));
+  const missing = selfChanged
+    ? summaries
+    : summaries.filter((s) => needsFetch(localById.get(s.id), s));
 
   const fetched: GameRecord[] = [];
   let done = 0;
@@ -159,7 +164,9 @@ export async function pullFromDataRepo(
     analysesAdded = got.length;
   }
 
-  await pullReports(config, trackedPlayers(summaries), (doneR, totalR) =>
+  const selfIds = getSelfIds();
+  const named = summaries.map((s) => applySelf(s, selfIds));
+  await pullReports(config, trackedPlayers(named), (doneR, totalR) =>
     onProgress?.({ phase: "reports", done: doneR, total: totalR }),
   );
 

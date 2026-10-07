@@ -100,6 +100,8 @@ export interface GameIndex {
   schema: 1;
   updatedAt: string;
   games: GameSummary[];
+  /** 自分の ID 一覧 (データリポジトリの `自分` ラベルの Issue のタイトル)。src/core/self.ts */
+  self?: string[];
 }
 
 export function toSummary(game: GameRecord): GameSummary {

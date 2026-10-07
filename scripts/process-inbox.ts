@@ -7,6 +7,8 @@
  *     読めなかった場合だけ理由をコメントで返す。本文やコメントを編集すると再処理される。
  *   - Issue は閉じない。その人との対局が終わったら手で閉じる。閉じた Issue は処理対象外。
  *   - `not-kifu` ラベルを付けた Issue は無視する。
+ *   - `自分` ラベルを付けた Issue のタイトルは自分の ID とみなし、index.json の `self` に一覧を書く
+ *     (閉じた Issue も含める)。アプリと build-profiles はこれらの ID を 1 人の「自分」として扱う。
  *
  * 環境変数:
  *   GITHUB_TOKEN  Issue の読み書きができるトークン (Actions の GITHUB_TOKEN で可)
@@ -22,7 +24,8 @@ import path from "node:path";
 import { parseKifu } from "../src/core/parse";
 import { toSummary, type GameIndex, type GameRecord, type GameSource } from "../src/core/types";
 import { GAME_SHAPE_LABEL } from "../src/core/opening";
-import { parseIssueBody, playerFromTitle } from "./inbox";
+import { SELF_LABEL } from "../src/core/self";
+import { parseIssueBody, playerFromTitle, selfIdsFromIssues } from "./inbox";
 
 const token = process.env.GITHUB_TOKEN;
 const dataRepo = process.env.DATA_REPO ?? "Hirayama61/shogi-atlas-data";
@@ -193,6 +196,16 @@ async function main(): Promise<void> {
   };
   let stateChanged = false;
   let totalImported = 0;
+
+  const selfIssues = await listAll<Issue>(
+    `/repos/${dataRepo}/issues?state=all&labels=${encodeURIComponent(SELF_LABEL)}`,
+  );
+  const self = selfIdsFromIssues(selfIssues);
+  if (self.join("\n") !== (index.self ?? []).join("\n")) {
+    index.self = self;
+    ctx.changed = true;
+    console.log(`自分の ID: ${self.length} 件`);
+  }
 
   for (const issue of issues) {
     const issueKey = String(issue.number);

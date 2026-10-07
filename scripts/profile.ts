@@ -1,6 +1,7 @@
 /**
  * 解析済みの対局から対局者ごとの弱点プロファイルを作り、players/<name>/profile.{json,md} に書く。
  * 対象は Issue で登録した対局者 (タグに自分の名前が入っている人)。
+ * 自分の ID (index.json の `self`) は 1 人の「自分」にまとめ、players/自分/ に 1 組だけ書く。
  *
  *   DATA_DIR=../shogi-atlas-data pnpm build-profiles
  */
@@ -10,6 +11,7 @@ import path from "node:path";
 import type { AnalysisRecord } from "../src/core/analysis";
 import { normalizeGame } from "../src/core/normalize";
 import { buildPlayerProfile, profileToMarkdown } from "../src/core/profile";
+import { applySelf, normalizeSelfIds } from "../src/core/self";
 import { listPlayers } from "../src/core/stats";
 import type { GameRecord } from "../src/core/types";
 
@@ -18,10 +20,16 @@ const dataDir = path.resolve(process.env.DATA_DIR ?? "../shogi-atlas-data");
 async function main(): Promise<void> {
   const gamesDir = path.join(dataDir, "games");
   const analysisDir = path.join(dataDir, "analysis");
+  const indexFile = path.join(dataDir, "index.json");
+  const selfIds = new Set(
+    existsSync(indexFile)
+      ? normalizeSelfIds((JSON.parse(await readFile(indexFile, "utf8")) as { self?: unknown }).self)
+      : [],
+  );
   const games: GameRecord[] = [];
   for (const f of (await readdir(gamesDir)).filter((f) => f.endsWith(".json"))) {
     const g = normalizeGame(JSON.parse(await readFile(path.join(gamesDir, f), "utf8")));
-    if (g) games.push(g);
+    if (g) games.push(applySelf(g, selfIds));
   }
   const analyses = new Map<string, AnalysisRecord>();
   for (const g of games) {
@@ -47,6 +55,12 @@ async function main(): Promise<void> {
     await writeFile(path.join(dir, "profile.json"), JSON.stringify(profile, null, 2) + "\n");
     await writeFile(path.join(dir, "profile.md"), profileToMarkdown(profile));
     console.log(`${p.name}: 解析済み ${profile.games} / ${p.games} 局`);
+  }
+  for (const id of selfIds) {
+    if (existsSync(path.join(dataDir, "players", id)))
+      console.warn(
+        `players/${id}/ は自分の ID のディレクトリです。players/自分/ にまとめたので消してください`,
+      );
   }
 }
 

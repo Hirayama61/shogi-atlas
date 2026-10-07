@@ -3,6 +3,7 @@ import { MATE_CP } from "../core/analysis";
 import { shortOpeningLabel, SIDE_STYLE_LABEL } from "../core/opening";
 import { matchesPortfolio } from "../core/portfolio";
 import { formatRating } from "../core/quest";
+import { SELF_NAME } from "../core/self";
 import { serviceOf } from "../core/source";
 import { outcomeFor, playerSide } from "../core/stats";
 import type { ListQuery, PortfolioFilter, ResultFilter, SideFilter } from "./router";
@@ -132,6 +133,11 @@ export function playerLabel(g: GameSummary | GameRecord, side: "black" | "white"
   const r = formatRating(rating);
   if (r) parts.push(r);
   return parts.join(" ");
+}
+
+/** 対局者ページの見出し。自分のページは「マイページ」 */
+export function pageTitle(name: string): string {
+  return name === SELF_NAME ? "マイページ" : name;
 }
 
 /** 戦型ポートフォリオの条件の見出し (例: "先手 / 相手: 居飛車") */

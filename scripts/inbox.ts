@@ -5,6 +5,7 @@
  * Issue フォーム (### 見出し) の形式と、見出しなしで棋譜をそのまま貼った形式の両方を受け付ける。
  */
 import { splitKifuBlocks } from "../src/core/parse";
+import { normalizeSelfIds, SELF_LABEL } from "../src/core/self";
 
 export interface InboxEntry {
   kifuBlocks: string[];
@@ -84,6 +85,20 @@ export function looksLikeKifu(block: string): boolean {
 export function playerFromTitle(title: string): string | undefined {
   const name = title.replace(/^(棋譜|kifu)\s*[:：]\s*/i, "").trim();
   return name || undefined;
+}
+
+/**
+ * `自分` ラベルの Issue のタイトル (= 自分の ID) の一覧。`index.json` の `self` に書く。
+ * 閉じた Issue も含める (Issue を閉じても自分の ID が画面に戻らないように)。
+ */
+export function selfIdsFromIssues(
+  issues: Array<{ title: string; labels: Array<{ name: string }>; pull_request?: unknown }>,
+): string[] {
+  return normalizeSelfIds(
+    issues
+      .filter((i) => !i.pull_request && i.labels.some((l) => l.name === SELF_LABEL))
+      .map((i) => playerFromTitle(i.title)),
+  );
 }
 
 export function parseIssueBody(body: string, labels: string[] = []): InboxEntry {

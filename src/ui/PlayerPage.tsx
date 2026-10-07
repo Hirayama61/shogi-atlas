@@ -1,12 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { JUDGEMENT_LABEL, PHASE_LABEL } from "../core/analysis";
-import {
-  buildPlayerProfile,
-  type PlayerProfile,
-  type RateBreakdown,
-  type RateEvidence,
-} from "../core/profile";
+import { buildPlayerProfile } from "../core/profile";
 import { findRepeatedLines, straightFrom, trunkOf, type LineNode } from "../core/lines";
 import {
   computePortfolio,
@@ -25,12 +20,18 @@ import {
   type BranchReview,
 } from "../core/branches";
 import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
-import { computePlayerStats, playerSide, type Bucket, type CommonPosition } from "../core/stats";
+import {
+  computePlayerStats,
+  listPlayers,
+  playerSide,
+  type Bucket,
+  type CommonPosition,
+} from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
 import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
-import { LossHelp } from "./LossHelp";
+import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
 import {
   fieldQuery,
@@ -53,10 +54,6 @@ function pct(wins: number, games: number): string {
 /** 本人の対局のうち何割か (分母は呼び出し側で決める) */
 function share(games: number, total: number): string {
   return pct(games, total);
-}
-
-function pctOrDash(v: number | null): string {
-  return v === null ? "-" : `${Math.round(v * 100)}%`;
 }
 
 function BucketTableLoss({
@@ -271,129 +268,6 @@ function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
         highlightLosing
       />
     </div>
-  );
-}
-
-type RateKind = keyof RateBreakdown;
-
-const RATES: Array<{
-  kind: RateKind;
-  field: "conversionRate" | "resilienceRate" | "punishRate" | "firstBlunderRate";
-  label: string;
-  /** 内訳の説明 (どの局面を指しているか) */
-  note: string;
-  hit: string;
-  miss: string;
-}> = [
-  {
-    kind: "conversion",
-    field: "conversionRate",
-    label: "有利 (+300) からの勝率",
-    note: "評価値が初めて +300 以上になった局面",
-    hit: "勝った",
-    miss: "勝てなかった",
-  },
-  {
-    kind: "resilience",
-    field: "resilienceRate",
-    label: "不利 (-300) から負けなかった率",
-    note: "評価値が初めて -300 以下になった局面",
-    hit: "負けなかった",
-    miss: "負けた",
-  },
-  {
-    kind: "punish",
-    field: "punishRate",
-    label: "相手の大悪手を咎めた率",
-    note: "相手が大悪手 (対局で最も勝率を落とした手) を指した後の局面。最善は本人が指すべきだった手",
-    hit: "咎めて勝った",
-    miss: "勝てなかった",
-  },
-  {
-    kind: "firstBlunder",
-    field: "firstBlunderRate",
-    label: "先に大悪手を指す率",
-    note: "対局で最初の大悪手を指す前の局面",
-    hit: "自分が先",
-    miss: "相手が先",
-  },
-];
-
-/** 4 つの率。タップするとその率の内訳 (数えた対局と根拠の局面) が下に開く */
-function Rates({ profile }: { profile: PlayerProfile }) {
-  const [open, setOpen] = useState<RateKind | null>(null);
-  const current = RATES.find((r) => r.kind === open);
-  return (
-    <>
-      <div className="rates">
-        {RATES.map((r) => (
-          <button
-            key={r.kind}
-            type="button"
-            className={open === r.kind ? "active" : undefined}
-            aria-expanded={open === r.kind}
-            onClick={() => setOpen(open === r.kind ? null : r.kind)}
-          >
-            <strong>{pctOrDash(profile[r.field])}</strong>
-            <span>{r.label}</span>
-          </button>
-        ))}
-      </div>
-      {current && (
-        <div className="rate-breakdown">
-          <div className="muted">
-            {current.label} の内訳 · {profile.rates[current.kind].length} 局 · {current.note}
-          </div>
-          {profile.rates[current.kind].length === 0 && (
-            <p className="muted">該当する対局はまだありません</p>
-          )}
-          {profile.rates[current.kind].map((e) => (
-            <RateRow
-              key={`${e.gameId}-${e.ply}`}
-              e={e}
-              label={e.hit ? current.hit : current.miss}
-            />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/** 内訳の 1 行。開いたときだけ盤面を出す */
-function RateRow({ e, label }: { e: RateEvidence; label: string }) {
-  const [shown, setShown] = useState(false);
-  const signed = (cp: number) => (cp > 0 ? `+${cp}` : `${cp}`);
-  return (
-    <details className="rate-row" onToggle={(ev) => setShown(ev.currentTarget.open)}>
-      <summary>
-        {e.startedAt?.slice(0, 10)} vs {e.opponent} · {e.ply}手目{" "}
-        <span className={e.hit ? "hit" : "mark"}>{label}</span>{" "}
-        <span className="muted">{signed(e.cp)}</span>
-      </summary>
-      {shown && (
-        <div className="detail-body">
-          <div style={{ maxWidth: 220 }}>
-            <Board sfen={e.sfen} flipped={e.side === "white"} />
-          </div>
-          <div>
-            {e.played && (
-              <div className="muted">
-                {e.by === e.side ? "自分" : "相手"}の大悪手 {e.playedLabel ?? e.played}
-                {e.best ? ` · 最善 ${e.bestLabel ?? e.best}` : ""}
-              </div>
-            )}
-            <button
-              className="ghost"
-              style={{ marginTop: 6 }}
-              onClick={() => navigate({ kind: "game", id: e.gameId, ply: e.ply })}
-            >
-              局面を開く
-            </button>
-          </div>
-        </div>
-      )}
-    </details>
   );
 }
 
@@ -795,6 +669,15 @@ export function PlayerPage({ name }: Props) {
     const p = buildPlayerProfile(games, map, name, { worstMoves: 8 });
     return p.games > 0 ? p : null;
   }, [games, analyses, name]);
+  // レーダーに薄く重ねる比較用。登録している他の対局者のうち解析のある人
+  const others = useMemo(() => {
+    if (!games || !analyses) return [];
+    const map = new Map(analyses.map((a) => [a.id, a] as const));
+    return listPlayers(games)
+      .filter((p) => p.tracked && p.name !== name)
+      .map((p) => buildPlayerProfile(games, map, p.name, { worstMoves: 0 }))
+      .filter((p) => p.games > 0);
+  }, [games, analyses, name]);
   const own = useMemo(
     () =>
       (games ?? [])
@@ -831,17 +714,7 @@ export function PlayerPage({ name }: Props) {
 
   return (
     <section>
-      <div className="panel">
-        <div className="game-title" style={{ fontSize: 18 }}>
-          {name}
-          {stats.rank ? <span className="muted"> {stats.rank}</span> : null}
-        </div>
-        <div className="muted">
-          {stats.games} 局 · {stats.wins} 勝 {stats.losses} 敗{" "}
-          {stats.draws ? `${stats.draws} 分 ` : ""}· 勝率{" "}
-          {pct(stats.wins, stats.wins + stats.losses)} · 先手 {stats.asBlack} / 後手 {stats.asWhite}
-        </div>
-      </div>
+      <ProfileCard stats={stats} profile={profile} others={others} />
 
       {report && <ReportPanel report={report} gameIds={ownIds} />}
 
@@ -871,73 +744,43 @@ export function PlayerPage({ name }: Props) {
 
       <Portfolio groups={portfolio} games={own} byId={byId} name={name} />
 
-      <div className="panel">
-        <strong>弱点プロファイル</strong>
-        {!profile && (
-          <p className="muted">エンジン解析がまだありません (解析済みの対局が入ると出ます)</p>
-        )}
-        {profile && (
-          <>
-            <p className="muted">
-              解析済み {profile.games} 局 · 1手あたり平均損失 {profile.averageLoss} cp
-            </p>
-            <LossHelp />
-            <Rates profile={profile} />
-            <table className="stats">
-              <thead>
-                <tr>
-                  <th>段階</th>
-                  <th>手数</th>
-                  <th>平均損失</th>
-                  <th>大悪手率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(["opening", "middlegame", "endgame"] as const).map((ph) => (
-                  <tr key={ph}>
-                    <td>{PHASE_LABEL[ph]}</td>
-                    <td>{profile.byPhase[ph].moves}</td>
-                    <td>{profile.byPhase[ph].averageLoss}</td>
-                    <td>{pctOrDash(profile.byPhase[ph].blunderRate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="stats-grid">
-              <BucketTableLoss title="本人の戦法別の精度" rows={profile.byOpening} />
-              <BucketTableLoss title="相手の戦法別の精度" rows={profile.byOpponentOpening} />
-            </div>
-            <strong>痛かった手</strong>
-            {profile.worstMoves.map((w) => (
-              <details key={`${w.gameId}-${w.ply}`} className="worst">
-                <summary>
-                  {w.startedAt?.slice(0, 10)} vs {w.opponent} · {w.ply}手目{" "}
-                  <span className="mark">{JUDGEMENT_LABEL[w.judgement]}</span>{" "}
-                  <span className="muted">勝率 -{Math.round(w.swing * 100)}%</span>
-                </summary>
-                <div className="detail-body">
-                  <div style={{ maxWidth: 220 }}>
-                    <Board sfen={w.sfen} flipped={w.side === "white"} />
-                  </div>
-                  <div>
-                    <div className="muted">
-                      {PHASE_LABEL[w.phase]} · 指し手 {w.playedLabel}
-                      {w.best ? ` · 最善 ${w.bestLabel ?? w.best}` : ""}
-                    </div>
-                    <button
-                      className="ghost"
-                      style={{ marginTop: 6 }}
-                      onClick={() => navigate({ kind: "game", id: w.gameId, ply: w.ply - 1 })}
-                    >
-                      局面を開く
-                    </button>
-                  </div>
+      {profile && (
+        <div className="panel">
+          <strong>弱点プロファイル</strong>
+          <div className="stats-grid">
+            <BucketTableLoss title="本人の戦法別の精度" rows={profile.byOpening} />
+            <BucketTableLoss title="相手の戦法別の精度" rows={profile.byOpponentOpening} />
+          </div>
+          <strong>痛かった手</strong>
+          {profile.worstMoves.map((w) => (
+            <details key={`${w.gameId}-${w.ply}`} className="worst">
+              <summary>
+                {w.startedAt?.slice(0, 10)} vs {w.opponent} · {w.ply}手目{" "}
+                <span className="mark">{JUDGEMENT_LABEL[w.judgement]}</span>{" "}
+                <span className="muted">勝率 -{Math.round(w.swing * 100)}%</span>
+              </summary>
+              <div className="detail-body">
+                <div style={{ maxWidth: 220 }}>
+                  <Board sfen={w.sfen} flipped={w.side === "white"} />
                 </div>
-              </details>
-            ))}
-          </>
-        )}
-      </div>
+                <div>
+                  <div className="muted">
+                    {PHASE_LABEL[w.phase]} · 指し手 {w.playedLabel}
+                    {w.best ? ` · 最善 ${w.bestLabel ?? w.best}` : ""}
+                  </div>
+                  <button
+                    className="ghost"
+                    style={{ marginTop: 6 }}
+                    onClick={() => navigate({ kind: "game", id: w.gameId, ply: w.ply - 1 })}
+                  >
+                    局面を開く
+                  </button>
+                </div>
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
 
       <div className="panel">
         <strong>分岐点</strong>

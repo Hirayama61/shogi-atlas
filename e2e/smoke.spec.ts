@@ -36,12 +36,17 @@ test.describe("一通りの画面", () => {
     await page.locator("ul.games li", { hasText: "taro" }).click();
 
     await expect(page.getByText("採用戦法")).toBeVisible();
-    await expect(page.getByText(/解析済み 1 局/)).toBeVisible();
+    // 先頭のカード: 局数と解析済み、勝率と先後、レーダーチャートがスクロールなしで見える
+    const card = page.locator(".profile-card");
+    await expect(card.getByText("1/3 局", { exact: true })).toBeInViewport();
+    await expect(card.getByText(/^勝率 · /)).toBeInViewport();
+    await expect(card.getByText(/^先手 \d+ 局/)).toBeInViewport();
+    await expect(page.getByRole("img", { name: /レーダーチャート/ })).toBeInViewport();
     await expect(page.getByText("痛かった手")).toBeVisible();
     await expect(page.locator("details.worst[open]")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "局面を開く" }).first()).toBeHidden();
     // 率をタップすると内訳が開き、根拠の局面へ飛べる (15 手目で -900 → 初めて不利になった局面)
-    await page.getByRole("button", { name: /不利 \(-300\) から負けなかった率/ }).click();
+    await page.getByRole("button", { name: /粘り/ }).click();
     await expect(page.locator("details.rate-row")).toHaveCount(1);
     await page.locator("details.rate-row summary").click();
     await page.locator("details.rate-row").getByRole("button", { name: "局面を開く" }).click();

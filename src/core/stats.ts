@@ -54,6 +54,8 @@ export interface PlayerStats {
   draws: number;
   asBlack: number;
   asWhite: number;
+  /** 先後別の勝敗 */
+  bySide: Record<Side, { games: number; wins: number; losses: number }>;
   /** 本人の戦法 */
   openings: Bucket[];
   /** 本人の囲い */
@@ -91,6 +93,10 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
     draws: 0,
     asBlack: 0,
     asWhite: 0,
+    bySide: {
+      black: { games: 0, wins: 0, losses: 0 },
+      white: { games: 0, wins: 0, losses: 0 },
+    },
     openings: [],
     castles: [],
     vsOpenings: [],
@@ -111,6 +117,10 @@ export function computePlayerStats(all: GameRecord[], name: string): PlayerStats
     else if (outcome === "draw") stats.draws++;
     if (side === "black") stats.asBlack++;
     else stats.asWhite++;
+    const s = stats.bySide[side];
+    s.games++;
+    if (outcome === "win") s.wins++;
+    else if (outcome === "loss") s.losses++;
 
     const own = side === "black" ? g.opening.blackOpening : g.opening.whiteOpening;
     const ownCastle = side === "black" ? g.opening.blackCastle : g.opening.whiteCastle;

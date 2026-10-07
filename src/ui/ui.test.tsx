@@ -257,8 +257,17 @@ describe("UI", () => {
   it("PlayerPage: 成績と戦法の内訳が出る", async () => {
     await seed();
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/3 局 · 1 勝 2 敗/)).toBeInTheDocument());
-    expect(screen.getByText("採用戦法")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    // 先頭のカード: 局数と解析済み、勝率、先後の内訳。解析が無ければレーダーの代わりに「解析待ち」
+    const card = document.querySelector(".profile-card") as HTMLElement;
+    expect(card).toHaveTextContent("0/3 局");
+    expect(card).toHaveTextContent("勝率 · 1 勝 2 敗");
+    expect(card).toHaveTextContent("先手 3 局 · 1 勝 2 敗");
+    expect(card).toHaveTextContent("後手 0 局 · 0 勝 0 敗");
+    expect(card).toHaveTextContent("解析待ち");
+    expect(screen.queryByRole("img", { name: /レーダーチャート/ })).toBeNull();
+    // 解析が無ければ弱点プロファイルの欄は出さない
+    expect(screen.queryByText("弱点プロファイル")).toBeNull();
     expect(screen.getByText("相手の戦法別")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
   });
@@ -373,8 +382,10 @@ describe("UI", () => {
     );
 
     const panel = screen.getByText("戦型ポートフォリオ").closest(".panel") as HTMLElement;
-    // グループの割合はその先後の対局 (見出しの「先手 n / 後手 m」) に対する割合
-    const [, black, white] = /先手 (\d+) \/ 後手 (\d+)/.exec(document.body.textContent!)!;
+    // グループの割合はその先後の対局 (カードの「先手 n 局」「後手 m 局」) に対する割合
+    const figures = document.querySelector(".profile-card .figures")!.textContent!;
+    const [, black] = /先手 (\d+) 局/.exec(figures)!;
+    const [, white] = /後手 (\d+) 局/.exec(figures)!;
     const sideGames = { 先手: Number(black), 後手: Number(white) };
     for (const g of panel.querySelectorAll("details.portfolio")) {
       const summary = g.querySelector("summary")!.textContent!;
@@ -549,8 +560,22 @@ describe("UI", () => {
       plies: cps.map((cp, ply) => ({ ply, cp })),
     });
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/解析済み 1 局/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1/3 局")).toBeInTheDocument());
     expect(screen.getByText("痛かった手")).toBeInTheDocument();
+    // レーダー: 7 軸。有利になった対局が無いので「有利を活かす」は欠けで、値のある軸だけ点を打つ
+    const radar = screen.getByRole("img", { name: /レーダーチャート/ });
+    const label = radar.getAttribute("aria-label")!;
+    expect(label).toContain("有利を活かす なし");
+    expect(label).toMatch(/序盤 \d+/);
+    expect(label).toMatch(/粘り 100/);
+    const valued = label.split("、").filter((a) => !a.endsWith("なし")).length;
+    expect(radar.querySelectorAll("circle")).toHaveLength(valued);
+    expect(screen.getByText("レーダーの見方")).toBeInTheDocument();
+    expect(document.body.textContent).toContain("損失 0 で 100、300 以上で 0");
+    // カードと重複する行 (解析済み局数の文、段階別の表、率のボタン列) は弱点プロファイルに出ない
+    const weak = screen.getByText("弱点プロファイル").closest(".panel")!;
+    expect(weak.textContent).not.toContain("解析済み");
+    expect(weak.querySelector("table")?.textContent ?? "").not.toContain("段階");
     expect(screen.getByText("局面を開く")).toBeInTheDocument();
     // 痛かった手・分岐点は初期状態で閉じている
     expect(document.querySelectorAll("details.worst").length).toBeGreaterThan(0);
@@ -576,18 +601,18 @@ describe("UI", () => {
       ),
     });
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/解析済み 1 局/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1/3 局")).toBeInTheDocument());
     expect(document.querySelector(".rate-breakdown")).toBeNull();
 
     // 内訳が 0 件の率 (有利になった対局が無い) は「-」のまま開いても壊れない
-    const conversion = screen.getByRole("button", { name: /有利 \(\+300\) からの勝率/ });
+    const conversion = screen.getByRole("button", { name: /有利を活かす/ });
     expect(conversion).toHaveTextContent("-");
     fireEvent.click(conversion);
     expect(conversion).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("該当する対局はまだありません")).toBeInTheDocument();
 
     // 先に大悪手: 15 手目の本人の大悪手。指す前の 14 手目を指す
-    fireEvent.click(screen.getByRole("button", { name: /先に大悪手を指す率/ }));
+    fireEvent.click(screen.getByRole("button", { name: /先に崩れない/ }));
     expect(conversion).toHaveAttribute("aria-expanded", "false");
     const rows = document.querySelectorAll("details.rate-row");
     expect(rows).toHaveLength(1);
@@ -604,7 +629,7 @@ describe("UI", () => {
     expect(location.hash).toBe(`#/game/${b.id}/14`);
 
     // 不利から負けなかった率: 初めて -300 以下になった 15 手目
-    fireEvent.click(screen.getByRole("button", { name: /不利 \(-300\) から負けなかった率/ }));
+    fireEvent.click(screen.getByRole("button", { name: /粘り/ }));
     expect(document.querySelectorAll("details.rate-row")[0]).toHaveTextContent("15手目");
     expect(document.body.textContent).not.toContain("undefined");
   });

@@ -13,3 +13,4 @@ export * from "./combo";
 export * from "./analysis";
 export * from "./profile";
 export * from "./annotate";
+export * from "./radar";

@@ -3,7 +3,7 @@ import { SELF_NAME } from "./self";
 import type { GameRecord, GameResult, GameSummary } from "./types";
 
 /** 分岐点の抽出に使う手数の範囲。序盤数手は誰でも同じなので除く。 */
-const COMMON_POSITION_MIN_PLY = 6;
+export const COMMON_POSITION_MIN_PLY = 6;
 export const COMMON_POSITION_PLIES = 50;
 
 export type Side = "black" | "white";

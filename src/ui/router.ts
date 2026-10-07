@@ -51,7 +51,9 @@ export type Route =
   | { kind: "game"; id: string; ply?: number }
   | { kind: "player"; name: string; view?: PlayerView }
   /** 分岐点の学習画面。key は分岐点の局面キー */
-  | { kind: "branch"; name: string; key: string };
+  | { kind: "branch"; name: string; key: string }
+  /** 参考の対局者 (other) と同じ局面で何を指したかの比較。opening で 2 人の戦法を絞る */
+  | { kind: "compare"; name: string; other: string; opening?: string; diffOnly?: boolean };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
@@ -199,6 +201,19 @@ export function parseHash(full: string): Route {
       key: decodeURIComponent(branch[2]),
     };
   }
+  const compare = /^#\/player\/([^/]+)\/compare\/([^/]+)$/.exec(hash);
+  if (compare?.[1] && compare[2]) {
+    const route: Route = {
+      kind: "compare",
+      name: decodeURIComponent(compare[1]),
+      other: decodeURIComponent(compare[2]),
+    };
+    const p = new URLSearchParams(qi < 0 ? "" : full.slice(qi + 1));
+    const opening = p.get("opening");
+    if (opening) route.opening = opening;
+    if (p.get("diff") === "1") route.diffOnly = true;
+    return route;
+  }
   const player = /^#\/player\/([^/]+)$/.exec(hash);
   if (player?.[1]) {
     const route: Route = { kind: "player", name: decodeURIComponent(player[1]) };
@@ -224,6 +239,14 @@ export function hashFor(route: Route): string {
     }
     case "branch":
       return `#/player/${encodeURIComponent(route.name)}/branch/${encodeURIComponent(route.key)}`;
+    case "compare": {
+      const path = `#/player/${encodeURIComponent(route.name)}/compare/${encodeURIComponent(route.other)}`;
+      const p = new URLSearchParams();
+      if (route.opening) p.set("opening", route.opening);
+      if (route.diffOnly) p.set("diff", "1");
+      const qs = p.toString();
+      return qs ? `${path}?${qs}` : path;
+    }
     case "list": {
       const qs = queryString(route.query ?? {});
       if (route.portfolio) {

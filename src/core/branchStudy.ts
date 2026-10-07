@@ -77,7 +77,7 @@ export interface BranchStudy extends BranchCandidates {
 }
 
 /** その対局で分岐点の局面になった手数。見つからなければ -1 */
-function plyOf(g: GameRecord, key: string): number {
+export function plyOf(g: GameRecord, key: string): number {
   return g.positions.slice(0, COMMON_POSITION_PLIES + 1).indexOf(key);
 }
 
@@ -97,7 +97,7 @@ function walk(sfen: string, moves: string[], firstPly: number): StudyStep[] {
   return out;
 }
 
-type ReviewOf = (g: GameRecord) => Map<number, MoveReview> | null;
+export type ReviewOf = (g: GameRecord) => Map<number, MoveReview> | null;
 
 /** 分岐点を通った対局のうち、本人の側が先頭の対局と同じもの (候補手を混ぜないため) */
 function sameSideGames(p: CommonPosition, games: GameRecord[], name: string) {
@@ -107,19 +107,23 @@ function sameSideGames(p: CommonPosition, games: GameRecord[], name: string) {
   return { side, list: list.filter((g) => playerSide(g, name) === side) };
 }
 
-function collectCandidates(
-  p: CommonPosition,
+/**
+ * 局面 `key` で `list` の対局が指した手を数え、解析があれば判定と最善手を付ける。
+ * 手数は各対局でその局面になった手数 (対局ごとに違ってもよい)。
+ */
+export function collectCandidates(
+  key: string,
   list: GameRecord[],
   reviewOf: ReviewOf,
 ): BranchCandidate[] {
   const moves = new Map<string, BranchCandidate>();
   for (const g of list) {
-    const ply = plyOf(g, p.key);
+    const ply = plyOf(g, key);
     const usi = ply < 0 ? undefined : usiMoves(g.usi)[ply];
     if (!usi) continue;
     const c = moves.get(usi) ?? {
       usi,
-      label: formatUsiMove(p.key, usi),
+      label: formatUsiMove(key, usi),
       count: 0,
       gameIds: [],
       judgement: null,
@@ -135,7 +139,7 @@ function collectCandidates(
       c.loss = Math.max(c.loss ?? 0, r.loss);
       if (r.best && !c.best) {
         c.best = r.best;
-        c.bestLabel = formatUsiMove(p.key, r.best);
+        c.bestLabel = formatUsiMove(key, r.best);
       }
     }
     moves.set(usi, c);
@@ -156,7 +160,7 @@ function candidatesWith(
     turn,
     side,
     mover: turn === side ? "self" : "opponent",
-    candidates: collectCandidates(p, list, reviewOf),
+    candidates: collectCandidates(p.key, list, reviewOf),
     list,
   };
 }

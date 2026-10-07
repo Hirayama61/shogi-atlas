@@ -13,10 +13,12 @@ import {
 import { BRANCH_KINDS, reviewBranches, type BranchKind, type BranchReview } from "../core/branches";
 import { branchCandidates, type BranchCandidates } from "../core/branchStudy";
 import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
+import { SELF_NAME } from "../core/self";
 import { computePlayerStats, listPlayers, playerSide, type Bucket } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
+import { loadCompareTarget, saveCompareTarget } from "./compareTarget";
 import { GameButtons } from "./GameButtons";
 import {
   describeCandidate,
@@ -709,6 +711,48 @@ function OpeningDetailPanel({
   );
 }
 
+/**
+ * マイページから参考の対局者を 1 人選んで比較の画面を開く。選んだ相手は端末に覚えておく。
+ */
+function ComparePicker({ name, candidates }: { name: string; candidates: string[] }) {
+  const [stored, setStored] = useState(() => loadCompareTarget());
+  const target = stored && candidates.includes(stored) ? stored : (candidates[0] ?? "");
+  return (
+    <div className="panel">
+      <strong>参考の対局者と比べる</strong>
+      {candidates.length === 0 ? (
+        <p className="muted">登録した対局者がいません</p>
+      ) : (
+        <div className="row" style={{ marginTop: 4 }}>
+          <select
+            aria-label="比較する相手"
+            value={target}
+            onChange={(e) => {
+              saveCompareTarget(e.target.value);
+              setStored(e.target.value);
+            }}
+          >
+            {candidates.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <button
+            className="ghost"
+            onClick={() => {
+              saveCompareTarget(target);
+              navigate({ kind: "compare", name, other: target });
+            }}
+          >
+            同じ局面の手を比べる
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlayerPage({ name, view }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
@@ -728,6 +772,14 @@ export function PlayerPage({ name, view }: Props) {
       .map((p) => buildPlayerProfile(games, map, p.name, { worstMoves: 0 }))
       .filter((p) => p.games > 0);
   }, [games, analyses, name]);
+  // 比較の相手の候補。登録している対局者 (自分以外)
+  const compareCandidates = useMemo(
+    () =>
+      listPlayers(games ?? [])
+        .filter((p) => p.tracked && p.name !== name)
+        .map((p) => p.name),
+    [games, name],
+  );
   const own = useMemo(
     () =>
       (games ?? [])
@@ -784,6 +836,8 @@ export function PlayerPage({ name, view }: Props) {
       />
 
       {report && <ReportPanel report={report} gameIds={ownIds} />}
+
+      {name === SELF_NAME && <ComparePicker name={name} candidates={compareCandidates} />}
 
       <StyleQuadrants quadrants={quadrants} total={stats.games} name={name} view={view} />
       {view && quadrant && <OpeningList q={quadrant} name={name} view={view} />}

@@ -4,7 +4,7 @@ import { averageAxes, RADAR_LOSS_FLOOR, radarAxes, type RadarAxis } from "../cor
 import type { PlayerStats } from "../core/stats";
 import { Board } from "./Board";
 import { LossHelp } from "./LossHelp";
-import { pageTitle } from "./labels";
+import { pageTitle, shownRank } from "./labels";
 import { RadarChart } from "./RadarChart";
 import { hashFor, navigate } from "./router";
 
@@ -71,11 +71,12 @@ export function ProfileCard({ stats, profile, others }: Props) {
   const baseline = others.length ? averageAxes(others.map(radarAxes)) : undefined;
   const side = (s: "black" | "white") => stats.bySide[s];
   const decided = stats.wins + stats.losses;
+  const rank = shownRank(stats.name, stats.rank);
   return (
     <div className="panel profile-card">
       <div className="game-title" style={{ fontSize: 18 }}>
         {pageTitle(stats.name)}
-        {stats.rank ? <span className="muted"> {stats.rank}</span> : null}
+        {rank ? <span className="muted"> {rank}</span> : null}
       </div>
       <div className="figures">
         <a

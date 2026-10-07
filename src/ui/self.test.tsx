@@ -31,13 +31,22 @@ async function seed() {
   });
   Object.assign(c, {
     black: "rival",
+    blackRank: "三段",
     white: "me_wars",
+    whiteRank: "初段",
     result: "white",
     startedAt: "2026-03-01T00:00:00",
   });
   await db.games.bulkPut([a, b, c]);
   return { a, b, c };
 }
+
+/** 自分の段位・レート (WARS_KIF の二段、b の R1500、c の初段) */
+const SELF_RANKS = ["二段", "R1500", "初段"];
+
+const noSelfRank = (el: Element = document.body) => {
+  for (const r of SELF_RANKS) expect(el.textContent).not.toContain(r);
+};
 
 const noIds = () => {
   const text = document.body.textContent ?? "";
@@ -68,6 +77,11 @@ describe("自分の ID の統合", () => {
     const first = document.querySelector("ul.games li")!;
     expect(first).toHaveTextContent("自分");
     expect(first).toHaveTextContent("3 局 · 2 勝 1 敗");
+    noSelfRank(first);
+    const rival = Array.from(document.querySelectorAll("ul.games li")).find((li) =>
+      li.textContent?.startsWith("rival"),
+    )!;
+    expect(rival).toHaveTextContent("rival 三段");
     noIds();
     (first as HTMLElement).click();
     expect(decodeURIComponent(location.hash)).toBe("#/player/自分");
@@ -86,6 +100,7 @@ describe("自分の ID の統合", () => {
     const card = document.querySelector(".profile-card") as HTMLElement;
     expect(card).toHaveTextContent("マイページ");
     expect(card).toHaveTextContent("0/3 局");
+    noSelfRank(card);
     noIds();
   });
 
@@ -95,6 +110,7 @@ describe("自分の ID の統合", () => {
     await waitFor(() => expect(screen.getByText(/0 手目/)).toBeInTheDocument());
     let rows = document.querySelectorAll(".side-row");
     expect(rows[1]).toHaveTextContent("☗ 自分");
+    rows.forEach((r) => noSelfRank(r));
     expect((await db.games.get(a.id))?.raw).toContain("先手：自分");
     noIds();
     cleanup();
@@ -105,6 +121,8 @@ describe("自分の ID の統合", () => {
     expect(rows[1]).toHaveTextContent("☗ rival");
     expect(rows[1]!.querySelector(".player.tracked")).not.toBeNull();
     expect(rows[0]).toHaveTextContent("☖ 自分");
+    expect(rows[1]).toHaveTextContent("☗ rival 三段");
+    noSelfRank(rows[0]!);
     noIds();
   });
 
@@ -113,7 +131,7 @@ describe("自分の ID の統合", () => {
     render(<PlayerPage name="rival" />);
     await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     const card = document.querySelector(".profile-card") as HTMLElement;
-    expect(card).toHaveTextContent("rival");
+    expect(card).toHaveTextContent("rival 三段");
     expect(card).toHaveTextContent("0/1 局");
     expect(card).toHaveTextContent("勝率 · 0 勝 1 敗");
     noIds();
@@ -136,6 +154,22 @@ describe("自分の ID の統合", () => {
       .join("\n");
     expect(text).toContain("自分");
     expect(text).toContain("3 局");
+    for (const r of SELF_RANKS) expect(text).not.toContain(r);
     noIds();
+    cleanup();
+
+    render(
+      <ShareCard
+        stats={computePlayerStats(games, "rival")}
+        profile={null}
+        others={[]}
+        report={null}
+        date="2026-10-07"
+      />,
+    );
+    const rivalText = Array.from(document.querySelectorAll("svg.share-card text"))
+      .map((t) => t.textContent)
+      .join("\n");
+    expect(rivalText).toContain("rival  三段");
   });
 });

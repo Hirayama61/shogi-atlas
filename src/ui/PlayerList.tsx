@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { listPlayers } from "../core/stats";
 import { db } from "../db/db";
-import { formatDate } from "./labels";
+import { formatDate, shownRank } from "./labels";
 import { isReportUnseen } from "./reportSeen";
 import { navigate } from "./router";
 
@@ -39,7 +39,9 @@ export function PlayerList() {
           <li key={p.name} onClick={() => navigate({ kind: "player", name: p.name })}>
             <div className="game-title">
               {p.name}
-              {p.rank ? <span className="muted"> {p.rank}</span> : null}
+              {shownRank(p.name, p.rank) ? (
+                <span className="muted"> {shownRank(p.name, p.rank)}</span>
+              ) : null}
               {unseenReports.has(p.name) && (
                 <span className="chip new" style={{ marginLeft: 8 }}>
                   新しいレポート

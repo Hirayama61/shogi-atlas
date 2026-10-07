@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { PlayerProfile } from "../core/profile";
 import { averageAxes, radarAxes } from "../core/radar";
 import type { Bucket, PlayerStats } from "../core/stats";
+import { shownRank } from "./labels";
 import { RadarChart, type RadarPalette } from "./RadarChart";
 import { digestLines, textWidth, wrapText } from "./shareText";
 
@@ -98,7 +99,8 @@ export function ShareCard({ stats, profile, others, report, date }: ShareCardPro
   };
 
   text(`対策メモ · ${date} 時点`, 13, { color: COLORS.muted, gap: 8 });
-  text(stats.rank ? `${stats.name}  ${stats.rank}` : stats.name, 28, { bold: true, gap: 16 });
+  const rank = shownRank(stats.name, stats.rank);
+  text(rank ? `${stats.name}  ${rank}` : stats.name, 28, { bold: true, gap: 16 });
 
   const decided = stats.wins + stats.losses;
   const side = (s: "black" | "white") => {

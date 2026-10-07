@@ -132,9 +132,10 @@ export function countValues(
 
 export const SIDE_LABEL = { black: "先手", white: "後手" } as const;
 
-/** 対局者の表示名: 名前に段位・レートを添える (例: "taro 二段 R1500") */
+/** 対局者の表示名: 名前に段位・レートを添える (例: "taro 二段 R1500")。自分には添えない */
 export function playerLabel(g: GameSummary | GameRecord, side: "black" | "white"): string {
   const parts = [g[side]];
+  if (g[side] === SELF_NAME) return g[side];
   const rank = side === "black" ? g.blackRank : g.whiteRank;
   const rating = side === "black" ? g.blackRating : g.whiteRating;
   if (rank) parts.push(rank);
@@ -146,6 +147,11 @@ export function playerLabel(g: GameSummary | GameRecord, side: "black" | "white"
 /** 対局者ページの見出し。自分のページは「マイページ」 */
 export function pageTitle(name: string): string {
   return name === SELF_NAME ? "マイページ" : name;
+}
+
+/** 名前に添える段位・レート。自分 (マイページ・一覧・共有画像) には出さない */
+export function shownRank(name: string, rank: string | undefined): string | undefined {
+  return name === SELF_NAME ? undefined : rank || undefined;
 }
 
 /** 戦型ポートフォリオの条件の見出し (例: "先手 / 相手: 居飛車") */

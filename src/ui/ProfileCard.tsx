@@ -6,7 +6,7 @@ import { Board } from "./Board";
 import { LossHelp } from "./LossHelp";
 import { pageTitle } from "./labels";
 import { RadarChart } from "./RadarChart";
-import { navigate } from "./router";
+import { hashFor, navigate } from "./router";
 
 type RateKind = keyof RateBreakdown;
 
@@ -62,6 +62,7 @@ interface Props {
 
 /**
  * 対局者ページ先頭のプロフィールカード。局数・解析済み・勝率・先後と、傾向のレーダーチャート。
+ * 局数のタイルはその人で絞った棋譜一覧 (全対局) へのリンク。
  * 率の軸はタップすると内訳 (数えた対局と根拠の局面) が下に開く。
  */
 export function ProfileCard({ stats, profile, others }: Props) {
@@ -77,12 +78,16 @@ export function ProfileCard({ stats, profile, others }: Props) {
         {stats.rank ? <span className="muted"> {stats.rank}</span> : null}
       </div>
       <div className="figures">
-        <div>
+        <a
+          className="figure-link"
+          href={hashFor({ kind: "list", query: { player: stats.name } })}
+          title="この人の対局をすべて棋譜一覧で開く"
+        >
           <strong>
             {profile?.games ?? 0}/{stats.games} 局
           </strong>
-          <span>解析済み{profile ? ` · 平均損失 ${profile.averageLoss}` : ""}</span>
-        </div>
+          <span>解析済み{profile ? ` · 平均損失 ${profile.averageLoss}` : ""} · 一覧 ›</span>
+        </a>
         <div>
           <strong>{pct(stats.wins, decided)}</strong>
           <span>

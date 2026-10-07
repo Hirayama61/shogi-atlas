@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseKifu } from "../core/parse";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "../core/__tests__/fixtures";
 import { db } from "../db/db";
 import App from "../App";
+import { navigate } from "./router";
 
 const source = { kind: "paste" as const };
 
@@ -63,8 +64,8 @@ describe("棋譜画面から戻る", () => {
     portfolio().open = true;
     setScrollY(640);
 
-    const item = await screen.findAllByText("☖x1");
-    fireEvent.click(item[item.length - 1]!);
+    // 対局者ページの「局面を開く」などと同じアプリ内の遷移で棋譜を開く
+    act(() => navigate({ kind: "game", id: b.id }));
     await waitFor(() => expect(location.hash).toBe(`#/game/${b.id}`));
     setScrollY(0);
     fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));

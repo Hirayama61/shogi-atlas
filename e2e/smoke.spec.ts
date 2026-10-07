@@ -43,6 +43,15 @@ test.describe("一通りの画面", () => {
     await expect(card.getByText(/^勝率 · /)).toBeInViewport();
     await expect(card.getByText(/^先手 \d+ 局/)).toBeInViewport();
     await expect(page.getByRole("img", { name: /レーダーチャート/ })).toBeInViewport();
+    // 全対局の一覧はページに無く、局数のタイルからその人で絞った棋譜一覧へ飛んで戻る
+    await expect(page.getByText("対局一覧", { exact: true })).toHaveCount(0);
+    await expect(page.locator("ul.games")).toHaveCount(0);
+    await card.getByRole("link", { name: /1\/3 局/ }).click();
+    await expect(page).toHaveURL(/#\/games\?player=taro$/);
+    await expect(page.getByText("3 / 4 局")).toBeVisible();
+    await expect(page.locator("ul.games li")).toHaveCount(3);
+    await page.getByRole("button", { name: "← taro" }).click();
+    await expect(page).toHaveURL(/#\/player\/taro$/);
     await expect(page.getByText("痛かった手")).toBeVisible();
     await expect(page.locator("details.worst[open]")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "局面を開く" }).first()).toBeHidden();

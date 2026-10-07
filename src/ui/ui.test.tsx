@@ -272,6 +272,28 @@ describe("UI", () => {
     expect(document.body.textContent).not.toContain("undefined");
   });
 
+  it("PlayerPage: 全対局の一覧は出さず、局数のタイルからその人で絞った棋譜一覧へ飛ぶ", async () => {
+    await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    expect(screen.queryByText("対局一覧")).toBeNull();
+    expect(document.querySelector("ul.games")).toBeNull();
+    const card = document.querySelector(".profile-card") as HTMLElement;
+    const link = within(card).getByRole("link", { name: /0\/3 局/ });
+    const route = { kind: "list" as const, query: { player: "Sukonbu3" } };
+    expect(link).toHaveAttribute("href", hashFor(route));
+    // jsdom はリンクのハッシュ遷移をしないので、href をルーターに通して一覧を開く
+    const parsed = parseHash(link.getAttribute("href")!);
+    expect(parsed).toEqual(route);
+    cleanup();
+    if (parsed.kind !== "list") throw new Error("list route expected");
+    render(<GameList query={parsed.query} />);
+    await waitFor(() => expect(screen.getByText("3 / 3 局")).toBeInTheDocument());
+    expect(document.querySelectorAll("ul.games li")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "← Sukonbu3" }));
+    expect(location.hash).toBe("#/player/Sukonbu3");
+  });
+
   it("PlayerPage: 戦法・囲い・相手の戦法の行から絞り込み済みの一覧へ飛ぶ", async () => {
     const { b } = await seed();
     render(<PlayerPage name="Sukonbu3" />);

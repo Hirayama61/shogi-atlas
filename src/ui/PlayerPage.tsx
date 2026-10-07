@@ -30,7 +30,7 @@ import {
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
-import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
+import { formatDate, portfolioConditionLabel } from "./labels";
 import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
 import { ShareButton } from "./ShareButton";
@@ -801,24 +801,6 @@ export function PlayerPage({ name }: Props) {
         {branchGroups.map((group) => (
           <BranchOpeningBlock key={group.opening} group={group} byId={byId} name={name} />
         ))}
-      </div>
-
-      <div className="panel">
-        <strong>対局一覧</strong>
-        <ul className="games">
-          {own.map((g) => (
-            <li key={g.id} onClick={() => navigate({ kind: "game", id: g.id })}>
-              <div className="game-title">
-                <span className={g.result === "black" ? "win" : ""}>☗{g.black}</span>
-                {" vs "}
-                <span className={g.result === "white" ? "win" : ""}>☖{g.white}</span>
-              </div>
-              <div className="muted">
-                {formatDate(g.startedAt)} · {describeGame(g)}
-              </div>
-            </li>
-          ))}
-        </ul>
       </div>
     </section>
   );

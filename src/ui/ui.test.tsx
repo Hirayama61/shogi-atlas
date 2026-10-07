@@ -329,6 +329,9 @@ describe("UI", () => {
     expect(games.reduce((x, y) => x + y, 0)).toBe(3);
     // a (負け), b (勝ち) が振り飛車、c (負け) が居飛車。3 局とも先手
     expect(cards[2]).toHaveTextContent("2 局 · 勝率 50%");
+    // 割合は全対局 (3 局) に対する値
+    const shares = cards.map((c) => /割合 (\d+%)/.exec(c.textContent!)![1]);
+    expect(shares).toEqual(["0%", "33%", "67%", "0%"]);
     expect(cards[2]).toHaveTextContent("先手 2 局 1 勝 · 後手 0 局 0 勝");
     expect(cards[1]).toHaveTextContent("0 勝 1 敗");
     expect(parseHash(cards[2]!.getAttribute("href")!)).toEqual({
@@ -347,9 +350,13 @@ describe("UI", () => {
     expect(document.querySelector("a.quadrant.selected")).toHaveTextContent(
       "対抗形 · 自分が振り飛車",
     );
-    const heads = Array.from(list.querySelectorAll("thead th")).map((th) => th.textContent);
+    const heads = Array.from(list.querySelectorAll(":scope > table thead th")).map(
+      (th) => th.textContent,
+    );
     expect(heads).toEqual(["自分の戦法", "局", "勝", "敗", "勝率", "割合"]);
-    const row = within(list).getByRole("link", { name: b.opening.blackOpening }).closest("tr")!;
+    const row = within(list.querySelector(":scope > table") as HTMLElement)
+      .getByRole("link", { name: b.opening.blackOpening })
+      .closest("tr")!;
     expect(Array.from(row.children).map((td) => td.textContent)).toEqual([
       b.opening.blackOpening,
       "2",
@@ -381,7 +388,9 @@ describe("UI", () => {
     rerender(<PlayerPage name="Sukonbu3" view={oppRoute.view} />);
     await waitFor(() =>
       expect(
-        Array.from(document.querySelectorAll(".opening-list thead th")).map((t) => t.textContent),
+        Array.from(document.querySelectorAll(".opening-list > table thead th")).map(
+          (t) => t.textContent,
+        ),
       ).toContain("相手の戦法"),
     );
     expect(
@@ -405,6 +414,8 @@ describe("UI", () => {
     expect(tables.map((t) => t.querySelector("th")!.textContent)).toEqual([
       "自分の囲い",
       "相手の戦法",
+      "成熟度",
+      "相手の囲い",
     ]);
     const castle = within(tables[0]!).getByRole("link", { name: b.opening.blackCastle });
     fireEvent.click(castle.closest("tr")!);
@@ -739,65 +750,143 @@ describe("UI", () => {
     expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  it("PlayerPage: 戦法 × 囲いの表は畳まれ、行から絞り込み済みの一覧へ飛ぶ", async () => {
+  it("PlayerPage: 戦法 × 囲い・戦法別の精度の表は階層の外に独立して出ない", async () => {
+    const { b } = await seed();
+    await db.analyses.put({
+      schema: 1,
+      id: b.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: Array.from({ length: 21 }, (_, ply) => ({ ply, cp: ply >= 15 ? -900 : 0 })),
+    });
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("弱点プロファイル")).toBeInTheDocument());
+    for (const old of [
+      "戦法 × 囲い",
+      "本人の戦法別の精度",
+      "相手の戦法別の精度",
+      "自分の戦法 × 囲い",
+      "自分の戦法 × 相手の囲い",
+      "相手の囲い別",
+    ]) {
+      expect(screen.queryByText(old)).toBeNull();
+    }
+  });
+
+  it("PlayerPage: 全対局での採用率・遭遇率・囲いの分布が 1 か所に出て、割合の合計が 100% になる", async () => {
     const { b } = await seed();
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText("戦法 × 囲い")).toBeInTheDocument());
-    const panel = screen.getByText("戦法 × 囲い").closest(".panel") as HTMLElement;
-    const sections = Array.from(panel.querySelectorAll("details.combo")) as HTMLDetailsElement[];
+    await waitFor(() => expect(screen.getByText("全対局での割合")).toBeInTheDocument());
+    const panel = document.querySelector(".overall-shares") as HTMLElement;
+    const sections = Array.from(panel.querySelectorAll("details")) as HTMLDetailsElement[];
     expect(sections.map((d) => d.querySelector("summary")!.textContent)).toEqual([
-      expect.stringContaining("自分の戦法 × 囲い"),
-      expect.stringContaining("攻め開始時の囲い"),
-      expect.stringContaining("自分の戦法 × 相手の囲い"),
-      expect.stringContaining("相手の囲い別"),
+      expect.stringContaining("採用率"),
+      expect.stringContaining("遭遇率"),
+      expect.stringContaining("囲いの分布"),
     ]);
-    for (const d of sections) expect(d.open).toBe(false);
-    // 攻め開始時の囲いは 3 局すべてを数える
-    const maturityGames = Array.from(sections[1]!.querySelectorAll("tbody tr")).reduce(
-      (n, tr) => n + Number(tr.children[1]!.textContent),
-      0,
-    );
-    expect(maturityGames).toBe(3);
-
-    const cases = [
-      [
-        sections[0]!,
-        `${b.opening.blackOpening} × ${b.opening.blackCastle}`,
-        {
-          player: "Sukonbu3",
-          opening: b.opening.blackOpening,
-          openingSide: "self",
-          castle: b.opening.blackCastle,
-          castleSide: "self",
-        },
-      ],
-      [
-        sections[2]!,
-        `${b.opening.blackOpening} × ${b.opening.whiteCastle}`,
-        {
-          player: "Sukonbu3",
-          opening: b.opening.blackOpening,
-          openingSide: "self",
-          castle: b.opening.whiteCastle,
-          castleSide: "opponent",
-        },
-      ],
-      [
-        sections[3]!,
-        b.opening.whiteCastle,
-        { player: "Sukonbu3", castle: b.opening.whiteCastle, castleSide: "opponent" },
-      ],
-    ] as const;
-    for (const [section, label, query] of cases) {
-      const link = within(section).getByRole("link", { name: label });
-      fireEvent.click(link.closest("tr")!);
-      expect(parseHash(location.hash)).toEqual({ kind: "list", query });
+    const pctOf = (n: number, d: number) => `${Math.round((n / d) * 100)}%`;
+    for (const d of sections) {
+      expect(d.open).toBe(false);
+      let games = 0;
+      let percent = 0;
+      for (const tr of d.querySelectorAll("tbody tr")) {
+        const n = Number(tr.children[1]!.textContent);
+        games += n;
+        percent += Number(tr.children[5]!.textContent!.replace("%", ""));
+        expect(tr.children[5]!.textContent).toBe(pctOf(n, 3));
+      }
+      expect(games).toBe(3);
+      // 3 局なので丸めで 99〜101% に揺れうるが、局数の合計は全対局数に一致する
+      expect(Math.abs(percent - 100)).toBeLessThanOrEqual(1);
     }
-    // 負け越している相手の囲いは目立たせる
-    for (const tr of sections[3]!.querySelectorAll("tbody tr")) {
+    const link = within(sections[1]!).getByRole("link", { name: b.opening.whiteOpening });
+    fireEvent.click(link.closest("tr")!);
+    expect(parseHash(location.hash)).toEqual({
+      kind: "list",
+      query: { player: "Sukonbu3", opening: b.opening.whiteOpening, openingSide: "opponent" },
+    });
+  });
+
+  it("PlayerPage: 区分の一覧に相手の囲い別の成績が出て、負け越しを目立たせ、行から一覧へ飛ぶ", async () => {
+    const { b } = await seed();
+    render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
+    await waitFor(() => expect(document.querySelector(".quadrant-castles")).not.toBeNull());
+    const section = document.querySelector(".quadrant-castles") as HTMLElement;
+    const rows = Array.from(section.querySelectorAll("tbody tr"));
+    expect(rows.reduce((n, tr) => n + Number(tr.children[1]!.textContent), 0)).toBe(2);
+    for (const tr of rows) {
       const [, , w, l] = Array.from(tr.children).map((td) => Number(td.textContent));
       expect(tr.classList.contains("losing")).toBe(l! > w!);
+      expect(tr.children[5]!.textContent).toBe(
+        `${Math.round((Number(tr.children[1]!.textContent) / 2) * 100)}%`,
+      );
     }
+    const link = within(section).getByRole("link", { name: b.opening.whiteCastle });
+    fireEvent.click(link.closest("tr")!);
+    expect(parseHash(location.hash)).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        castle: b.opening.whiteCastle,
+        castleSide: "opponent",
+      },
+    });
+  });
+
+  it("PlayerPage: 戦法の詳細に平均損失・攻め開始時の囲い・相手の囲いの内訳が出て、囲いの割合は戦法内比", async () => {
+    const { b } = await seedBranches();
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    render(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    const detail = document.querySelector(".opening-detail") as HTMLElement;
+    // b と b2 が解析済み
+    await waitFor(() => expect(detail).toHaveTextContent(/平均損失 \d+ \(解析済み 2 局\)/));
+    const tables = Array.from(detail.querySelectorAll("table"));
+    const [castles, , maturity, vsCastles] = tables;
+    expect(Array.from(castles!.querySelectorAll("thead th")).map((t) => t.textContent)).toEqual([
+      "自分の囲い",
+      "局",
+      "勝",
+      "敗",
+      "勝率",
+      "割合",
+      "平均損失",
+    ]);
+    // 囲い・成熟度・相手の囲いの局数の合計は戦法の局数 (4 局) に一致し、割合は 4 局に対する値
+    for (const t of [castles!, maturity!, vsCastles!]) {
+      let sum = 0;
+      for (const tr of t.querySelectorAll("tbody tr")) {
+        const n = Number(tr.children[1]!.textContent);
+        sum += n;
+        expect(tr.children[5]!.textContent).toBe(`${Math.round((n / 4) * 100)}%`);
+      }
+      expect(sum).toBe(4);
+    }
+    const castleRow = within(castles!)
+      .getByRole("link", { name: b.opening.blackCastle })
+      .closest("tr")!;
+    expect(castleRow.children[6]!.textContent).toMatch(/^\d+$/);
+    expect(
+      Array.from(maturity!.querySelectorAll("tbody td:first-child")).every((td) =>
+        ["完成", "未成熟", "駒交換なし"].includes(td.textContent!),
+      ),
+    ).toBe(true);
+    const vs = within(vsCastles!).getByRole("link", { name: b.opening.whiteCastle });
+    fireEvent.click(vs.closest("tr")!);
+    expect(parseHash(location.hash)).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        opening: b.opening.blackOpening,
+        openingSide: "self",
+        castle: b.opening.whiteCastle,
+        castleSide: "opponent",
+      },
+    });
   });
 
   it("PlayerPage: 対局が無い人", async () => {

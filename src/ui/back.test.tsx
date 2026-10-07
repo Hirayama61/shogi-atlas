@@ -178,7 +178,12 @@ describe("棋譜画面から戻る", () => {
     act(() => {
       location.hash = card.getAttribute("href")!;
     });
-    const row = await screen.findByRole("link", { name: "ノーマル四間飛車" });
+    const list = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(".opening-list");
+      if (!el) throw new Error("opening-list not rendered");
+      return el;
+    });
+    const row = within(list).getByRole("link", { name: "ノーマル四間飛車" });
     setScrollY(500);
     act(() => {
       location.hash = row.getAttribute("href")!;

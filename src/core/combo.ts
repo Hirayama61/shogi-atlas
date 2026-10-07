@@ -14,15 +14,18 @@ import type { GameRecord } from "./types";
  * 戦法・囲いが判定できない対局は「不明」として数える。
  */
 
-export interface ComboBucket extends Bucket {
-  /** 組み合わせの 1 つ目 (戦法) */
-  first: string;
-  /** 組み合わせの 2 つ目 (囲い) */
-  second: string;
+export interface LossBucket extends Bucket {
   /** 解析済みの対局数 */
   analyzed: number;
   /** 解析済みの対局での本人の 1 手あたりの平均損失 (cp)。解析済みが無ければ null */
   averageLoss: number | null;
+}
+
+export interface ComboBucket extends LossBucket {
+  /** 組み合わせの 1 つ目 (戦法) */
+  first: string;
+  /** 組み合わせの 2 つ目 (囲い) */
+  second: string;
 }
 
 /**
@@ -60,6 +63,12 @@ export function castleMaturityAtFirstCapture(positions: string[], side: Side): M
 
 export interface ComboStats {
   name: string;
+  /** 全体の解析済みの対局数 */
+  analyzed: number;
+  /** 全体の本人の 1 手あたりの平均損失 (cp)。解析済みが無ければ null */
+  averageLoss: number | null;
+  /** 自分の囲い (平均損失つき) */
+  castles: LossBucket[];
   /** 1. 自分の戦法 × 自分の囲い */
   openingCastle: ComboBucket[];
   /** 2. 攻め開始時の自分の囲いの成熟度 (name は CASTLE_MATURITY_LABEL) */
@@ -80,34 +89,44 @@ function count(b: Bucket, outcome: Outcome): void {
   if (outcome === "loss") b.losses++;
 }
 
-type ComboAcc = ComboBucket & { loss: number; moves: number };
+type Loss = { loss: number; moves: number };
+type LossAcc<T extends LossBucket> = T & Loss;
+type ComboAcc = LossAcc<ComboBucket>;
 
-function bumpCombo(
-  map: Map<string, ComboAcc>,
-  first: string,
-  second: string,
-  outcome: Outcome,
-  loss: { loss: number; moves: number } | null,
-): void {
-  const name = `${first} × ${second}`;
-  const b = map.get(name) ?? {
-    name,
-    first,
-    second,
-    games: 0,
-    wins: 0,
-    losses: 0,
-    analyzed: 0,
-    averageLoss: null,
-    loss: 0,
-    moves: 0,
-  };
+function addLoss(b: LossAcc<LossBucket>, outcome: Outcome, loss: Loss | null): void {
   count(b, outcome);
   if (loss) {
     b.analyzed++;
     b.loss += loss.loss;
     b.moves += loss.moves;
   }
+}
+
+function emptyLoss(name: string): LossAcc<LossBucket> {
+  return { name, games: 0, wins: 0, losses: 0, analyzed: 0, averageLoss: null, loss: 0, moves: 0 };
+}
+
+function bumpCombo(
+  map: Map<string, ComboAcc>,
+  first: string,
+  second: string,
+  outcome: Outcome,
+  loss: Loss | null,
+): void {
+  const name = `${first} × ${second}`;
+  const b = map.get(name) ?? { ...emptyLoss(name), first, second };
+  addLoss(b, outcome, loss);
+  map.set(name, b);
+}
+
+function bumpLoss(
+  map: Map<string, LossAcc<LossBucket>>,
+  name: string,
+  outcome: Outcome,
+  loss: Loss | null,
+): void {
+  const b = map.get(name) ?? emptyLoss(name);
+  addLoss(b, outcome, loss);
   map.set(name, b);
 }
 
@@ -121,21 +140,21 @@ function byGames<T extends Bucket>(a: T, b: T): number {
   return b.games - a.games || a.name.localeCompare(b.name);
 }
 
-function finishCombo(map: Map<string, ComboAcc>): ComboBucket[] {
-  return Array.from(map.values())
-    .map(({ loss, moves, ...b }) => ({
-      ...b,
-      averageLoss: b.analyzed && moves ? Math.round(loss / moves) : null,
-    }))
-    .sort(byGames);
+function finishLoss<T extends LossBucket>(acc: LossAcc<T>): T {
+  const { loss, moves, ...b } = acc;
+  const out: LossBucket = {
+    ...b,
+    averageLoss: b.analyzed && moves ? Math.round(loss / moves) : null,
+  };
+  return out as T;
+}
+
+function finishCombo<T extends LossBucket>(map: Map<string, LossAcc<T>>): T[] {
+  return Array.from(map.values()).map(finishLoss).sort(byGames);
 }
 
 /** 本人の手の損失の合計と手数。解析が無いか古ければ null */
-function ownLoss(
-  game: GameRecord,
-  side: Side,
-  analysis: AnalysisRecord | undefined,
-): { loss: number; moves: number } | null {
+function ownLoss(game: GameRecord, side: Side, analysis: AnalysisRecord | undefined): Loss | null {
   if (!analysis || isAnalysisStale(game, analysis)) return null;
   const mine = reviewMoves(game, analysis).filter((m) => m.side === side);
   return { loss: mine.reduce((a, m) => a + m.loss, 0), moves: mine.length };
@@ -143,7 +162,8 @@ function ownLoss(
 
 /**
  * 対局者の戦法 × 囲いの組み合わせを集計する。positions を使うので GameRecord が必要。
- * analyses を渡すと (戦法 × 囲い) に平均損失を付ける。
+ * analyses を渡すと (戦法 × 囲い)・囲い・全体に平均損失を付ける。
+ * 区分や戦法で絞った対局を渡せば、その範囲の集計になる。
  */
 export function computeComboStats(
   all: GameRecord[],
@@ -154,6 +174,8 @@ export function computeComboStats(
   const openingVsCastle = new Map<string, ComboAcc>();
   const maturity = new Map<string, Bucket>();
   const vsCastles = new Map<string, Bucket>();
+  const castles = new Map<string, LossAcc<LossBucket>>();
+  const total = emptyLoss("");
 
   for (const g of all) {
     const side = playerSide(g, name);
@@ -164,15 +186,22 @@ export function computeComboStats(
     const ownCastle = label(black ? g.opening.blackCastle : g.opening.whiteCastle);
     const theirCastle = label(black ? g.opening.whiteCastle : g.opening.blackCastle);
 
-    bumpCombo(openingCastle, own, ownCastle, outcome, ownLoss(g, side, analyses.get(g.id)));
+    const loss = ownLoss(g, side, analyses.get(g.id));
+    bumpCombo(openingCastle, own, ownCastle, outcome, loss);
+    bumpLoss(castles, ownCastle, outcome, loss);
+    addLoss(total, outcome, loss);
     bumpCombo(openingVsCastle, own, theirCastle, outcome, null);
     bump(vsCastles, theirCastle, outcome);
     const m = castleMaturityAtFirstCapture(g.positions, side);
     bump(maturity, CASTLE_MATURITY_LABEL[m.maturity], outcome);
   }
 
+  const { analyzed, averageLoss } = finishLoss(total);
   return {
     name,
+    analyzed,
+    averageLoss,
+    castles: finishCombo(castles),
     openingCastle: finishCombo(openingCastle),
     maturity: Array.from(maturity.values()).sort(byGames),
     openingVsCastle: finishCombo(openingVsCastle),

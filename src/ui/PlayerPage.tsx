@@ -6,6 +6,7 @@ import { findRepeatedLines, straightFrom, trunkOf, type LineNode } from "../core
 import {
   computeOpeningDetail,
   computeStyleQuadrants,
+  styleQuadrantOf,
   type OpeningAxis,
   type OpeningDetail,
   type QuadrantStats,
@@ -18,9 +19,15 @@ import {
   type BranchTree,
 } from "../core/branchStudy";
 import type { AnalysisRecord } from "../core/analysis";
-import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
+import { computeComboStats } from "../core/combo";
 import { SELF_NAME } from "../core/self";
-import { computePlayerStats, listPlayers, playerSide, type Bucket } from "../core/stats";
+import {
+  computePlayerStats,
+  listPlayers,
+  playerSide,
+  type Bucket,
+  type PlayerStats,
+} from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
@@ -37,14 +44,7 @@ import {
 import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
 import { ShareButton } from "./ShareButton";
-import {
-  hashFor,
-  navigate,
-  type ListQuery,
-  type PlayerView,
-  type Route,
-  type SideFilter,
-} from "./router";
+import { hashFor, navigate, type ListQuery, type PlayerView, type Route } from "./router";
 import { goBackTo, useRestoreView } from "./viewState";
 
 interface Props {
@@ -61,47 +61,13 @@ function share(games: number, total: number): string {
   return pct(games, total);
 }
 
-function BucketTableLoss({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: Array<{ name: string; games: number; wins: number; averageLoss: number }>;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <div className="panel">
-      <strong>{title}</strong>
-      <table className="stats">
-        <thead>
-          <tr>
-            <th></th>
-            <th>局</th>
-            <th>勝</th>
-            <th>平均損失</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.name}>
-              <td>{r.name}</td>
-              <td>{r.games}</td>
-              <td>{r.wins}</td>
-              <td>{r.averageLoss}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** 1 段に最初から出す行数。残りは「他 N 件」に畳む */
 const ROW_LIMIT = 10;
 
 /**
  * 戦法・囲いなどの集計表。`routeOf` が返す行は、そのルートへのリンクになる。
  * 割合は `total` に対する局数の割合。`ROW_LIMIT` を超える行は「他 N 件」に畳む。
+ * `lossOf` を渡すと平均損失の列を足し、`highlightLosing` なら負け越している行を目立たせる。
  */
 function BucketRows({
   head = "",
@@ -109,12 +75,16 @@ function BucketRows({
   total,
   routeOf,
   selected,
+  lossOf,
+  highlightLosing,
 }: {
   head?: string;
   rows: Bucket[];
   total: number;
   routeOf?: (r: Bucket) => Route | undefined;
   selected?: string;
+  lossOf?: (r: Bucket) => number | null | undefined;
+  highlightLosing?: boolean;
 }) {
   const table = (list: Bucket[]) => (
     <table className="stats">
@@ -126,14 +96,17 @@ function BucketRows({
           <th>敗</th>
           <th>勝率</th>
           <th>割合</th>
+          {lossOf && <th>平均損失</th>}
         </tr>
       </thead>
       <tbody>
         {list.map((r) => {
           const route = routeOf?.(r);
-          const classes = [route ? "link" : "", r.name === selected ? "selected" : ""].filter(
-            Boolean,
-          );
+          const classes = [
+            route ? "link" : "",
+            r.name === selected ? "selected" : "",
+            highlightLosing && r.losses > r.wins ? "losing" : "",
+          ].filter(Boolean);
           return (
             <tr
               key={r.name}
@@ -149,6 +122,7 @@ function BucketRows({
                 {pct(r.wins, r.wins + r.losses)}
               </td>
               <td>{share(r.games, total)}</td>
+              {lossOf && <td>{lossOf(r) ?? "-"}</td>}
             </tr>
           );
         })}
@@ -182,127 +156,6 @@ function BucketTable({ title, rows, total }: { title: string; rows: Bucket[]; to
 
 /** これより局数が少ない行は勝率を薄く出す (母数が小さいので) */
 const FEW_GAMES = 3;
-
-interface ComboRow extends Bucket {
-  averageLoss?: number | null;
-  query?: ListQuery;
-}
-
-/**
- * 組み合わせ分析の 1 表。初期は畳んで見出しだけ出す。`query` のある行は絞り込み済みの一覧へのリンク。
- * `highlightLosing` なら負け越している行を目立たせる。
- */
-function ComboTable({
-  title,
-  summary,
-  rows,
-  showLoss,
-  highlightLosing,
-}: {
-  title: string;
-  summary?: string;
-  rows: ComboRow[];
-  showLoss?: boolean;
-  highlightLosing?: boolean;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <details className="combo">
-      <summary>
-        {title} <span className="muted">· {summary ?? `${rows.length} 通り`}</span>
-      </summary>
-      <table className="stats">
-        <thead>
-          <tr>
-            <th></th>
-            <th>局</th>
-            <th>勝</th>
-            <th>敗</th>
-            <th>勝率</th>
-            {showLoss && <th>平均損失</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const route = r.query ? { kind: "list" as const, query: r.query } : undefined;
-            const classes = [
-              route ? "link" : "",
-              highlightLosing && r.losses > r.wins ? "losing" : "",
-            ].filter(Boolean);
-            return (
-              <tr
-                key={r.name}
-                className={classes.length ? classes.join(" ") : undefined}
-                onClick={route ? () => navigate(route) : undefined}
-              >
-                <td>{route ? <a href={hashFor(route)}>{r.name}</a> : r.name}</td>
-                <td>{r.games}</td>
-                <td>{r.wins}</td>
-                <td>{r.losses}</td>
-                <td className={r.games < FEW_GAMES ? "muted" : undefined}>
-                  {pct(r.wins, r.wins + r.losses)}
-                </td>
-                {showLoss && <td>{r.averageLoss ?? "-"}</td>}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </details>
-  );
-}
-
-function comboQuery(
-  player: string,
-  opening: string | undefined,
-  castle: string,
-  castleSide: SideFilter,
-): ListQuery {
-  const q: ListQuery = { player, castle, castleSide };
-  if (opening) {
-    q.opening = opening;
-    q.openingSide = "self";
-  }
-  return q;
-}
-
-/** 戦法 × 囲いの組み合わせ分析。表は 4 つで、どれも畳んである */
-function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
-  const withQuery = (rows: ComboBucket[], castleSide: SideFilter): ComboRow[] =>
-    rows.map((r) => ({ ...r, query: comboQuery(name, r.first, r.second, castleSide) }));
-  const losing = combo.vsCastles.filter((r) => r.losses > r.wins).length;
-  return (
-    <div className="panel">
-      <strong>戦法 × 囲い</strong>
-      <p className="muted">
-        戦法と囲いの組み合わせごとの成績。勝率が薄い行は {FEW_GAMES} 局未満なので局数を見る。
-      </p>
-      <ComboTable
-        title="自分の戦法 × 囲い"
-        rows={withQuery(combo.openingCastle, "self")}
-        showLoss
-      />
-      <ComboTable
-        title="攻め開始時の囲い"
-        summary="最初の駒交換の直前に囲いが完成していたか"
-        rows={combo.maturity}
-      />
-      <ComboTable
-        title="自分の戦法 × 相手の囲い"
-        rows={withQuery(combo.openingVsCastle, "opponent")}
-      />
-      <ComboTable
-        title="相手の囲い別"
-        summary={`${combo.vsCastles.length} 種${losing ? ` · 負け越し ${losing}` : ""}`}
-        rows={combo.vsCastles.map((r) => ({
-          ...r,
-          query: comboQuery(name, undefined, r.name, "opponent"),
-        }))}
-        highlightLosing
-      />
-    </div>
-  );
-}
 
 const BRANCH_KIND_SHORT: Record<BranchKind, string> = {
   mistake: "悪手",
@@ -570,8 +423,21 @@ function StyleQuadrants({
   );
 }
 
-/** 区分の中の戦法の一覧。自分の戦法と相手の戦法を切り替えられ、行をタップすると戦法の詳細を開く */
-function OpeningList({ q, name, view }: { q: QuadrantStats; name: string; view: PlayerView }) {
+/**
+ * 区分の中の戦法の一覧。自分の戦法と相手の戦法を切り替えられ、行をタップすると戦法の詳細を開く。
+ * 下に区分の中での相手の囲い別の成績を添える。
+ */
+function OpeningList({
+  q,
+  name,
+  view,
+  vsCastles,
+}: {
+  q: QuadrantStats;
+  name: string;
+  view: PlayerView;
+  vsCastles: Bucket[];
+}) {
   const axis = view.axis ?? "self";
   const rows = axis === "self" ? q.openings : q.vsOpenings;
   const axisRoute = (a: OpeningAxis): Route => ({
@@ -613,6 +479,24 @@ function OpeningList({ q, name, view }: { q: QuadrantStats; name: string; view: 
             },
           })}
         />
+      )}
+      {vsCastles.length > 0 && (
+        <div className="quadrant-castles">
+          <strong>相手の囲い</strong>
+          <p className="muted">
+            この区分で当たった相手の囲いごとの成績。負け越している囲いは赤く出る。
+          </p>
+          <BucketRows
+            head="相手の囲い"
+            rows={vsCastles}
+            total={q.games}
+            highlightLosing
+            routeOf={(r) => ({
+              kind: "list",
+              query: { ...quadrantQuery(name, q.quadrant), castle: r.name, castleSide: "opponent" },
+            })}
+          />
+        </div>
       )}
     </div>
   );
@@ -664,6 +548,15 @@ function OpeningDetailPanel({
     () => (analyses ? buildBranchTrees(subset, analyses, name) : null),
     [subset, analyses, name],
   );
+  // 平均損失・攻め開始時の囲い・相手の囲いはこの戦法の対局だけで集計する
+  const combo = useMemo(
+    () => computeComboStats(subset, name, analyses ?? new Map()),
+    [subset, analyses, name],
+  );
+  const castleLoss = useMemo(
+    () => new Map(combo.castles.map((c) => [c.name, c.averageLoss] as const)),
+    [combo],
+  );
   const list: Route = { kind: "list", query: detailQuery(name, detail) };
   const parent: Route = {
     kind: "player",
@@ -681,6 +574,8 @@ function OpeningDetailPanel({
       <div className="muted">
         {STYLE_QUADRANT_LABEL[detail.quadrant]} · {detail.games} 局 {detail.wins} 勝 {detail.losses}{" "}
         敗 · 勝率 {pct(detail.wins, detail.wins + detail.losses)}
+        {combo.averageLoss !== null &&
+          ` · 平均損失 ${combo.averageLoss} (解析済み ${combo.analyzed} 局)`}
       </div>
       <p>
         <a className="games-link" href={hashFor(list)}>
@@ -694,6 +589,7 @@ function OpeningDetailPanel({
             head="自分の囲い"
             rows={detail.castles}
             total={detail.games}
+            lossOf={combo.analyzed ? (r) => castleLoss.get(r.name) : undefined}
             routeOf={(r) => ({
               kind: "list",
               query: { ...detailQuery(name, detail), castle: r.name, castleSide: "self" },
@@ -706,6 +602,24 @@ function OpeningDetailPanel({
             head={isSelf ? "相手の戦法" : "自分の戦法"}
             rows={detail.counter}
             total={detail.games}
+          />
+        </div>
+        <div>
+          <strong>攻め開始時の囲い</strong>
+          <p className="muted">最初の駒交換の直前に自分の囲いが完成していたか</p>
+          <BucketRows head="成熟度" rows={combo.maturity} total={detail.games} />
+        </div>
+        <div>
+          <strong>相手の囲い</strong>
+          <BucketRows
+            head="相手の囲い"
+            rows={combo.vsCastles}
+            total={detail.games}
+            highlightLosing
+            routeOf={(r) => ({
+              kind: "list",
+              query: { ...detailQuery(name, detail), castle: r.name, castleSide: "opponent" },
+            })}
           />
         </div>
       </div>
@@ -734,6 +648,60 @@ function OpeningDetailPanel({
           <BranchTreeList trees={trees} name={name} view={view} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 本人の全対局に対する割合: 自分の戦法の採用率、相手の戦法の遭遇率、自分の囲いの分布。
+ * 区分をまたいで「よく当たるのに勝てない戦法」を比べるための表で、どれも分母は全対局数。
+ */
+function OverallShares({ stats, name }: { stats: PlayerStats; name: string }) {
+  const tables: Array<{
+    title: string;
+    head: string;
+    rows: Bucket[];
+    query: (r: Bucket) => ListQuery;
+  }> = [
+    {
+      title: "採用率",
+      head: "自分の戦法",
+      rows: stats.openings,
+      query: (r) => ({ player: name, opening: r.name, openingSide: "self" }),
+    },
+    {
+      title: "遭遇率",
+      head: "相手の戦法",
+      rows: stats.vsOpenings,
+      query: (r) => ({ player: name, opening: r.name, openingSide: "opponent" }),
+    },
+    {
+      title: "囲いの分布",
+      head: "自分の囲い",
+      rows: stats.castles,
+      query: (r) => ({ player: name, castle: r.name, castleSide: "self" }),
+    },
+  ];
+  return (
+    <div className="panel overall-shares">
+      <strong>全対局での割合</strong>
+      <p className="muted">
+        戦型の区分をまたいだ {stats.games} 局全体に対する割合。勝率が薄い行は {FEW_GAMES}{" "}
+        局未満なので局数を見る。
+      </p>
+      {tables.map((t) => (
+        <details key={t.title} className="combo">
+          <summary>
+            {t.title} <span className="muted">· {t.rows.length} 種</span>
+          </summary>
+          <BucketRows
+            head={t.head}
+            rows={t.rows}
+            total={stats.games}
+            routeOf={(r) => ({ kind: "list", query: t.query(r) })}
+          />
+        </details>
+      ))}
     </div>
   );
 }
@@ -826,12 +794,18 @@ export function PlayerPage({ name, view }: Props) {
         .catch(() => null),
     [name],
   );
-  const combo = useMemo(() => {
-    const map = new Map((analyses ?? []).map((a) => [a.id, a] as const));
-    return computeComboStats(own, name, map);
-  }, [own, analyses, name]);
   const quadrants = useMemo(() => computeStyleQuadrants(own, name), [own, name]);
   const quadrant = view ? quadrants.find((q) => q.quadrant === view.quadrant) : undefined;
+  const quadrantCastles = useMemo(
+    () =>
+      view
+        ? computeComboStats(
+            own.filter((g) => styleQuadrantOf(g, name) === view.quadrant),
+            name,
+          ).vsCastles
+        : [],
+    [own, name, view],
+  );
   const detail = useMemo(
     () =>
       view?.opening
@@ -863,7 +837,9 @@ export function PlayerPage({ name, view }: Props) {
       {name === SELF_NAME && <ComparePicker name={name} candidates={compareCandidates} />}
 
       <StyleQuadrants quadrants={quadrants} total={stats.games} name={name} view={view} />
-      {view && quadrant && <OpeningList q={quadrant} name={name} view={view} />}
+      {view && quadrant && (
+        <OpeningList q={quadrant} name={name} view={view} vsCastles={quadrantCastles} />
+      )}
       {view && detail && detail.games > 0 && (
         <OpeningDetailPanel
           detail={detail}
@@ -878,10 +854,6 @@ export function PlayerPage({ name, view }: Props) {
       {profile && (
         <div className="panel">
           <strong>弱点プロファイル</strong>
-          <div className="stats-grid">
-            <BucketTableLoss title="本人の戦法別の精度" rows={profile.byOpening} />
-            <BucketTableLoss title="相手の戦法別の精度" rows={profile.byOpponentOpening} />
-          </div>
           <strong>痛かった手</strong>
           {profile.worstMoves.map((w) => (
             <details key={`${w.gameId}-${w.ply}`} className="worst">
@@ -913,7 +885,7 @@ export function PlayerPage({ name, view }: Props) {
         </div>
       )}
 
-      <ComboAnalysis combo={combo} name={name} />
+      <OverallShares stats={stats} name={name} />
 
       <BucketTable title="持ち時間別" rows={stats.timeControls} total={stats.games} />
     </section>

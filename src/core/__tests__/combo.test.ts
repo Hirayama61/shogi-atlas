@@ -118,6 +118,17 @@ describe("computeComboStats", () => {
       losses: 1,
     });
     expect(s.vsCastles.reduce((n, x) => n + x.games, 0)).toBe(4);
+
+    // 囲いごと・全体の平均損失は解析済みの a だけから求める
+    expect(s.castles.find((x) => x.name === "本美濃")).toMatchObject({
+      games: 2,
+      analyzed: 1,
+      averageLoss: 100,
+    });
+    expect(s.castles.reduce((n, x) => n + x.games, 0)).toBe(4);
+    expect(s).toMatchObject({ analyzed: 1, averageLoss: 100 });
+    // 解析が無ければ全体の平均損失は null
+    expect(computeComboStats([a, b], "taro")).toMatchObject({ analyzed: 0, averageLoss: null });
   });
 
   it("古い解析は平均損失に使わない", async () => {

@@ -94,6 +94,12 @@ function matchesSelfStyle(g: GameSummary, player: string, style: SideStyle): boo
   return side !== null && g.opening[side] === style;
 }
 
+function matchesVsOpening(g: GameSummary, player: string, opening: string): boolean {
+  const side = playerSide(g, player);
+  if (side === null) return false;
+  return (side === "black" ? g.opening.whiteOpening : g.opening.blackOpening) === opening;
+}
+
 /** 棋譜一覧の絞り込み条件をすべて満たすか */
 export function matchesQuery(g: GameSummary, q: ListQuery): boolean {
   if (q.player && playerSide(g, q.player) === null) return false;
@@ -101,6 +107,7 @@ export function matchesQuery(g: GameSummary, q: ListQuery): boolean {
   if (q.shape && g.opening.shape !== q.shape) return false;
   if (q.selfStyle && q.player && !matchesSelfStyle(g, q.player, q.selfStyle)) return false;
   if (q.opening && !openingValues(g, q).includes(q.opening)) return false;
+  if (q.vsOpening && q.player && !matchesVsOpening(g, q.player, q.vsOpening)) return false;
   if (q.castle && !castleValues(g, q).includes(q.castle)) return false;
   if (q.result && !matchesResult(g, q.result, q.player)) return false;
   return true;

@@ -19,6 +19,8 @@ export interface ListQuery {
   opening?: string;
   /** 省くと先手・後手どちらでも */
   openingSide?: SideFilter;
+  /** 対局者の相手の戦法。対局者を指定したときだけ効く (opening と別に、本人と相手の戦法の組で絞るため) */
+  vsOpening?: string;
   castle?: string;
   castleSide?: SideFilter;
   result?: ResultFilter;
@@ -80,6 +82,7 @@ const QUERY_KEYS = [
   "selfStyle",
   "opening",
   "openingSide",
+  "vsOpening",
   "castle",
   "castleSide",
   "result",
@@ -104,6 +107,7 @@ export function parseQuery(search: string): ListQuery {
     selfStyle: pick(p.get("selfStyle"), SELF_STYLES),
     opening: p.get("opening") || undefined,
     openingSide: pick(p.get("openingSide"), SIDE_FILTERS),
+    vsOpening: p.get("vsOpening") || undefined,
     castle: p.get("castle") || undefined,
     castleSide: pick(p.get("castleSide"), SIDE_FILTERS),
     result: pick(p.get("result"), RESULTS),

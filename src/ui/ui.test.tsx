@@ -454,6 +454,75 @@ describe("UI", () => {
     await waitFor(() => expect(screen.getByText("4 / 5 局")).toBeInTheDocument());
   });
 
+  it("PlayerPage: 戦法の詳細の相手の戦法の行から、本人の戦法 × 相手の戦法で絞った棋譜一覧へ飛び、件数が行の局数と一致する", async () => {
+    const { b } = await seedBranches();
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    render(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    const table = Array.from(document.querySelectorAll(".opening-detail table")).find(
+      (t) => t.querySelector("th")!.textContent === "相手の戦法",
+    ) as HTMLElement;
+    const link = within(table).getByRole("link", { name: b.opening.whiteOpening });
+    const games = Number(link.closest("tr")!.querySelectorAll("td")[1]!.textContent);
+    fireEvent.click(link.closest("tr")!);
+    const route = parseHash(location.hash);
+    expect(route).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        opening: b.opening.blackOpening,
+        openingSide: "self",
+        vsOpening: b.opening.whiteOpening,
+      },
+    });
+    cleanup();
+    if (route.kind !== "list") throw new Error("unreachable");
+    render(<GameList query={route.query} />);
+    await waitFor(() => expect(screen.getByText(`${games} / 5 局`)).toBeInTheDocument());
+    expect(document.querySelector(".filters summary")).toHaveTextContent(
+      `相手: ${b.opening.whiteOpening}`,
+    );
+  });
+
+  it("PlayerPage: 相手の戦法の詳細では自分の応手の行に囲いが添えられ、戦法 × 囲い × 相手の戦法で絞った棋譜一覧へ飛ぶ", async () => {
+    const { b } = await seedBranches();
+    const view = {
+      quadrant: "furiVsIbisha" as const,
+      axis: "opponent" as const,
+      opening: b.opening.whiteOpening,
+    };
+    render(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    const table = Array.from(document.querySelectorAll(".opening-detail table")).find(
+      (t) => t.querySelector("th")!.textContent === "自分の戦法 · 囲い",
+    ) as HTMLElement;
+    const link = within(table).getByRole("link", {
+      name: `${b.opening.blackOpening} · ${b.opening.blackCastle}`,
+    });
+    const games = Number(link.closest("tr")!.querySelectorAll("td")[1]!.textContent);
+    expect(games).toBeGreaterThan(1);
+    const route = parseHash(link.getAttribute("href")!);
+    expect(route).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        opening: b.opening.blackOpening,
+        openingSide: "self",
+        vsOpening: b.opening.whiteOpening,
+        castle: b.opening.blackCastle,
+        castleSide: "self",
+      },
+    });
+    cleanup();
+    if (route.kind !== "list") throw new Error("unreachable");
+    render(<GameList query={route.query} />);
+    await waitFor(() => expect(screen.getByText(`${games} / 5 局`)).toBeInTheDocument());
+  });
+
   it("PlayerPage: 1 段の行数が上限を超えると「他 N 件」に畳まれる", async () => {
     const { b } = await seed();
     // 本人の振り飛車の戦法を 12 種に増やす

@@ -7,6 +7,7 @@ import {
   computeOpeningDetail,
   computeStyleQuadrants,
   styleQuadrantOf,
+  type CounterBucket,
   type OpeningAxis,
   type OpeningDetail,
   type QuadrantStats,
@@ -69,7 +70,7 @@ const ROW_LIMIT = 10;
  * 割合は `total` に対する局数の割合。`ROW_LIMIT` を超える行は「他 N 件」に畳む。
  * `lossOf` を渡すと平均損失の列を足し、`highlightLosing` なら負け越している行を目立たせる。
  */
-function BucketRows({
+function BucketRows<B extends Bucket>({
   head = "",
   rows,
   total,
@@ -79,14 +80,14 @@ function BucketRows({
   highlightLosing,
 }: {
   head?: string;
-  rows: Bucket[];
+  rows: B[];
   total: number;
-  routeOf?: (r: Bucket) => Route | undefined;
+  routeOf?: (r: B) => Route | undefined;
   selected?: string;
-  lossOf?: (r: Bucket) => number | null | undefined;
+  lossOf?: (r: B) => number | null | undefined;
   highlightLosing?: boolean;
 }) {
-  const table = (list: Bucket[]) => (
+  const table = (list: B[]) => (
     <table className="stats">
       <thead>
         <tr>
@@ -511,6 +512,18 @@ function detailQuery(name: string, d: OpeningDetail): ListQuery {
   };
 }
 
+/** 戦法の詳細の「相手の戦法 / 自分の応手」の 1 行 (本人の戦法 × 相手の戦法、応手は囲いも) の対局 */
+function counterQuery(name: string, d: OpeningDetail, r: CounterBucket): ListQuery {
+  const isSelf = d.axis === "self";
+  return {
+    ...quadrantQuery(name, d.quadrant),
+    opening: isSelf ? d.opening : r.opening,
+    openingSide: "self",
+    vsOpening: isSelf ? r.opening : d.opening,
+    ...(r.castle ? { castle: r.castle, castleSide: "self" as const } : {}),
+  };
+}
+
 /**
  * 戦法の詳細: 囲い・相手の戦法 (相手の戦法で見ているときは自分の応手) の内訳、繰り返している手順、分岐点、
  * 棋譜一覧へのリンクを 1 か所にまとめる。
@@ -599,9 +612,10 @@ function OpeningDetailPanel({
         <div>
           <strong>{isSelf ? "相手の戦法" : "自分の応手"}</strong>
           <BucketRows
-            head={isSelf ? "相手の戦法" : "自分の戦法"}
+            head={isSelf ? "相手の戦法" : "自分の戦法 · 囲い"}
             rows={detail.counter}
             total={detail.games}
+            routeOf={(r) => ({ kind: "list", query: counterQuery(name, detail, r) })}
           />
         </div>
         <div>

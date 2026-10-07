@@ -43,9 +43,19 @@ export interface OpeningDetail extends Tally {
   opening: string;
   /** 本人の囲い */
   castles: Bucket[];
-  /** axis が self なら相手の戦法、opponent なら本人の戦法 (応手) */
-  counter: Bucket[];
+  /** axis が self なら相手の戦法、opponent なら本人の応手 (戦法 × 囲い) */
+  counter: CounterBucket[];
   gameIds: string[];
+}
+
+/**
+ * 戦法の詳細の「相手の戦法 / 自分の応手」の 1 行。opening はその行の戦法
+ * (axis が self なら相手の、opponent なら本人の)。castle は応手の行だけにある本人の囲いで、
+ * name は「戦法 · 囲い」になる。
+ */
+export interface CounterBucket extends Bucket {
+  opening: string;
+  castle?: string;
 }
 
 interface Facts {
@@ -111,7 +121,7 @@ function bump(map: Map<string, Bucket>, key: string, g: GameSummary, side: Side)
   map.set(key, b);
 }
 
-function sorted(map: Map<string, Bucket>): Bucket[] {
+function sorted<B extends Bucket>(map: Map<string, B>): B[] {
   return Array.from(map.values()).sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
 }
 
@@ -162,7 +172,7 @@ export function computeOpeningDetail(
 ): OpeningDetail {
   const tally = emptyTally();
   const castles = new Map<string, Bucket>();
-  const counter = new Map<string, Bucket>();
+  const counter = new Map<string, CounterBucket>();
   const gameIds: string[] = [];
   for (const g of all) {
     const f = factsOf(g, name);
@@ -170,7 +180,13 @@ export function computeOpeningDetail(
     if ((axis === "self" ? f.opening : f.vsOpening) !== opening) continue;
     count(tally, g, f.side);
     bump(castles, f.castle, g, f.side);
-    bump(counter, axis === "self" ? f.vsOpening : f.opening, g, f.side);
+    const row: Omit<CounterBucket, keyof Tally> =
+      axis === "self"
+        ? { name: f.vsOpening, opening: f.vsOpening }
+        : { name: `${f.opening} · ${f.castle}`, opening: f.opening, castle: f.castle };
+    const c = counter.get(row.name) ?? { ...row, ...emptyTally() };
+    count(c, g, f.side);
+    counter.set(row.name, c);
     gameIds.push(g.id);
   }
   return {

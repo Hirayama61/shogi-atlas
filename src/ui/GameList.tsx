@@ -61,6 +61,7 @@ function describeQuery(q: ListQuery): string[] {
   if (q.shape) parts.push(GAME_SHAPE_LABEL[q.shape]);
   if (q.selfStyle && q.player) parts.push(`本人: ${SIDE_STYLE_LABEL[q.selfStyle]}`);
   if (q.opening) parts.push(`${q.opening}${side(q.openingSide)}`);
+  if (q.vsOpening && q.player) parts.push(`相手: ${q.vsOpening}`);
   if (q.castle) parts.push(`${q.castle}${side(q.castleSide)}`);
   if (q.result && (q.player || (q.result !== "win" && q.result !== "loss")))
     parts.push(RESULT_FILTER_LABEL[q.result]);

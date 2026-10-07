@@ -101,6 +101,8 @@ describe("styles (4 区分)", () => {
     expect(self).toMatchObject({ games: 1, wins: 0, losses: 1, gameIds: [c.id] });
     expect(self.castles.map((x) => x.name)).toEqual([c.opening.blackCastle]);
     expect(self.counter.map((x) => x.name)).toEqual(["ノーマル四間飛車"]);
+    expect(self.counter[0]).toMatchObject({ opening: "ノーマル四間飛車", games: 1 });
+    expect(self.counter[0]!.castle).toBeUndefined();
 
     const opp = computeOpeningDetail(
       [...all],
@@ -111,8 +113,15 @@ describe("styles (4 区分)", () => {
     );
     expect(opp).toMatchObject({ games: 2, wins: 1, losses: 1 });
     expect(opp.gameIds).toEqual([b.id, c.id].sort());
+    // 応手は本人の戦法 × 囲い
     expect(opp.counter.map((x) => x.name).sort()).toEqual(
-      [b.opening.whiteOpening, c.opening.blackOpening].sort(),
+      [
+        `${b.opening.whiteOpening} · ${b.opening.whiteCastle}`,
+        `${c.opening.blackOpening} · ${c.opening.blackCastle}`,
+      ].sort(),
+    );
+    expect(opp.counter.find((x) => x.opening === c.opening.blackOpening)?.castle).toBe(
+      c.opening.blackCastle,
     );
     expect(opp.castles.reduce((n, x) => n + x.games, 0)).toBe(2);
   });

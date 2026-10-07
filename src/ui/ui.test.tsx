@@ -313,37 +313,24 @@ describe("UI", () => {
     }
   });
 
-  it("PlayerPage: 分岐点は戦法ごとにまとまり、1 局面 1 行で閉じている", async () => {
+  /** b と同じ 18 手目まで進み、19 手目 (本人) で分かれる b2 と、20 手目 (相手) で分かれる b3 */
+  async function seedBranches() {
     const { b } = await seed();
-    await db.games.put({ ...b, id: "b-copy", startedAt: "2026-04-01T00:00:00" });
-    render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() =>
-      expect(screen.getAllByText(/手目まで共通 · 2 局/).length).toBeGreaterThan(0),
-    );
-    const panel = screen
-      .getByText("分岐点", { selector: "strong" })
-      .closest(".panel") as HTMLElement;
-    const branch = within(panel)
-      .getByText(/手目まで共通 · 2 局/)
-      .closest("details");
-    expect(branch).not.toBeNull();
-    expect(branch!.open).toBe(false);
-    expect(branch!.querySelector("summary svg")).toBeNull();
-    expect(branch!.querySelectorAll("button")).toHaveLength(2);
-    expect(panel.querySelector(".branch-group")?.textContent).toContain(b.opening.blackOpening);
-  });
-
-  it("PlayerPage: 分岐点は戦法 × 判定で分かれ、本人の手と判定が出て、該当棋譜の手数へ飛べる", async () => {
-    const { b } = await seed();
-    const b2 = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
-    Object.assign(b2, {
-      black: "Sukonbu3",
-      white: "x3",
-      result: "white",
-      startedAt: "2026-04-01T00:00:00",
-      tags: ["Sukonbu3"],
-    });
-    await db.games.put(b2);
+    const variant = async (id: string, from: string, to: string, white: string) => {
+      const g = await parseKifu(USI_SHIKEN_VS_FUNA.replace(from, to), { source });
+      Object.assign(g, {
+        id,
+        black: "Sukonbu3",
+        white,
+        result: "white",
+        startedAt: "2026-04-01T00:00:00",
+        tags: ["Sukonbu3"],
+      });
+      return g;
+    };
+    const b2 = await variant("b2b2b2", "1g1f 1c1d", "9g9f 9c9d", "x3");
+    const b3 = await variant("b3b3b3", "1g1f 1c1d", "1g1f 9c9d", "x4");
+    await db.games.bulkPut([b2, b3]);
     const flat = Array.from({ length: 21 }, () => 0);
     const analysis = (id: string, cps: number[], best: Record<number, string> = {}) => ({
       schema: 1 as const,
@@ -360,22 +347,88 @@ describe("UI", () => {
         { 18: "1g1f" },
       ),
     ]);
+    return { b, b2, b3 };
+  }
+
+  it("PlayerPage: 分岐点は 1 件 1 行で入れ子が無く、戦法・手数・局数・候補手と判定が出て、悪手が先", async () => {
+    const { b, b2 } = await seedBranches();
+    await db.games.delete("b3b3b3");
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/悪手を指した分岐 \(1\)/)).toBeInTheDocument());
+    await waitFor(() => expect(document.querySelector(".branch-row.mistake")).not.toBeNull());
     const panel = screen
       .getByText("分岐点", { selector: "strong" })
       .closest(".panel") as HTMLElement;
-    const kind = panel.querySelector(".branch-kind.mistake") as HTMLElement;
-    expect(kind.closest(".branch-group")?.textContent).toContain(b.opening.blackOpening);
-    const branch = within(kind)
-      .getByText(/18 手目まで共通 · 2 局/)
-      .closest("details")!;
-    expect(branch.open).toBe(false);
-    expect(branch.querySelector("summary")?.textContent).toContain(
-      "本人の手: ▲1六歩 ×1 (最善) / ▲9六歩 ×1 (悪手, 最善 ▲1六歩)",
+    expect(panel.querySelector("details")).toBeNull();
+    const rows = Array.from(panel.querySelectorAll<HTMLAnchorElement>("a.branch-row"));
+    expect(rows[0]!.classList.contains("mistake")).toBe(true);
+    const text = rows[0]!.textContent ?? "";
+    expect(text).toContain(`${b.opening.blackOpening} · 18 手目 · 2 局`);
+    expect(text).toContain("本人: ▲1六歩 (最善) / ▲9六歩 (悪手 · 損失 400 · 最善 ▲1六歩)");
+    expect(parseHash(rows[0]!.getAttribute("href")!)).toEqual({
+      kind: "branch",
+      name: "Sukonbu3",
+      key: b2.positions[18],
+    });
+  });
+
+  it("分岐点の学習画面: 開始局面から 1 手ずつたどり、分岐点で候補手を比べ、選んだ手の先から棋譜へ飛ぶ", async () => {
+    const { b, b2 } = await seedBranches();
+    location.hash = hashFor({ kind: "branch", name: "Sukonbu3", key: b.positions[18]! });
+    render(<App />);
+    const ply = async () =>
+      (await screen.findByText(/開始局面|手目/, { selector: ".study-ply" })).textContent;
+    expect(await ply()).toBe("開始局面");
+    const board = () => document.querySelector(".study-board svg.board")!.innerHTML;
+    const startBoard = board();
+    fireEvent.click(screen.getByRole("button", { name: "進む" }));
+    expect(await ply()).toBe("1 手目 ▲7六歩");
+    expect(board()).not.toBe(startBoard);
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    expect(await ply()).toBe("開始局面");
+    expect(board()).toBe(startBoard);
+    // 分岐点へ。盤の上に候補手の印が判定の色で並ぶ
+    fireEvent.click(screen.getByRole("button", { name: "分岐点" }));
+    expect(await ply()).toBe("18 手目 △5四歩");
+    const marks = Array.from(document.querySelectorAll(".board-mark")).map((m) => [
+      m.getAttribute("data-usi"),
+      m.getAttribute("stroke"),
+    ]);
+    expect(marks).toEqual([
+      ["1g1f", "var(--good)"],
+      ["9g9f", "var(--danger)"],
+    ]);
+    const group = screen.getByRole("group", { name: "本人の候補手" });
+    const buttons = within(group).getAllByRole("button");
+    expect(buttons.map((x) => x.textContent)).toEqual([
+      "▲1六歩 ×2 最善",
+      "▲9六歩 ×1 悪手 · 損失 400 · 最善 ▲1六歩",
+    ]);
+    // 悪手を選ぶと盤に反映され、その対局の続きを進められる
+    fireEvent.click(buttons[1]!);
+    expect(await ply()).toBe("19 手目 ▲9六歩");
+    expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "進む" }));
+    expect(await ply()).toBe("20 手目 △9四歩");
+    fireEvent.click(screen.getByRole("button", { name: /^棋譜で開く/ }));
+    expect(parseHash(location.hash)).toEqual({ kind: "game", id: b2.id, ply: 20 });
+  });
+
+  it("分岐点の学習画面: 相手の手番の分岐点では相手の候補手が並ぶ", async () => {
+    const { b, b3 } = await seedBranches();
+    await db.games.delete("b2b2b2");
+    location.hash = hashFor({ kind: "branch", name: "Sukonbu3", key: b3.positions[19]! });
+    render(<App />);
+    const group = await screen.findByRole("group", { name: "相手の候補手" });
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((x) => x.textContent),
+    ).toEqual(["△1四歩 ×1 最善", "△9四歩 ×1 未解析"]);
+    fireEvent.click(screen.getByRole("button", { name: "分岐点" }));
+    expect((await screen.findByText(/手目/, { selector: ".study-ply" })).textContent).toBe(
+      "19 手目 ▲1六歩",
     );
-    fireEvent.click(within(branch).getAllByRole("button")[0]!);
-    expect(parseHash(location.hash)).toMatchObject({ kind: "game", ply: 18 });
+    expect(b.positions[19]).toBe(b3.positions[19]);
   });
 
   it("PlayerPage: 戦法・囲い・持ち時間の表と戦型ポートフォリオに割合が出る", async () => {
@@ -601,7 +654,7 @@ describe("UI", () => {
     expect(screen.getByText("局面を開く")).toBeInTheDocument();
     // 痛かった手・分岐点は初期状態で閉じている
     expect(document.querySelectorAll("details.worst").length).toBeGreaterThan(0);
-    expect(document.querySelector("details.worst[open], details.branch[open]")).toBeNull();
+    expect(document.querySelector("details.worst[open], details.branch-more[open]")).toBeNull();
     // 平均損失の意味と目安
     expect(screen.getByText("平均損失とは")).toBeInTheDocument();
     expect(document.body.textContent).toContain("最善手を指した場合と比べて");

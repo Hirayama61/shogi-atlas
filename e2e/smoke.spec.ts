@@ -71,17 +71,31 @@ test.describe("一通りの画面", () => {
     const branches = page.locator(".panel", {
       has: page.locator("strong", { hasText: /^分岐点$/ }),
     });
-    await expect(branches.getByText(/18 手目まで共通 · 2 局/)).toBeVisible();
-    // 解析済みの a は最善、b は未解析 → 正しく指せた分岐
-    await expect(branches.locator(".branch-kind.correct")).toContainText(
-      "本人の手: ▲1六歩 ×1 (最善) / ▲9六歩 ×1 (未解析)",
-    );
-    await expect(branches.locator(".branch svg.board")).toBeHidden();
-    await branches.locator(".branch summary").first().click();
-    await expect(branches.locator(".branch svg.board").first()).toBeVisible();
-    await branches.locator(".branch button").first().click();
-    await expect(page).toHaveURL(/#\/game\/f000000000000000\/18/);
-    await expect(page.getByText("18 手目")).toBeVisible();
+    // 1 件 1 行。解析済みの a は最善、b は未解析 → 正しく指せた分岐
+    const row = branches.locator("a.branch-row.correct", { hasText: "18 手目 · 2 局" });
+    await expect(row).toContainText("本人: ▲1六歩 (最善) / ▲9六歩 (未解析)");
+    await expect(branches.locator("details")).toHaveCount(0);
+    await row.click();
+    await expect(page).toHaveURL(/#\/player\/taro\/branch\//);
+    const ply = page.locator(".study-ply");
+    await expect(ply).toHaveText("開始局面");
+    await page.getByRole("button", { name: "進む" }).click();
+    await expect(ply).toHaveText("1 手目 ▲7六歩");
+    await page.getByRole("button", { name: "分岐点" }).click();
+    await expect(ply).toHaveText("18 手目 △5四歩");
+    // 盤・進む戻る・候補手がスマホの縦画面に収まる
+    await expect(page.locator(".study-board svg.board")).toBeInViewport();
+    await expect(page.getByRole("button", { name: "進む" })).toBeInViewport();
+    const candidates = page.getByRole("group", { name: "本人の候補手" });
+    await expect(candidates).toBeInViewport();
+    await candidates.getByRole("button", { name: /▲9六歩/ }).click();
+    await expect(ply).toHaveText("19 手目 ▲9六歩");
+    await page.getByRole("button", { name: /^棋譜で開く/ }).click();
+    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/19/);
+    await expect(page.getByText("19 手目")).toBeVisible();
+    await page.goBack();
+    await page.getByRole("button", { name: "← 閉じる" }).click();
+    await expect(page).toHaveURL(/#\/player\/taro$/);
 
     // 採用戦法の行から、その戦法の対局一覧へ
     await page.goto("#/player/taro");

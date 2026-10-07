@@ -1,5 +1,6 @@
 import type { EndReason, GameRecord, GameResult, GameSummary, SideStyle } from "../core/types";
-import { MATE_CP } from "../core/analysis";
+import { JUDGEMENT_LABEL, MATE_CP, type Judgement } from "../core/analysis";
+import type { BranchCandidate } from "../core/branchStudy";
 import { shortOpeningLabel, SIDE_STYLE_LABEL } from "../core/opening";
 import { matchesPortfolio } from "../core/portfolio";
 import { formatRating } from "../core/quest";
@@ -152,4 +153,20 @@ export function describePortfolio(filter: PortfolioFilter): { label: string; val
     label: `${portfolioConditionLabel(c.side, c.vsStyle)} (${c.vsOpening ?? "すべて"})`,
     value: `${c.opening} + ${c.castle}`,
   };
+}
+
+/** 候補手の判定を盤の印・文字の色に */
+export function judgementTone(j: Judgement | null): "good" | "bad" | "none" {
+  if (j === null) return "none";
+  return j === "good" ? "good" : "bad";
+}
+
+/** 候補手の判定の短い表示 (例: 悪手 · 損失 400 · 最善 ▲1六歩) */
+export function describeCandidate(c: BranchCandidate): string {
+  if (c.judgement === null) return "未解析";
+  if (c.judgement === "good") return "最善";
+  const parts = [JUDGEMENT_LABEL[c.judgement]];
+  if (c.loss !== null) parts.push(`損失 ${c.loss}`);
+  if (c.bestLabel) parts.push(`最善 ${c.bestLabel}`);
+  return parts.join(" · ");
 }

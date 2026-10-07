@@ -36,7 +36,9 @@ export type Route =
   | { kind: "settings" }
   | { kind: "updates" }
   | { kind: "game"; id: string; ply?: number }
-  | { kind: "player"; name: string };
+  | { kind: "player"; name: string }
+  /** 分岐点の学習画面。key は分岐点の局面キー */
+  | { kind: "branch"; name: string; key: string };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
@@ -153,6 +155,14 @@ export function parseHash(full: string): Route {
       );
     }
   }
+  const branch = /^#\/player\/([^/]+)\/branch\/([^/]+)$/.exec(hash);
+  if (branch?.[1] && branch[2]) {
+    return {
+      kind: "branch",
+      name: decodeURIComponent(branch[1]),
+      key: decodeURIComponent(branch[2]),
+    };
+  }
   const player = /^#\/player\/([^/]+)$/.exec(hash);
   if (player?.[1]) return { kind: "player", name: decodeURIComponent(player[1]) };
   if (hash.startsWith("#/players")) return { kind: "players" };
@@ -169,6 +179,8 @@ export function hashFor(route: Route): string {
       return route.ply !== undefined ? `#/game/${route.id}/${route.ply}` : `#/game/${route.id}`;
     case "player":
       return `#/player/${encodeURIComponent(route.name)}`;
+    case "branch":
+      return `#/player/${encodeURIComponent(route.name)}/branch/${encodeURIComponent(route.key)}`;
     case "list": {
       const qs = queryString(route.query ?? {});
       if (route.portfolio) {

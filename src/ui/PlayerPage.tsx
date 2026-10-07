@@ -11,14 +11,14 @@ import {
   type PortfolioGroup,
 } from "../core/portfolio";
 import {
-  BRANCH_KIND_LABEL,
+  BRANCH_KINDS,
   describeBranchMove,
-  groupBranchReviews,
   reviewBranches,
+  type BranchKind,
   type BranchMove,
-  type BranchOpeningGroup,
   type BranchReview,
 } from "../core/branches";
+import { branchCandidates, type BranchCandidates } from "../core/branchStudy";
 import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
 import {
   computePlayerStats,
@@ -30,7 +30,8 @@ import {
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
-import { formatDate, portfolioConditionLabel } from "./labels";
+import { GameButtons } from "./GameButtons";
+import { describeCandidate, judgementTone, portfolioConditionLabel } from "./labels";
 import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
 import { ShareButton } from "./ShareButton";
@@ -272,72 +273,67 @@ function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
   );
 }
 
-/** 分岐点の 1 グループに出す局面の数 */
+/** 戦型ポートフォリオの条件ごとに出す分岐点の数 */
 const BRANCHES_PER_GROUP = 3;
 
+/** 分岐点の一覧で最初から出す行数。残りは 1 つの折りたたみに入れる */
+const BRANCH_ROWS = 20;
+
+const BRANCH_KIND_SHORT: Record<BranchKind, string> = {
+  mistake: "悪手",
+  correct: "正解",
+  opponent: "相手",
+  unanalyzed: "未解析",
+};
+
 /**
- * 戦法ごとのグループで、上限 BRANCHES_PER_GROUP 件を分類の順 (悪手を指した分岐が先) に割り振る。
- * 上限を超えた分は分類ごとに「他 n 件」に畳む。
+ * 分岐点の一覧。1 件 1 行で、悪手を指した分岐 → 正しく指せた分岐 → 相手の選択 → 未解析の順。
+ * 行をタップすると分岐点の学習画面へ。
  */
-function BranchOpeningBlock({
-  group,
-  byId,
+function BranchList({
+  reviews,
+  candidates,
   name,
 }: {
-  group: BranchOpeningGroup;
-  byId: Map<string, GameRecord>;
+  reviews: BranchReview[];
+  candidates: Map<string, BranchCandidates>;
   name: string;
 }) {
-  const kinds: Array<BranchOpeningGroup["kinds"][number] & { shown: number }> = [];
-  let budget = BRANCHES_PER_GROUP;
-  for (const k of group.kinds) {
-    const shown = Math.min(budget, k.positions.length);
-    kinds.push({ ...k, shown });
-    budget -= shown;
-  }
-  const flippedOf = (p: BranchReview) => {
-    const first = byId.get(p.gameIds[0] ?? "");
-    return first ? playerSide(first, name) === "white" : false;
-  };
-  return (
-    <div className="branch-group">
-      <div>
-        {group.opening} <span className="muted">· {group.total} 局面</span>
-      </div>
-      {kinds.map(({ kind, positions, shown: n }) => {
-        const shown = positions.slice(0, n);
-        const rest = positions.slice(n);
-        return (
-          <div key={kind} className={`branch-kind ${kind}`}>
-            <div className="muted">
-              {BRANCH_KIND_LABEL[kind]} ({positions.length})
-            </div>
-            {shown.map((p) => (
-              <BranchDetails
-                key={p.key}
-                p={{ ...p, flipped: flippedOf(p) }}
-                byId={byId}
-                name={name}
-                moves={p.moves}
-              />
+  const sorted = BRANCH_KINDS.flatMap((k) => reviews.filter((r) => r.kind === k));
+  const row = (r: BranchReview) => {
+    const c = candidates.get(r.key);
+    const route = { kind: "branch" as const, name, key: r.key };
+    return (
+      <a key={r.key} className={`branch-row ${r.kind}`} href={hashFor(route)}>
+        <span className={`branch-tag ${r.kind}`}>{BRANCH_KIND_SHORT[r.kind]}</span>
+        <span className="branch-head">
+          {r.opening} · {r.ply} 手目 · {r.gameIds.length} 局 {r.wins} 勝
+        </span>
+        {c && c.candidates.length > 0 && (
+          <span className="branch-moves">
+            {c.mover === "self" ? "本人" : "相手"}:{" "}
+            {c.candidates.map((m, i) => (
+              <span key={m.usi} className={`candidate-text ${judgementTone(m.judgement)}`}>
+                {i > 0 ? " / " : ""}
+                {m.label}
+                {m.count > 1 ? ` ×${m.count}` : ""} ({describeCandidate(m)})
+              </span>
             ))}
-            {rest.length > 0 && (
-              <details className="branch-more">
-                <summary>他 {rest.length} 件</summary>
-                {rest.map((p) => (
-                  <BranchDetails
-                    key={p.key}
-                    p={{ ...p, flipped: flippedOf(p) }}
-                    byId={byId}
-                    name={name}
-                    moves={p.moves}
-                  />
-                ))}
-              </details>
-            )}
-          </div>
-        );
-      })}
+          </span>
+        )}
+      </a>
+    );
+  };
+  const rest = sorted.slice(BRANCH_ROWS);
+  return (
+    <div className="branch-list">
+      {sorted.slice(0, BRANCH_ROWS).map(row)}
+      {rest.length > 0 && (
+        <details className="branch-more">
+          <summary>他 {rest.length} 件</summary>
+          {rest.map(row)}
+        </details>
+      )}
     </div>
   );
 }
@@ -372,34 +368,6 @@ function BranchDetails({
         <GameButtons gameIds={p.gameIds} ply={p.ply} byId={byId} name={name} />
       </div>
     </details>
-  );
-}
-
-/** 対局へのボタン。押すとその対局の `ply` 手目へ飛ぶ */
-function GameButtons({
-  gameIds,
-  ply,
-  byId,
-  name,
-}: {
-  gameIds: string[];
-  ply: number;
-  byId: Map<string, GameRecord>;
-  name: string;
-}) {
-  return (
-    <div className="row">
-      {gameIds.map((id) => {
-        const g = byId.get(id);
-        return (
-          <button key={id} className="ghost" onClick={() => navigate({ kind: "game", id, ply })}>
-            {g
-              ? `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`
-              : id}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -703,10 +671,13 @@ export function PlayerPage({ name }: Props) {
     return computeComboStats(own, name, map);
   }, [own, analyses, name]);
   const portfolio = useMemo(() => computePortfolio(own, name), [own, name]);
-  const branchGroups = useMemo(() => {
-    if (!stats || !analyses) return [];
+  const branches = useMemo(() => {
+    if (!stats || !analyses) return null;
     const map = new Map(analyses.map((a) => [a.id, a] as const));
-    return groupBranchReviews(reviewBranches(stats.commonPositions, own, map, name));
+    return {
+      reviews: reviewBranches(stats.commonPositions, own, map, name),
+      candidates: branchCandidates(stats.commonPositions, own, map, name),
+    };
   }, [stats, analyses, own, name]);
   useRestoreView(!!games && !!analyses && report !== undefined);
 
@@ -793,14 +764,14 @@ export function PlayerPage({ name }: Props) {
         <strong>分岐点</strong>
         <p className="muted">
           2 局以上で同じ手順をたどり、そこから先で分かれた局面。手数が深いほどよく指す形。
-          本人の戦法ごとに、分岐点で本人が指した手のエンジン判定で分ける。
+          悪手を指した分岐を先に並べる。タップすると手順をたどって候補手を比べられる。
         </p>
         {stats.commonPositions.length === 0 && (
           <p className="muted">まだありません (同じ人の対局が 2 局以上必要)</p>
         )}
-        {branchGroups.map((group) => (
-          <BranchOpeningBlock key={group.opening} group={group} byId={byId} name={name} />
-        ))}
+        {branches && (
+          <BranchList reviews={branches.reviews} candidates={branches.candidates} name={name} />
+        )}
       </div>
     </section>
   );

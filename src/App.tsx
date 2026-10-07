@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { hasUnseenUpdates } from "./changelog";
+import { BranchStudyPage } from "./ui/BranchStudy";
 import { GameList } from "./ui/GameList";
 import { GameViewer } from "./ui/GameViewer";
 import { PlayerList } from "./ui/PlayerList";
@@ -51,6 +52,7 @@ export default function App() {
             "対局者",
             route.kind === "players" ||
               route.kind === "player" ||
+              route.kind === "branch" ||
               (route.kind === "list" && !!route.portfolio),
           )}
           {tab("updates", "更新情報", route.kind === "updates", unseen)}
@@ -60,6 +62,7 @@ export default function App() {
       {route.kind === "list" && <GameList query={route.query} portfolio={route.portfolio} />}
       {route.kind === "players" && <PlayerList />}
       {route.kind === "player" && <PlayerPage name={route.name} />}
+      {route.kind === "branch" && <BranchStudyPage name={route.name} branchKey={route.key} />}
       {route.kind === "settings" && <SettingsPane />}
       {route.kind === "updates" && <UpdatesPane onSeen={onSeen} />}
       {route.kind === "game" && <GameViewer id={route.id} initialPly={route.ply} />}

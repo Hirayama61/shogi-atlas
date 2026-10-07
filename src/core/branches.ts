@@ -1,4 +1,4 @@
-import { Position, formatMove } from "tsshogi";
+import { Position, formatMove, type ImmutablePosition, type Move } from "tsshogi";
 import {
   JUDGEMENT_LABEL,
   isAnalysisStale,
@@ -52,7 +52,12 @@ export interface BranchReview extends CommonPosition {
   moves: BranchMove[];
 }
 
-const SEVERITY: Record<Judgement, number> = { good: 0, inaccuracy: 1, mistake: 2, blunder: 3 };
+export const SEVERITY: Record<Judgement, number> = {
+  good: 0,
+  inaccuracy: 1,
+  mistake: 2,
+  blunder: 3,
+};
 
 export function usiMoves(usi: string): string[] {
   const i = usi.indexOf(" moves ");
@@ -73,10 +78,37 @@ export function formatUsiMove(key: string, usi: string): string {
   const pos = Position.newBySFEN(sfen);
   const move = pos?.createMoveByUSI(usi);
   if (!pos || !move || !pos.isValidMove(move)) return usi;
+  return formatPositionMove(pos, move);
+}
+
+/** 局面と手から表示用の表記 (例: ▲6五歩) を作る */
+export function formatPositionMove(pos: ImmutablePosition, move: Move): string {
   return formatMove(pos, move)
     .replace("☗", "▲")
     .replace("☖", "△")
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+
+/**
+ * 対局ごとの手の評価 (手数 → MoveReview) を引く関数。解析が無いか古ければ null。
+ * 同じ対局を何度引いても reviewMoves は 1 回だけ。
+ */
+export function createReviewLookup(
+  analyses: Map<string, AnalysisRecord>,
+): (g: GameRecord) => Map<number, MoveReview> | null {
+  const reviews = new Map<string, Map<number, MoveReview> | null>();
+  return (g) => {
+    if (!reviews.has(g.id)) {
+      const a = analyses.get(g.id);
+      reviews.set(
+        g.id,
+        a && !isAnalysisStale(g, a)
+          ? new Map(reviewMoves(g, a).map((m) => [m.ply, m] as const))
+          : null,
+      );
+    }
+    return reviews.get(g.id)!;
+  };
 }
 
 function majority(names: string[]): string {
@@ -100,19 +132,7 @@ export function reviewBranches(
   name: string,
 ): BranchReview[] {
   const byId = new Map(games.map((g) => [g.id, g] as const));
-  const reviews = new Map<string, Map<number, MoveReview> | null>();
-  const reviewOf = (g: GameRecord) => {
-    if (!reviews.has(g.id)) {
-      const a = analyses.get(g.id);
-      reviews.set(
-        g.id,
-        a && !isAnalysisStale(g, a)
-          ? new Map(reviewMoves(g, a).map((m) => [m.ply, m] as const))
-          : null,
-      );
-    }
-    return reviews.get(g.id)!;
-  };
+  const reviewOf = createReviewLookup(analyses);
 
   return positions.map((p) => {
     const turn: Side = p.ply % 2 === 0 ? "black" : "white";

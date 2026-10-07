@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { hashFor, parseHash, type Route } from "./router";
 
 describe("router", () => {
+  it("分岐点の学習画面の URL を往復できる", () => {
+    const route: Route = {
+      kind: "branch",
+      name: "a/b",
+      key: "lnsgk2nl/1r4gs1/p1pppp1pp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P",
+    };
+    const hash = hashFor(route);
+    expect(hash.startsWith("#/player/a%2Fb/branch/")).toBe(true);
+    expect(parseHash(hash)).toEqual(route);
+  });
+
   it("絞り込みつき一覧の URL を往復できる", () => {
     const route: Route = {
       kind: "list",

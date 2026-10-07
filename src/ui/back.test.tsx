@@ -76,6 +76,36 @@ describe("棋譜画面から戻る", () => {
     expect(portfolio().open).toBe(true);
   });
 
+  it("分岐点の学習画面を閉じると対局者ページの同じ折りたたみ・スクロール位置に戻る", async () => {
+    await seed();
+    const b2 = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
+    Object.assign(b2, { black: "Sukonbu3", white: "x3", result: "white", tags: ["Sukonbu3"] });
+    await db.games.put(b2);
+    history.replaceState(null, "", "#/player/Sukonbu3");
+    render(<App />);
+    await screen.findByText("戦型ポートフォリオ");
+    const portfolio = () => document.querySelector<HTMLDetailsElement>("details.portfolio")!;
+    portfolio().open = true;
+    setScrollY(900);
+
+    const row = await waitFor(() => {
+      const a = document.querySelector<HTMLAnchorElement>("a.branch-row");
+      expect(a).not.toBeNull();
+      return a!;
+    });
+    act(() => {
+      location.hash = row.getAttribute("href")!;
+    });
+    await screen.findByRole("group", { name: "本人の候補手" });
+    setScrollY(0);
+    fireEvent.click(screen.getByRole("button", { name: "← 閉じる" }));
+
+    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
+    await screen.findByText("戦型ポートフォリオ");
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 900));
+    expect(portfolio().open).toBe(true);
+  });
+
   it("絞り込んだ一覧から開いたときは同じ条件の一覧へ戻る", async () => {
     const { c } = await seed();
     const listHash = "#/games?player=Sukonbu3&result=loss";

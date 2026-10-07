@@ -26,6 +26,19 @@ const CELL = 40;
 const PAD = 16;
 const SIZE = CELL * 9 + PAD * 2;
 
+/** 盤の上に示す候補手。移動先のマスを判定の色で囲む */
+export interface BoardMark {
+  usi: string;
+  tone: "good" | "bad" | "none";
+  selected?: boolean;
+}
+
+const MARK_COLOR: Record<BoardMark["tone"], string> = {
+  good: "var(--good)",
+  bad: "var(--danger)",
+  none: "var(--muted)",
+};
+
 interface Props {
   /** 局面キーまたは SFEN */
   sfen: string;
@@ -39,6 +52,8 @@ interface Props {
   white?: string;
   /** 本人 (登録した対局者) の側。名前を強調する */
   tracked?: Side | null;
+  /** 候補手の印 */
+  marks?: BoardMark[];
 }
 
 function parseHand(hand: string): Array<{ piece: string; count: number; black: boolean }> {
@@ -96,7 +111,15 @@ function SideRow({ hand, black, name, toMove, tracked }: SideRowProps) {
   );
 }
 
-export function Board({ sfen, lastMoveUsi, flipped = false, black, white, tracked }: Props) {
+export function Board({
+  sfen,
+  lastMoveUsi,
+  flipped = false,
+  black,
+  white,
+  tracked,
+  marks = [],
+}: Props) {
   const [boardPart = "", turn = "b", handPart = "-"] = sfen.trim().split(/\s+/);
   const pieces = parseBoardSfen(boardPart);
   const target = lastMoveUsi ? lastMoveUsi.slice(2, 4) : "";
@@ -171,6 +194,27 @@ export function Board({ sfen, lastMoveUsi, flipped = false, black, white, tracke
             {label}
           </text>
         ))}
+        {marks.map((m) => {
+          const file = Number(m.usi[2]);
+          const rank = (m.usi.charCodeAt(3) || 0) - 96;
+          if (!(file >= 1 && file <= 9 && rank >= 1 && rank <= 9)) return null;
+          return (
+            <rect
+              key={m.usi}
+              className="board-mark"
+              data-usi={m.usi}
+              x={cellX(file) + 2}
+              y={cellY(rank) + 2}
+              width={CELL - 4}
+              height={CELL - 4}
+              rx={4}
+              fill="none"
+              stroke={MARK_COLOR[m.tone]}
+              strokeWidth={m.selected ? 4 : 2}
+              strokeDasharray={m.selected ? undefined : "4 3"}
+            />
+          );
+        })}
         {pieces.map((p) => {
           const black = p.piece.replace("+", "") === p.piece.replace("+", "").toUpperCase();
           const key = p.piece.toUpperCase();

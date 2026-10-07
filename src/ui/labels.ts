@@ -106,6 +106,7 @@ export function matchesQuery(g: GameSummary, q: ListQuery): boolean {
   if (q.service && serviceOf(g) !== q.service) return false;
   if (q.shape && g.opening.shape !== q.shape) return false;
   if (q.selfStyle && q.player && !matchesSelfStyle(g, q.player, q.selfStyle)) return false;
+  if (q.selfSide && q.player && playerSide(g, q.player) !== q.selfSide) return false;
   if (q.opening && !openingValues(g, q).includes(q.opening)) return false;
   if (q.vsOpening && q.player && !matchesVsOpening(g, q.player, q.vsOpening)) return false;
   if (q.castle && !castleValues(g, q).includes(q.castle)) return false;

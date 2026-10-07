@@ -203,6 +203,33 @@ describe("棋譜画面から戻る", () => {
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 300));
   });
 
+  it("先後を切り替えた戦法の詳細から棋譜を開いて戻ると、同じ先後で復元され、一つ上に戻っても先後が保たれる", async () => {
+    const { b } = await seed();
+    const view = { quadrant: "furiVsIbisha" as const, side: "black" as const };
+    const detail: Route = {
+      kind: "player",
+      name: "Sukonbu3",
+      view: { ...view, opening: "ノーマル四間飛車" },
+    };
+    history.replaceState(null, "", hashFor(detail));
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    act(() => navigate({ kind: "game", id: b.id }));
+    await waitFor(() => expect(location.hash).toBe(`#/game/${b.id}`));
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+    await waitFor(() => expect(location.hash).toBe(hashFor(detail)));
+    const toggle = await screen.findByRole("group", { name: "先後" });
+    expect(within(toggle).getByRole("link", { name: "先手" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(document.querySelector(".opening-detail")).toHaveTextContent("先手のみ · 1 局");
+    fireEvent.click(screen.getByRole("link", { name: /← 対抗形 · 自分が振り飛車 の戦法/ }));
+    await waitFor(() =>
+      expect(location.hash).toBe(hashFor({ kind: "player", name: "Sukonbu3", view })),
+    );
+  });
+
   it("絞り込んだ一覧から開いたときは同じ条件の一覧へ戻る", async () => {
     const { c } = await seed();
     const listHash = "#/games?player=Sukonbu3&result=loss";

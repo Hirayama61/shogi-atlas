@@ -60,6 +60,7 @@ function describeQuery(q: ListQuery): string[] {
   if (q.service) parts.push(SERVICE_LABEL[q.service]);
   if (q.shape) parts.push(GAME_SHAPE_LABEL[q.shape]);
   if (q.selfStyle && q.player) parts.push(`本人: ${SIDE_STYLE_LABEL[q.selfStyle]}`);
+  if (q.selfSide && q.player) parts.push(`本人: ${SIDE_FILTER_LABEL[q.selfSide]}`);
   if (q.opening) parts.push(`${q.opening}${side(q.openingSide)}`);
   if (q.vsOpening && q.player) parts.push(`相手: ${q.vsOpening}`);
   if (q.castle) parts.push(`${q.castle}${side(q.castleSide)}`);
@@ -106,6 +107,7 @@ export function GameList({
         next.openingSide = undefined;
       if (next.castleSide === "self" || next.castleSide === "opponent") next.castleSide = undefined;
       if (next.result === "win" || next.result === "loss") next.result = undefined;
+      next.selfSide = undefined;
     }
     navigate({ kind: "list", query: compactQuery(next), portfolio });
   };

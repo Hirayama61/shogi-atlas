@@ -76,8 +76,9 @@ export function BranchStudyPage({ name, branchKey, view, at: initialAt, pick, li
   // 分岐点の木は戦法の詳細と同じ対局集合で作る (URL に戦法が無ければ本人の全対局)
   const subset = useMemo(() => {
     if (!view?.opening) return own;
+    const sided = view.side ? own.filter((g) => playerSide(g, name) === view.side) : own;
     const ids = new Set(
-      computeOpeningDetail(own, name, view.quadrant, view.axis ?? "self", view.opening).gameIds,
+      computeOpeningDetail(sided, name, view.quadrant, view.axis ?? "self", view.opening).gameIds,
     );
     return own.filter((g) => ids.has(g.id));
   }, [own, name, view]);

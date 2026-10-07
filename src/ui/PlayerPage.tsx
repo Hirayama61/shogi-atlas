@@ -28,6 +28,7 @@ import {
   playerSide,
   type Bucket,
   type PlayerStats,
+  type Side,
 } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
@@ -444,12 +445,33 @@ function OpeningList({
   const axisRoute = (a: OpeningAxis): Route => ({
     kind: "player",
     name,
-    view: a === "self" ? { quadrant: q.quadrant } : { quadrant: q.quadrant, axis: a },
+    view: listView(q.quadrant, a, view.side),
+  });
+  // 先後を切り替えても開いている戦法の詳細はそのまま (その先後の局数で数え直す)
+  const sideRoute = (side: Side | undefined): Route => ({
+    kind: "player",
+    name,
+    view: {
+      ...listView(q.quadrant, axis, side),
+      ...(view.opening ? { opening: view.opening } : {}),
+    },
   });
   return (
     <div className="panel opening-list">
       <UpLink to={{ kind: "player", name }} label="戦型" />
       <strong>{STYLE_QUADRANT_LABEL[q.quadrant]} の戦法</strong>
+      <div className="axis-toggle" role="group" aria-label="先後">
+        {([undefined, "black", "white"] as const).map((side) => (
+          <a
+            key={side ?? "both"}
+            className={`chip${side === view.side ? " active" : ""}`}
+            href={hashFor(sideRoute(side))}
+            aria-pressed={side === view.side}
+          >
+            {side ? SIDE_LABEL[side] : "両方"}
+          </a>
+        ))}
+      </div>
       <div className="axis-toggle" role="group" aria-label="戦法の側">
         {(["self", "opponent"] as const).map((a) => (
           <a
@@ -473,11 +495,7 @@ function OpeningList({
           routeOf={(r) => ({
             kind: "player",
             name,
-            view: {
-              quadrant: q.quadrant,
-              ...(axis === "opponent" ? { axis } : {}),
-              opening: r.name,
-            },
+            view: { ...listView(q.quadrant, axis, view.side), opening: r.name },
           })}
         />
       )}
@@ -494,7 +512,12 @@ function OpeningList({
             highlightLosing
             routeOf={(r) => ({
               kind: "list",
-              query: { ...quadrantQuery(name, q.quadrant), castle: r.name, castleSide: "opponent" },
+              query: {
+                ...quadrantQuery(name, q.quadrant),
+                ...sideQuery(view.side),
+                castle: r.name,
+                castleSide: "opponent",
+              },
             })}
           />
         </div>
@@ -503,20 +526,41 @@ function OpeningList({
   );
 }
 
+/** 戦法の一覧 (戦法の詳細を閉じた状態) の表示。既定 (自分の戦法・先後両方) は URL に出さない */
+function listView(quadrant: PlayerView["quadrant"], axis: OpeningAxis, side?: Side): PlayerView {
+  return {
+    quadrant,
+    ...(axis === "opponent" ? { axis } : {}),
+    ...(side ? { side } : {}),
+  };
+}
+
+/** 先後で絞っていれば、棋譜一覧にも本人の先後の条件を付ける */
+function sideQuery(side: Side | undefined): ListQuery {
+  return side ? { selfSide: side } : {};
+}
+
 /** 戦法の詳細の対局を棋譜一覧の絞り込み条件で表す */
-function detailQuery(name: string, d: OpeningDetail): ListQuery {
+function detailQuery(name: string, d: OpeningDetail, side: Side | undefined): ListQuery {
   return {
     ...quadrantQuery(name, d.quadrant),
+    ...sideQuery(side),
     opening: d.opening,
     openingSide: d.axis === "self" ? "self" : "opponent",
   };
 }
 
 /** 戦法の詳細の「相手の戦法 / 自分の応手」の 1 行 (本人の戦法 × 相手の戦法、応手は囲いも) の対局 */
-function counterQuery(name: string, d: OpeningDetail, r: CounterBucket): ListQuery {
+function counterQuery(
+  name: string,
+  d: OpeningDetail,
+  r: CounterBucket,
+  side: Side | undefined,
+): ListQuery {
   const isSelf = d.axis === "self";
   return {
     ...quadrantQuery(name, d.quadrant),
+    ...sideQuery(side),
     opening: isSelf ? d.opening : r.opening,
     openingSide: "self",
     vsOpening: isSelf ? r.opening : d.opening,
@@ -570,11 +614,11 @@ function OpeningDetailPanel({
     () => new Map(combo.castles.map((c) => [c.name, c.averageLoss] as const)),
     [combo],
   );
-  const list: Route = { kind: "list", query: detailQuery(name, detail) };
+  const list: Route = { kind: "list", query: detailQuery(name, detail, view.side) };
   const parent: Route = {
     kind: "player",
     name,
-    view: { quadrant: view.quadrant, ...(view.axis === "opponent" ? { axis: view.axis } : {}) },
+    view: listView(view.quadrant, view.axis ?? "self", view.side),
   };
   const isSelf = detail.axis === "self";
   return (
@@ -585,8 +629,9 @@ function OpeningDetailPanel({
         {detail.opening}
       </strong>
       <div className="muted">
-        {STYLE_QUADRANT_LABEL[detail.quadrant]} · {detail.games} 局 {detail.wins} 勝 {detail.losses}{" "}
-        敗 · 勝率 {pct(detail.wins, detail.wins + detail.losses)}
+        {STYLE_QUADRANT_LABEL[detail.quadrant]}
+        {view.side ? ` · ${SIDE_LABEL[view.side]}のみ` : ""} · {detail.games} 局 {detail.wins} 勝{" "}
+        {detail.losses} 敗 · 勝率 {pct(detail.wins, detail.wins + detail.losses)}
         {combo.averageLoss !== null &&
           ` · 平均損失 ${combo.averageLoss} (解析済み ${combo.analyzed} 局)`}
       </div>
@@ -605,7 +650,11 @@ function OpeningDetailPanel({
             lossOf={combo.analyzed ? (r) => castleLoss.get(r.name) : undefined}
             routeOf={(r) => ({
               kind: "list",
-              query: { ...detailQuery(name, detail), castle: r.name, castleSide: "self" },
+              query: {
+                ...detailQuery(name, detail, view.side),
+                castle: r.name,
+                castleSide: "self",
+              },
             })}
           />
         </div>
@@ -615,7 +664,7 @@ function OpeningDetailPanel({
             head={isSelf ? "相手の戦法" : "自分の戦法 · 囲い"}
             rows={detail.counter}
             total={detail.games}
-            routeOf={(r) => ({ kind: "list", query: counterQuery(name, detail, r) })}
+            routeOf={(r) => ({ kind: "list", query: counterQuery(name, detail, r, view.side) })}
           />
         </div>
         <div>
@@ -632,7 +681,11 @@ function OpeningDetailPanel({
             highlightLosing
             routeOf={(r) => ({
               kind: "list",
-              query: { ...detailQuery(name, detail), castle: r.name, castleSide: "opponent" },
+              query: {
+                ...detailQuery(name, detail, view.side),
+                castle: r.name,
+                castleSide: "opponent",
+              },
             })}
           />
         </div>
@@ -762,6 +815,17 @@ function ComparePicker({ name, candidates }: { name: string; candidates: string[
   );
 }
 
+function emptyQuadrant(quadrant: QuadrantStats["quadrant"]): QuadrantStats {
+  const none = { games: 0, wins: 0, losses: 0 };
+  return {
+    quadrant,
+    ...none,
+    bySide: { black: { ...none }, white: { ...none } },
+    openings: [],
+    vsOpenings: [],
+  };
+}
+
 export function PlayerPage({ name, view }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
@@ -809,23 +873,39 @@ export function PlayerPage({ name, view }: Props) {
     [name],
   );
   const quadrants = useMemo(() => computeStyleQuadrants(own, name), [own, name]);
-  const quadrant = view ? quadrants.find((q) => q.quadrant === view.quadrant) : undefined;
+  // 戦法の一覧と詳細は、先後で絞っていればその先後の対局だけで数える (4 区分のタイルは両方のまま)
+  const side = view?.side;
+  const sided = useMemo(
+    () => (side ? own.filter((g) => playerSide(g, name) === side) : own),
+    [own, name, side],
+  );
+  const sidedQuadrants = useMemo(
+    () => (side ? computeStyleQuadrants(sided, name) : quadrants),
+    [side, sided, name, quadrants],
+  );
+  const quadrant = view
+    ? (sidedQuadrants.find((q) => q.quadrant === view.quadrant) ??
+      // 不明の区分はその先後に対局が無いと返らないが、切り替えは残す
+      (quadrants.some((q) => q.quadrant === view.quadrant)
+        ? emptyQuadrant(view.quadrant)
+        : undefined))
+    : undefined;
   const quadrantCastles = useMemo(
     () =>
       view
         ? computeComboStats(
-            own.filter((g) => styleQuadrantOf(g, name) === view.quadrant),
+            sided.filter((g) => styleQuadrantOf(g, name) === view.quadrant),
             name,
           ).vsCastles
         : [],
-    [own, name, view],
+    [sided, name, view],
   );
   const detail = useMemo(
     () =>
       view?.opening
-        ? computeOpeningDetail(own, name, view.quadrant, view.axis ?? "self", view.opening)
+        ? computeOpeningDetail(sided, name, view.quadrant, view.axis ?? "self", view.opening)
         : null,
-    [own, name, view],
+    [sided, name, view],
   );
   const analysisMap = useMemo(
     () => (analyses ? new Map(analyses.map((a) => [a.id, a] as const)) : null),

@@ -16,6 +16,8 @@ export interface ListQuery {
   shape?: GameShape;
   /** 対局者の戦型。対局者を指定したときだけ効く */
   selfStyle?: Exclude<SideStyle, "unknown">;
+  /** 対局者の先後。対局者を指定したときだけ効く */
+  selfSide?: Side;
   opening?: string;
   /** 省くと先手・後手どちらでも */
   openingSide?: SideFilter;
@@ -38,10 +40,12 @@ export interface PortfolioFilter {
 /**
  * 対局者ページの階層 (4 区分 → 戦法の一覧 → 戦法の詳細) のどこを見ているか。
  * 省くと概要と 4 区分だけ。opening を付けると戦法の詳細。axis は戦法の一覧を相手の戦法で見るとき。
+ * side は戦法の一覧と詳細を本人が先手 (後手) の対局だけで数えるとき (省くと両方)。
  */
 export interface PlayerView {
   quadrant: StyleQuadrant;
   axis?: OpeningAxis;
+  side?: Side;
   opening?: string;
 }
 
@@ -73,6 +77,7 @@ const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "los
 const SERVICES = ["wars", "quest"] as const;
 const SELF_STYLES = ["ibisha", "furibisha"] as const;
 const AXES: readonly OpeningAxis[] = ["self", "opponent"];
+const SIDES: readonly Side[] = ["black", "white"];
 const SHAPES: readonly GameShape[] = ["aiIbisha", "taikokei", "aiFuribisha", "unknown"];
 /** URL に出す順 */
 const QUERY_KEYS = [
@@ -80,6 +85,7 @@ const QUERY_KEYS = [
   "service",
   "shape",
   "selfStyle",
+  "selfSide",
   "opening",
   "openingSide",
   "vsOpening",
@@ -105,6 +111,7 @@ export function parseQuery(search: string): ListQuery {
     service: pick(p.get("service"), SERVICES),
     shape: pick(p.get("shape"), SHAPES),
     selfStyle: pick(p.get("selfStyle"), SELF_STYLES),
+    selfSide: pick(p.get("selfSide"), SIDES),
     opening: p.get("opening") || undefined,
     openingSide: pick(p.get("openingSide"), SIDE_FILTERS),
     vsOpening: p.get("vsOpening") || undefined,
@@ -140,7 +147,6 @@ function listRoute(query: ListQuery, portfolio?: PortfolioFilter): Route {
   if (portfolio) route.portfolio = portfolio;
   return route;
 }
-const SIDES: readonly Side[] = ["black", "white"];
 const STYLES: readonly SideStyle[] = ["ibisha", "furibisha", "unknown"];
 
 function parsePlayerView(search: string): PlayerView | undefined {
@@ -150,6 +156,8 @@ function parsePlayerView(search: string): PlayerView | undefined {
   const view: PlayerView = { quadrant };
   const axis = pick(p.get("axis"), AXES);
   if (axis === "opponent") view.axis = axis;
+  const side = pick(p.get("side"), SIDES);
+  if (side) view.side = side;
   const opening = p.get("opening");
   if (opening) view.opening = opening;
   return view;
@@ -158,6 +166,7 @@ function parsePlayerView(search: string): PlayerView | undefined {
 function playerViewString(view: PlayerView): string {
   const p = new URLSearchParams({ style: view.quadrant });
   if (view.axis === "opponent") p.set("axis", view.axis);
+  if (view.side) p.set("side", view.side);
   if (view.opening) p.set("opening", view.opening);
   return p.toString();
 }

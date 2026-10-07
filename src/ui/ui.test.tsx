@@ -400,6 +400,103 @@ describe("UI", () => {
     ).toBeInTheDocument();
   });
 
+  it("PlayerPage: 戦法の一覧と詳細を先手 / 後手 / 両方で切り替えると、局数がその先後の値になり、棋譜一覧へのリンクにも先後が付く", async () => {
+    const { b } = await seed();
+    // c と同じ手順で、本人が後手の四間飛車を指して勝った対局
+    const d = await parseKifu(USI_ANAGUMA_VS_SHIKEN, { source });
+    Object.assign(d, {
+      id: "d",
+      black: "x3",
+      white: "Sukonbu3",
+      result: "white",
+      startedAt: "2026-04-01T00:00:00",
+      tags: ["Sukonbu3"],
+    });
+    await db.games.put(d);
+    const opening = b.opening.blackOpening;
+    expect(d.opening.whiteOpening).toBe(opening);
+    const base = { quadrant: "furiVsIbisha" as const };
+    const { rerender } = render(<PlayerPage name="Sukonbu3" view={base} />);
+    await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
+    const cells = () => {
+      const list = document.querySelector(".opening-list") as HTMLElement;
+      const row = within(list.querySelector(":scope > table") as HTMLElement)
+        .getByRole("link", { name: opening })
+        .closest("tr")!;
+      return Array.from(row.children)
+        .slice(1, 4)
+        .map((td) => td.textContent);
+    };
+    expect(cells()).toEqual(["3", "2", "1"]);
+    const toggle = within(document.querySelector(".opening-list") as HTMLElement).getByRole(
+      "group",
+      { name: "先後" },
+    );
+    expect(within(toggle).getByRole("link", { name: "両方" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const white = parseHash(
+      within(toggle).getByRole("link", { name: "後手" }).getAttribute("href")!,
+    );
+    expect(white).toEqual({ kind: "player", name: "Sukonbu3", view: { ...base, side: "white" } });
+    rerender(<PlayerPage name="Sukonbu3" view={{ ...base, side: "white" }} />);
+    await waitFor(() => expect(cells()).toEqual(["1", "1", "0"]));
+    rerender(<PlayerPage name="Sukonbu3" view={{ ...base, side: "black" }} />);
+    await waitFor(() => expect(cells()).toEqual(["2", "1", "1"]));
+    // 4 区分のタイルは両方のまま
+    expect(document.querySelector("a.quadrant.selected")).toHaveTextContent(
+      "先手 2 局 1 勝 · 後手 1 局 1 勝",
+    );
+    // 行から開く戦法の詳細にも先後が付く
+    const row = within(document.querySelector(".opening-list > table") as HTMLElement).getByRole(
+      "link",
+      { name: opening },
+    );
+    expect(parseHash(row.getAttribute("href")!)).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { ...base, side: "black", opening },
+    });
+
+    const view = { ...base, side: "white" as const, opening };
+    rerender(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    const detail = document.querySelector(".opening-detail") as HTMLElement;
+    expect(detail).toHaveTextContent("後手のみ · 1 局 1 勝 0 敗");
+    expect(detail.querySelector("details.lines")).toBeNull();
+    // 詳細を開いたまま先後を切り替えられる
+    const both = within(
+      within(document.querySelector(".opening-list") as HTMLElement).getByRole("group", {
+        name: "先後",
+      }),
+    ).getByRole("link", { name: "両方" });
+    expect(parseHash(both.getAttribute("href")!)).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { ...base, opening },
+    });
+    const link = within(detail).getByRole("link", { name: /この戦法の棋譜一覧 \(1 局\)/ });
+    const route = parseHash(link.getAttribute("href")!);
+    expect(route).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        selfSide: "white",
+        opening,
+        openingSide: "self",
+      },
+    });
+    cleanup();
+    if (route.kind !== "list") throw new Error("unreachable");
+    render(<GameList query={route.query} />);
+    await waitFor(() => expect(screen.getByText("1 / 4 局")).toBeInTheDocument());
+    expect(document.querySelector(".filters summary")).toHaveTextContent("本人: 後手");
+    expect(screen.getByText("☗x3")).toBeInTheDocument();
+  });
+
   it("PlayerPage: 戦法を選ぶと囲い・相手の戦法・繰り返している手順・分岐点・棋譜一覧へのリンクが 1 画面に出る", async () => {
     const { b } = await seedBranches();
     const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };

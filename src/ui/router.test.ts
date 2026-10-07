@@ -38,6 +38,7 @@ describe("router", () => {
         service: "wars",
         shape: "taikokei",
         selfStyle: "ibisha",
+        selfSide: "white",
         opening: "四間飛車",
         openingSide: "opponent",
         castle: "美濃囲い",
@@ -63,9 +64,22 @@ describe("router", () => {
         name: "a/b",
         view: { quadrant: "aiFuribisha", axis: "opponent", opening: "向かい飛車" },
       },
+      { kind: "player", name: "a/b", view: { quadrant: "aiIbisha", side: "white" } },
+      {
+        kind: "player",
+        name: "a/b",
+        view: { quadrant: "furiVsIbisha", axis: "opponent", side: "black", opening: "x" },
+      },
     ];
     for (const route of routes) expect(parseHash(hashFor(route))).toEqual(route);
     expect(hashFor(routes[1]!)).toBe("#/player/a%2Fb?style=aiIbisha");
+    expect(hashFor(routes[5]!)).toBe("#/player/a%2Fb?style=aiIbisha&side=white");
+    // 知らない先後は両方
+    expect(parseHash("#/player/a?style=aiIbisha&side=up")).toEqual({
+      kind: "player",
+      name: "a",
+      view: { quadrant: "aiIbisha" },
+    });
     // 知らない区分は概要だけ
     expect(parseHash("#/player/a?style=bogus&opening=x")).toEqual({ kind: "player", name: "a" });
   });

@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { parseKifu } from "../parse";
-import { shortOpeningLabel } from "../opening";
+import { toBoardView } from "../board";
 import {
+  IBISHA_VS_FURI_RULES,
+  matchOpeningRule,
+  shortOpeningLabel,
+  type SideFeatures,
+} from "../opening";
+import {
+  USI_AIGAKARI_UKIBISHA,
+  USI_IBISHA_HENACHOKO_SHAPE,
+  USI_YODO_SANKEN,
   USI_AIGAKARI_LATE_KAKU,
   USI_DIRECT_MUKAI,
   USI_GOKIGEN,
@@ -177,6 +186,52 @@ describe("classifyOpening", () => {
     expect(g.opening.whiteOpening).toBe(furi);
     // 一覧の短い表示は今までどおり振り飛車側の名前
     expect(shortOpeningLabel(g.opening)).toBe(`☖${furi}`);
+  });
+
+  it("相掛かりで浮き飛車が 5 筋に回っても振り飛車にしない", async () => {
+    const g = await parseKifu(USI_AIGAKARI_UKIBISHA, { source });
+    expect(g.length).toBe(22);
+    expect(g.opening.black).toBe("ibisha");
+    expect(g.opening.blackRookFile).toBeNull();
+    expect(g.opening.shape).toBe("aiIbisha");
+    expect(g.opening.blackOpening).toBe("相掛かり");
+    expect(g.opening.whiteOpening).toBe("相掛かり");
+  });
+
+  it("歩交換のあと 8 段目に引いてから振れば振り飛車", async () => {
+    const g = await parseKifu(USI_YODO_SANKEN, { source });
+    expect(g.length).toBe(20);
+    expect(g.opening.shape).toBe("taikokei");
+    expect(g.opening.blackRookFile).toBe(7);
+    expect(g.opening.blackOpening).toBe("三間飛車");
+    expect(g.opening.whiteOpening).toBe("居飛車");
+  });
+
+  it("角交換四間飛車は振り飛車のまま", async () => {
+    const g = await parseKifu(USI_KAKU_SHIKEN, { source });
+    expect(g.opening.black).toBe("furibisha");
+    expect(g.opening.blackRookFile).toBe(6);
+  });
+
+  it("対振り飛車の戦法は相手の飛車が振られていなければ付かない", async () => {
+    const g = await parseKifu(USI_IBISHA_HENACHOKO_SHAPE, { source });
+    expect(g.opening.shape).toBe("aiIbisha");
+    const views = g.positions.map(toBoardView);
+    const features: SideFeatures = {
+      style: "ibisha",
+      rookFile: 2,
+      furiFile: null,
+      bishopExchange: false,
+      yokofu: false,
+      rookPawnAdvanced: true,
+      ishida: false,
+      hayaishida: false,
+      castle: "居玉",
+    };
+    expect(matchOpeningRule(IBISHA_VS_FURI_RULES, views, "black", features)).toBeNull();
+    // 自分の形だけならへなちょこ急戦に当たる
+    const selfOnly = IBISHA_VS_FURI_RULES.map((rule) => ({ ...rule, opponentFuri: false }));
+    expect(matchOpeningRule(selfOnly, views, "black", features)).toBe("へなちょこ急戦");
   });
 
   it("ミレニアム囲い", async () => {

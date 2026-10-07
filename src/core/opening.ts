@@ -5,6 +5,7 @@ import {
   has,
   inHand,
   mirror,
+  squareOf,
   toBoardView,
   type BoardView,
 } from "./board";
@@ -17,6 +18,8 @@ const OPENING_PLIES = 40;
 const CASTLE_PLIES = 80;
 /** 7五歩をこの手数以内に突いた三間飛車は早石田 (自分の 4 手目まで) */
 const HAYAISHIDA_PLIES = 8;
+/** 横歩を取る (3四飛) のはこの手数まで。これより後に 3四 に来たのは中盤の飛車の転回 */
+const YOKOFU_PLIES = 30;
 /** これより短い対局は判定しない */
 const MIN_PLIES_FOR_JUDGE = 12;
 
@@ -69,12 +72,30 @@ function sideFeatures(views: BoardView[], bishopExchange: boolean): SideFeatures
   let pawn75 = false;
   let earlyPawn75 = false;
 
+  // 振り飛車 = 自陣の 8 段目で飛車を 4 筋以下から 5 筋以上へ横に動かした (振った)。
+  // 相掛かり・横歩取りの浮き飛車や、浮いた飛車の中盤の転回は振ったことにしない。
+  let prevSquare = views[0] ? squareOf(views[0], "R") : null;
+  let swung = false;
+  /** 振る前に飛車が 8 段目を離れていた (浮いていた) 手数 */
+  let floatedBeforeSwing = 0;
+  /** 振ったあとに飛車が 5 筋以上に居た手数 (筋ごと) */
+  const furiCountByFile = new Map<number, number>();
   for (let ply = 1; ply <= plies; ply++) {
     const v = views[ply];
     if (!v) continue;
-    const f = fileOf(v, "R");
-    if (f !== null) fileCount.set(f, (fileCount.get(f) ?? 0) + 1);
-    if (has(v, 3, 4, "R")) yokofu = true;
+    const square = squareOf(v, "R");
+    if (square) {
+      const [file, rank] = square;
+      fileCount.set(file, (fileCount.get(file) ?? 0) + 1);
+      // 駒を取りながらの横移動 (8 段目に入った駒を飛車で取る) は振ったことにしない
+      const prevView = views[ply - 1];
+      if (!swung && prevSquare && prevSquare[1] === 8 && rank === 8 && prevView)
+        swung = prevSquare[0] <= 4 && file >= 5 && !prevView.pieces.has(`${file}${rank}`);
+      if (!swung && rank !== 8) floatedBeforeSwing++;
+      if (swung && file >= 5) furiCountByFile.set(file, (furiCountByFile.get(file) ?? 0) + 1);
+    }
+    prevSquare = square;
+    if (ply <= YOKOFU_PLIES && has(v, 3, 4, "R")) yokofu = true;
     if (ply <= 20 && has(v, 2, 5, "P")) rookPawnAdvanced = true;
     if (has(v, 7, 5, "P")) {
       pawn75 = true;
@@ -82,9 +103,6 @@ function sideFeatures(views: BoardView[], bishopExchange: boolean): SideFeatures
     }
   }
 
-  // 振り飛車の筋: 5 筋以上に居た手数が最も多い筋
-  let furiFile: number | null = null;
-  let furiCount = 0;
   let rookFile: number | null = null;
   let rookCount = 0;
   for (const [file, count] of fileCount) {
@@ -92,13 +110,21 @@ function sideFeatures(views: BoardView[], bishopExchange: boolean): SideFeatures
       rookCount = count;
       rookFile = file;
     }
-    if (file >= 5 && count > furiCount) {
+  }
+  // 振り飛車の筋: 振ったあとに居た手数が最も多い筋
+  let furiFile: number | null = null;
+  let furiCount = 0;
+  let furiTotal = 0;
+  for (const [file, count] of furiCountByFile) {
+    furiTotal += count;
+    if (count > furiCount) {
       furiCount = count;
       furiFile = file;
     }
   }
-  // 1 手だけ通過したような筋は採用しない
-  if (furiFile !== null && furiCount < 2) furiFile = null;
+  // 1 手だけ通過したような筋は採用しない。
+  // 浮き飛車で戦ってから 8 段目に引いて回した (中盤の転回) なら、振ったあとの方が長いときだけ採る
+  if (furiCount < 2 || furiTotal <= floatedBeforeSwing) furiFile = null;
 
   const castle = detectCastle(views, CASTLE_PLIES);
   const style: SideStyle =
@@ -152,6 +178,8 @@ export interface OpeningRule {
   file?: number;
   /** 先手・後手の限定 */
   side?: Side;
+  /** その局面までに相手の飛車が振られた (自分から見て 5 筋以下に来た) こと */
+  opponentFuri?: boolean;
   /** 盤面以外の特徴の条件 */
   when?: (f: SideFeatures) => boolean;
   maxPly: number;
@@ -283,8 +311,9 @@ export const KAKUGAWARI_RULES: OpeningRule[] = [
  * どれにも当てはまらなければ囲い名 (居飛車穴熊・左美濃・ミレニアム) か「居飛車」に落ちる。
  * 将棋ウォーズのエフェクト条件はこの環境から読めなかったので、条件は一般的な指し方からの見立て。
  * 実戦の棋譜で外れていたら、ここの配置と手数を直す。
+ * どのルールも、その局面までに相手の飛車が振られたこと (opponentFuri) を条件にする。
  */
-export const IBISHA_VS_FURI_RULES: OpeningRule[] = [
+const IBISHA_VS_FURI_SHAPES: OpeningRule[] = [
   {
     // 対ゴキゲン中飛車で、早い 3七銀 (相手は 5二飛・5四歩)
     name: "超速",
@@ -379,6 +408,20 @@ export const IBISHA_VS_FURI_RULES: OpeningRule[] = [
     maxPly: OPENING_PLIES,
   },
 ];
+export const IBISHA_VS_FURI_RULES: OpeningRule[] = IBISHA_VS_FURI_SHAPES.map((rule) => ({
+  ...rule,
+  opponentFuri: true,
+}));
+
+/** 相手の飛車が初めて自分から見て 5 筋以下に来た手数。来なければ Infinity */
+function opponentFuriPly(views: BoardView[]): number {
+  for (let ply = 1; ply < views.length; ply++) {
+    const v = views[ply];
+    const file = v ? fileOf(v, "r") : null;
+    if (file !== null && file <= 5) return ply;
+  }
+  return Infinity;
+}
 
 function ruleHolds(rule: OpeningRule, views: BoardView[], ply: number): boolean {
   const v = views[ply];
@@ -403,12 +446,14 @@ export function matchOpeningRule(
   side: Side,
   f: SideFeatures,
 ): string | null {
+  let furiPly: number | undefined;
   for (const rule of rules) {
     if (rule.side && rule.side !== side) continue;
     if (rule.file !== undefined && rule.file !== f.furiFile) continue;
     if (rule.when && !rule.when(f)) continue;
+    const first = rule.opponentFuri ? (furiPly ??= opponentFuriPly(views)) : 1;
     const last = Math.min(views.length - 1, rule.maxPly);
-    for (let ply = 1; ply <= last; ply++) if (ruleHolds(rule, views, ply)) return rule.name;
+    for (let ply = first; ply <= last; ply++) if (ruleHolds(rule, views, ply)) return rule.name;
   }
   return null;
 }

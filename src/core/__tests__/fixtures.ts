@@ -96,6 +96,18 @@ export const USI_SHIKEN_LATE_KAKU =
 export const USI_KAKU_SHIKEN =
   "position startpos moves 7g7f 3c3d 8h2b+ 3a2b 2h6h 8c8d 5i4h 8d8e 4h3h 5a4b 3h2h 4b3b 3i3h 7a6b 7i7h 6a5b 1g1f 1c1d";
 
+/** 相掛かり: ☗が歩交換のあと 2六飛 から 5六飛 と浮き飛車で 5 筋に回る。振り飛車ではない */
+export const USI_AIGAKARI_UKIBISHA =
+  "position startpos moves 2g2f 8c8d 2f2e 8d8e 6i7h 4a3b 2e2d 2c2d 2h2d P*2c 2d2f 8e8f 8g8f 8b8f P*8g 8f8d 2f5f 3c3d 7g7f 6a5b 3i4h 7a6b";
+
+/** ☗三間飛車: 2 筋の歩交換のあと 2八 に引いてから 7八 に振る */
+export const USI_YODO_SANKEN =
+  "position startpos moves 7g7f 3c3d 2g2f 8c8d 2f2e 8d8e 2e2d 2c2d 2h2d P*2c 2d2h 4a3b 2h7h 7a6b 5i4h 6a5b 4h3h 5c5d 3h2h 1c1d";
+
+/** 相居飛車で ☗が居玉のまま 3六歩・4六銀 (へなちょこ急戦の形だが、相手は振っていない) */
+export const USI_IBISHA_HENACHOKO_SHAPE =
+  "position startpos moves 7g7f 8c8d 2g2f 8d8e 3g3f 3c3d 3i4h 7a6b 4h3g 6a5b 3g4f 4a3b";
+
 /** 相掛かり: 飛車先の歩交換 (8 手目が最初の駒交換) のあとで角交換になる。角換わりではない */
 export const USI_AIGAKARI_LATE_KAKU =
   "position startpos moves 2g2f 8c8d 2f2e 8d8e 6i7h 4a3b 2e2d 2c2d 2h2d P*2c 2d2f 8e8f 8g8f 8b8f P*8g 8f8d 7g7f 3c3d 8h2b+ 3a2b";

@@ -50,6 +50,14 @@ export function fileOf(view: BoardView, piece: string): number | null {
   return null;
 }
 
+/** 先手の駒 (成も含む) があるマスを [筋, 段] で返す。無ければ null。 */
+export function squareOf(view: BoardView, piece: string): [number, number] | null {
+  for (const [key, p] of view.pieces) {
+    if (p === piece || p === `+${piece}`) return [Number(key[0]), Number(key[1])];
+  }
+  return null;
+}
+
 /** 先手の持ち駒に指定の駒があるか */
 export function inHand(view: BoardView, piece: string): boolean {
   return view.hands !== "-" && view.hands.includes(piece);

@@ -7,6 +7,7 @@ import { PlayerPage } from "./ui/PlayerPage";
 import { SettingsPane } from "./ui/SettingsPane";
 import { UpdatesPane } from "./ui/UpdatesPane";
 import { navigate, parseHash, type Route } from "./ui/router";
+import { recordNavigation, startViewTracking } from "./ui/viewState";
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => parseHash(location.hash));
@@ -14,7 +15,12 @@ export default function App() {
   const onSeen = useCallback(() => setUnseen(false), []);
 
   useEffect(() => {
-    const onHash = () => setRoute(parseHash(location.hash));
+    startViewTracking();
+    const onHash = (e: HashChangeEvent) => {
+      // 描き直す前に、離れる画面のスクロール位置と折りたたみを覚える
+      recordNavigation(e.oldURL);
+      setRoute(parseHash(location.hash));
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);

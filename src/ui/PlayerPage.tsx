@@ -40,6 +40,7 @@ import {
   type ListQuery,
   type SideFilter,
 } from "./router";
+import { useRestoreView } from "./viewState";
 
 interface Props {
   name: string;
@@ -804,7 +805,15 @@ export function PlayerPage({ name }: Props) {
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
   const ownIds = useMemo(() => own.map((g) => g.id), [own]);
   // テーブルが無い古い DB や同期前でも undefined になるだけ
-  const report = useLiveQuery(() => db.reports.get(name).catch(() => undefined), [name]);
+  // 無ければ null (読み込み中の undefined と分ける。表示状態の復元は揃ってから)
+  const report = useLiveQuery(
+    () =>
+      db.reports
+        .get(name)
+        .then((r) => r ?? null)
+        .catch(() => null),
+    [name],
+  );
   const combo = useMemo(() => {
     const map = new Map((analyses ?? []).map((a) => [a.id, a] as const));
     return computeComboStats(own, name, map);
@@ -815,6 +824,7 @@ export function PlayerPage({ name }: Props) {
     const map = new Map(analyses.map((a) => [a.id, a] as const));
     return groupBranchReviews(reviewBranches(stats.commonPositions, own, map, name));
   }, [stats, analyses, own, name]);
+  useRestoreView(!!games && !!analyses && report !== undefined);
 
   if (!games || !stats) return <p className="muted">読み込み中…</p>;
   if (stats.games === 0) return <p className="error">{name} の対局がありません</p>;

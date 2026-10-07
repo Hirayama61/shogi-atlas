@@ -107,7 +107,8 @@ test.describe("一通りの画面", () => {
     await lines.locator(".detail-body button").first().click();
     await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/18$/);
     await page.goBack();
-    await portfolio.locator("details.portfolio summary").first().click();
+    // 戻ると開いていた折りたたみがそのまま
+    await expect(lines).toHaveAttribute("open", "");
     await portfolio.locator("details.portfolio[open] tbody tr a").first().click();
     await expect(page).toHaveURL(/#\/player\/taro\/portfolio\//);
     await expect(page.getByText(/相手: /).first()).toBeVisible();
@@ -119,6 +120,34 @@ test.describe("一通りの画面", () => {
 
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
     expect(await page.locator("body").textContent()).not.toContain("undefined");
+  });
+
+  test("対局者ページ → 棋譜 → 戻るで同じ位置・同じ折りたたみに戻る", async ({ page }) => {
+    const games = await fixtureGames();
+    await syncWithMock(page, games, fixtureAnalyses(games));
+    await expect(page.getByText(/同期完了/)).toBeVisible();
+
+    await page.goto("#/player/taro");
+    const worst = page.locator("details.worst").first();
+    await worst.locator("summary").click();
+    await worst.scrollIntoViewIfNeeded();
+    const y = await page.evaluate<number>("scrollY");
+    expect(y).toBeGreaterThan(0);
+    await worst.getByRole("button", { name: "局面を開く" }).click();
+    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);
+    await page.getByRole("button", { name: "← 戻る" }).click();
+    await expect(page).toHaveURL(/#\/player\/taro$/);
+    await expect(page.locator("details.worst").first()).toHaveAttribute("open", "");
+    await expect.poll(() => page.evaluate<number>("scrollY")).toBe(y);
+
+    // 棋譜の URL を直接開いたときは本人の対局者ページへ
+    const direct = await page.context().newPage();
+    await direct.goto("#/game/f000000000000000");
+    await direct.getByRole("button", { name: "← 戻る" }).click();
+    await expect(direct).toHaveURL(/#\/player\/taro$/);
+    await expect(direct.getByText("痛かった手")).toBeVisible();
+
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 
   test("対策レポート: 同期 → 印 → 要点と全文 → 棋譜の手数へ", async ({ page }) => {

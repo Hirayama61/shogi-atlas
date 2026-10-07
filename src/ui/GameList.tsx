@@ -22,6 +22,7 @@ import {
   type ResultFilter,
   type SideFilter,
 } from "./router";
+import { useRestoreView } from "./viewState";
 
 const SIDE_FILTER_LABEL: Record<SideFilter, string> = {
   black: "先手",
@@ -91,6 +92,7 @@ export function GameList({
   const without = (key: keyof ListQuery): GameSummary[] =>
     (games ?? []).filter((g) => matchesListRoute(g, { ...query, [key]: undefined }, portfolio));
   const players = useMemo(() => listPlayers(games ?? []), [games]);
+  useRestoreView(!!games);
 
   if (!games) return <p className="muted">読み込み中…</p>;
 

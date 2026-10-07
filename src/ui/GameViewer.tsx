@@ -12,7 +12,8 @@ import { Board } from "./Board";
 import { EvalChart } from "./EvalChart";
 import { LossHelp } from "./LossHelp";
 import { describeGame, fmtCp, formatDate, playerLabel } from "./labels";
-import { navigate } from "./router";
+import { navigate, type Route } from "./router";
+import { canGoBack } from "./viewState";
 
 interface Props {
   id: string;
@@ -103,6 +104,16 @@ export function GameViewer({ id, initialPly }: Props) {
   if (game === null) return <p className="error">棋譜が見つかりません</p>;
   if (!current) return <p className="error">棋譜を表示できません</p>;
 
+  /** アプリ内で来たなら直前の画面へ。URL を直接開いたときは本人のページか棋譜一覧へ */
+  const back = () => {
+    if (canGoBack()) {
+      history.back();
+      return;
+    }
+    const route: Route = tracked ? { kind: "player", name: game[tracked] } : { kind: "list" };
+    navigate(route);
+  };
+
   const copy = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(label);
@@ -112,6 +123,11 @@ export function GameViewer({ id, initialPly }: Props) {
   return (
     <section className="viewer">
       <div>
+        <div className="row" style={{ marginBottom: 8 }}>
+          <button className="ghost" onClick={back}>
+            ← 戻る
+          </button>
+        </div>
         <Board
           sfen={current.sfen}
           lastMoveUsi={current.usi}

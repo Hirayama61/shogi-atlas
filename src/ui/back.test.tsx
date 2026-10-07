@@ -1,0 +1,92 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parseKifu } from "../core/parse";
+import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "../core/__tests__/fixtures";
+import { db } from "../db/db";
+import App from "../App";
+
+const source = { kind: "paste" as const };
+
+async function seed() {
+  const b = await parseKifu(USI_SHIKEN_VS_FUNA, { source });
+  const c = await parseKifu(USI_ANAGUMA_VS_SHIKEN, { source });
+  Object.assign(b, {
+    black: "Sukonbu3",
+    white: "x1",
+    result: "black",
+    startedAt: "2026-02-01T00:00:00",
+    tags: ["Sukonbu3"],
+  });
+  Object.assign(c, {
+    black: "Sukonbu3",
+    white: "x2",
+    result: "white",
+    startedAt: "2026-03-01T00:00:00",
+    tags: ["Sukonbu3"],
+  });
+  await db.games.bulkPut([b, c]);
+  return { b, c };
+}
+
+function setScrollY(y: number) {
+  Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+}
+
+describe("棋譜画面から戻る", () => {
+  let scrollTo: ReturnType<typeof vi.fn>;
+  beforeEach(async () => {
+    await db.games.clear();
+    await db.analyses.clear();
+    sessionStorage.clear();
+    history.replaceState(null, "", "#/");
+    scrollTo = vi.fn();
+    window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
+    setScrollY(0);
+  });
+  afterEach(cleanup);
+
+  it("URL を直接開いたときは本人の対局者ページへ戻る", async () => {
+    const { b } = await seed();
+    history.replaceState(null, "", `#/game/${b.id}`);
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
+  });
+
+  it("対局者ページから開いたときは戻ると同じ折りたたみ・スクロール位置になる", async () => {
+    const { b } = await seed();
+    history.replaceState(null, "", "#/player/Sukonbu3");
+    render(<App />);
+    await screen.findByText("戦型ポートフォリオ");
+    const portfolio = () => document.querySelector<HTMLDetailsElement>("details.portfolio")!;
+    portfolio().open = true;
+    setScrollY(640);
+
+    const item = await screen.findAllByText("☖x1");
+    fireEvent.click(item[item.length - 1]!);
+    await waitFor(() => expect(location.hash).toBe(`#/game/${b.id}`));
+    setScrollY(0);
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+
+    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
+    await screen.findByText("戦型ポートフォリオ");
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 640));
+    expect(portfolio().open).toBe(true);
+  });
+
+  it("絞り込んだ一覧から開いたときは同じ条件の一覧へ戻る", async () => {
+    const { c } = await seed();
+    const listHash = "#/games?player=Sukonbu3&result=loss";
+    history.replaceState(null, "", listHash);
+    render(<App />);
+    await screen.findByText("1 / 2 局");
+    setScrollY(120);
+    fireEvent.click(screen.getByText("☖x2"));
+    await waitFor(() => expect(location.hash).toBe(`#/game/${c.id}`));
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+    await waitFor(() => expect(location.hash).toBe(listHash));
+    await screen.findByText("1 / 2 局");
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 120));
+  });
+});

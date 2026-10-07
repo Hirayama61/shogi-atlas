@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { fixtureReport } from "../src/core/__tests__/fixtures";
 import { fixtureAnalyses, fixtureGames, syncWithMock } from "./fixture";
@@ -179,6 +180,36 @@ test.describe("一通りの画面", () => {
     await page.goto("#/players");
     await expect(page.locator("ul.games li", { hasText: "taro" })).toBeVisible();
     await expect(page.getByText("新しいレポート")).toHaveCount(0);
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
+  });
+
+  test("対局者ページ → 画像で共有 → 共有シートの無い環境ではダウンロード", async ({ page }) => {
+    // 共有シート (Web Share API) の無い環境を前提にする
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", { value: undefined });
+    });
+    const games = await fixtureGames();
+    await syncWithMock(page, games, fixtureAnalyses(games), {
+      taro: fixtureReport("taro", games[0]!.id),
+    });
+    await page.goto("#/player/taro");
+    await expect(page.locator(".profile-card")).toBeVisible();
+    const downloading = page.waitForEvent("download");
+    await page.getByRole("button", { name: "画像で共有" }).click();
+    const file = await downloading;
+    expect(file.suggestedFilename()).toMatch(/^shogi-atlas-taro-\d{4}-\d{2}-\d{2}\.png$/);
+    const png = await readFile(await file.path());
+    expect(png.subarray(1, 4).toString()).toBe("PNG");
+    // 横 1080 (540 × 2) の縦長
+    expect(png.readUInt32BE(16)).toBe(1080);
+    expect(png.readUInt32BE(20)).toBeGreaterThan(1080);
+    // 出来た画像がページにも出て、保存し直せる
+    const preview = page.getByRole("img", { name: "taro の対策 1 枚" });
+    await expect(preview).toBeVisible();
+    expect(
+      await preview.evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth),
+    ).toBe(1080);
+    await expect(page.getByRole("link", { name: "保存" })).toBeVisible();
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 

@@ -33,6 +33,7 @@ import { Board } from "./Board";
 import { describeGame, formatDate, portfolioConditionLabel } from "./labels";
 import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
+import { ShareButton } from "./ShareButton";
 import {
   fieldQuery,
   hashFor,
@@ -715,6 +716,12 @@ export function PlayerPage({ name }: Props) {
   return (
     <section>
       <ProfileCard stats={stats} profile={profile} others={others} />
+      <ShareButton
+        stats={stats}
+        profile={profile}
+        others={others}
+        report={report?.markdown ?? null}
+      />
 
       {report && <ReportPanel report={report} gameIds={ownIds} />}
 

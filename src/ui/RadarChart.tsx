@@ -4,7 +4,23 @@ interface Props {
   axes: RadarAxis[];
   /** 比較用に薄く重ねる値 (例: 他の対局者の平均)。無い軸は描かない */
   baseline?: Partial<Record<RadarAxisKey, number | null>>;
+  /** 色。既定は画面の CSS 変数。画像に書き出すときは CSS が効かないので実際の色を渡す */
+  palette?: RadarPalette;
 }
+
+export interface RadarPalette {
+  border: string;
+  muted: string;
+  text: string;
+  accent: string;
+}
+
+const CSS_PALETTE: RadarPalette = {
+  border: "var(--border)",
+  muted: "var(--muted)",
+  text: "var(--text)",
+  accent: "var(--accent)",
+};
 
 const W = 300;
 const H = 250;
@@ -17,7 +33,8 @@ const RINGS = [25, 50, 75, 100];
  * 0〜100 の軸を並べたレーダーチャート。値が null の軸は点を打たず、線もそこで途切らせる。
  * 外周ほど良い。
  */
-export function RadarChart({ axes, baseline }: Props) {
+export function RadarChart({ axes, baseline, palette = CSS_PALETTE }: Props) {
+  const c = palette;
   const n = axes.length;
   const angle = (i: number) => -Math.PI / 2 + (2 * Math.PI * i) / n;
   const point = (i: number, v: number) => {
@@ -51,22 +68,14 @@ export function RadarChart({ axes, baseline }: Props) {
           key={v}
           points={axes.map((_, i) => fmt(point(i, v))).join(" ")}
           fill="none"
-          stroke="var(--border)"
+          stroke={c.border}
           strokeWidth={v === 100 ? 1.2 : 0.8}
         />
       ))}
       {axes.map((a, i) => {
         const [x, y] = point(i, 100);
         return (
-          <line
-            key={a.key}
-            x1={CX}
-            y1={CY}
-            x2={x}
-            y2={y}
-            stroke="var(--border)"
-            strokeWidth={0.8}
-          />
+          <line key={a.key} x1={CX} y1={CY} x2={x} y2={y} stroke={c.border} strokeWidth={0.8} />
         );
       })}
       {baseComplete && (
@@ -74,7 +83,7 @@ export function RadarChart({ axes, baseline }: Props) {
           className="radar-baseline"
           points={base.map((v, i) => fmt(point(i, v!))).join(" ")}
           fill="none"
-          stroke="var(--muted)"
+          stroke={c.muted}
           strokeWidth={1.2}
           strokeDasharray="4 3"
         />
@@ -82,12 +91,12 @@ export function RadarChart({ axes, baseline }: Props) {
       {complete && (
         <polygon
           points={axes.map((a, i) => fmt(point(i, a.score!))).join(" ")}
-          fill="var(--accent)"
+          fill={c.accent}
           fillOpacity={0.18}
           stroke="none"
         />
       )}
-      <path d={segments.join(" ")} fill="none" stroke="var(--accent)" strokeWidth={2} />
+      <path d={segments.join(" ")} fill="none" stroke={c.accent} strokeWidth={2} />
       {axes.map((a, i) =>
         a.score === null ? null : (
           <circle
@@ -95,7 +104,7 @@ export function RadarChart({ axes, baseline }: Props) {
             cx={point(i, a.score)[0]}
             cy={point(i, a.score)[1]}
             r={3}
-            fill="var(--accent)"
+            fill={c.accent}
           />
         ),
       )}
@@ -110,7 +119,7 @@ export function RadarChart({ axes, baseline }: Props) {
             y={y + 4}
             fontSize={11}
             textAnchor={anchor}
-            fill={a.score === null ? "var(--muted)" : "var(--text)"}
+            fill={a.score === null ? c.muted : c.text}
           >
             {a.label} <tspan fontWeight={700}>{a.score ?? "-"}</tspan>
           </text>

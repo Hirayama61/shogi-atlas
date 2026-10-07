@@ -638,3 +638,30 @@ ul.games .chip.new {
   background: var(--danger);
   color: #fff;
 }
+.share {
+  margin: 0 0 12px;
+}
+.share-preview {
+  margin-top: 8px;
+}
+.share-preview img {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.share-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.share-save {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}

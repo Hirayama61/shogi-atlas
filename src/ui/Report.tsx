@@ -3,8 +3,8 @@ import {
   gameIdResolver,
   parseInline,
   parseMarkdown,
-  reportDigest,
   splitGameRefs,
+  splitReport,
   type Block,
   type ReportRecord,
 } from "../core/report";
@@ -96,13 +96,14 @@ function Blocks({ blocks, resolve }: { blocks: Block[]; resolve: Resolve }): Rea
 }
 
 /**
- * 対局者ページの対策レポート。要点 (第 1 節と作戦の小見出し) と全文をそれぞれ畳んで出す。
+ * 対局者ページの対策レポート。要点 (「## 要点」の節。無ければ第 1 節と作戦の小見出し) と全文をそれぞれ畳んで出す。
+ * 要点の節は全文の側には出さない。
  * 更新されていれば「新しいレポート」の印を付け、どちらかを開くと消す。
  * 本文中の対局 ID (と「N手目」) は、その対局者の対局に引けたものだけ棋譜へのリンクにする。
  */
 export function ReportPanel({ report, gameIds }: { report: ReportRecord; gameIds: string[] }) {
   const blocks = useMemo(() => parseMarkdown(report.markdown), [report.markdown]);
-  const digest = useMemo(() => reportDigest(blocks), [blocks]);
+  const { digest, body } = useMemo(() => splitReport(blocks), [blocks]);
   const resolve = useMemo(() => gameIdResolver(gameIds), [gameIds]);
   const [seenHash, setSeenHash] = useState<string | null>(null);
   const unseen = seenHash !== report.hash && isReportUnseen(report);
@@ -126,7 +127,7 @@ export function ReportPanel({ report, gameIds }: { report: ReportRecord; gameIds
       <details className="report-part" onToggle={(e) => onToggle(e.currentTarget.open)}>
         <summary>全文</summary>
         <div className="report-body">
-          <Blocks blocks={blocks} resolve={resolve} />
+          <Blocks blocks={body} resolve={resolve} />
         </div>
       </details>
     </div>

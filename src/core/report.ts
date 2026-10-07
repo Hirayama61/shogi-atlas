@@ -213,3 +213,22 @@ export function reportDigest(blocks: Block[]): Block[] {
   }
   return out;
 }
+
+const SUMMARY_HEADING = /^(?:\d+[.)]\s*)?要点/;
+
+/**
+ * 対局前に見る要点と、全文として出す本文に分ける。
+ * 「## 要点」の節があればその中身を要点にし、本文からはその節を除く (同じ段落を二重に出さない)。
+ * 無い (古い) レポートは reportDigest の切り出しに落とし、本文は全体のまま。
+ */
+export function splitReport(blocks: Block[]): { digest: Block[]; body: Block[] } {
+  const start = blocks.findIndex(
+    (b) => b.kind === "heading" && b.level === 2 && SUMMARY_HEADING.test(b.text),
+  );
+  if (start < 0) return { digest: reportDigest(blocks), body: blocks };
+  let end = blocks.findIndex((b, i) => i > start && b.kind === "heading" && b.level <= 2);
+  if (end < 0) end = blocks.length;
+  const digest = blocks.slice(start + 1, end).filter((b) => b.kind !== "hr");
+  // 要点の節の終わりの区切り線は本文側にも残さない
+  return { digest, body: [...blocks.slice(0, start), ...blocks.slice(end)] };
+}

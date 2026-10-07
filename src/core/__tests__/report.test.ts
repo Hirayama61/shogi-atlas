@@ -6,9 +6,10 @@ import {
   parseMarkdown,
   reportDigest,
   splitGameRefs,
+  splitReport,
   type Block,
 } from "../report";
-import { fixtureReport } from "./fixtures";
+import { fixtureReport, fixtureReportWithSummary } from "./fixtures";
 
 const ID = "0123456789abcdef";
 
@@ -107,6 +108,42 @@ describe("reportDigest", () => {
 
   it("節の無い本文なら空", () => {
     expect(reportDigest(parseMarkdown("ただの文章"))).toEqual([]);
+  });
+});
+
+describe("splitReport", () => {
+  const listTexts = (blocks: Block[]) =>
+    blocks.flatMap((b) => (b.kind === "list" ? b.items.map((i) => i.text) : []));
+
+  it("「## 要点」の節があれば、その中身だけを要点にして全文からは除く", () => {
+    const { digest, body } = splitReport(parseMarkdown(fixtureReportWithSummary("taro", ID)));
+    expect(digest).toEqual([
+      {
+        kind: "list",
+        ordered: false,
+        start: 1,
+        items: [
+          { text: "終盤で崩れる四間飛車党。", children: [] },
+          { text: "こちらが先手: 穴熊に組んで長期戦にする。", children: [] },
+          { text: "こちらが後手: 角交換で乱戦にする。", children: [] },
+        ],
+      },
+    ]);
+    expect(body.some((b) => b.kind === "heading" && b.text === "要点")).toBe(false);
+    expect(listTexts(body)).not.toContain("終盤で崩れる四間飛車党。");
+    expect(body).toEqual(parseMarkdown(fixtureReport("taro", ID)));
+  });
+
+  it("番号つきの「## 0. 要点」も要点とみなす", () => {
+    const md = "# x\n\n## 0. 要点\n\n- a\n\n## 1. 相手\n\n- b\n";
+    const { digest, body } = splitReport(parseMarkdown(md));
+    expect(listTexts(digest)).toEqual(["a"]);
+    expect(listTexts(body)).toEqual(["b"]);
+  });
+
+  it("要点の節が無い古いレポートは従来の切り出しで、全文はそのまま", () => {
+    const blocks = parseMarkdown(fixtureReport("taro", ID));
+    expect(splitReport(blocks)).toEqual({ digest: reportDigest(blocks), body: blocks });
   });
 });
 

@@ -237,6 +237,22 @@ export function fixtureReport(name: string, gameId: string): string {
 `;
 }
 
+/** 冒頭に「## 要点」の節がある形 (write-reports の今の出力構成) */
+export function fixtureReportWithSummary(name: string, gameId: string): string {
+  return fixtureReport(name, gameId).replace(
+    "## 1. 一言でいうとどういう相手か",
+    `## 要点
+
+- 終盤で崩れる四間飛車党。
+- こちらが先手: 穴熊に組んで長期戦にする。
+- こちらが後手: 角交換で乱戦にする。
+
+---
+
+## 1. 一言でいうとどういう相手か`,
+  );
+}
+
 // 対抗形の居飛車側 (☗居飛車 vs ☖ノーマル四間飛車)
 
 /** ☗斜め棒銀: 舟囲いから 5七銀左・4六銀 */

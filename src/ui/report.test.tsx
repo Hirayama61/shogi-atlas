@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fixtureReport, USI_SHIKEN_VS_FUNA, WARS_KIF } from "../core/__tests__/fixtures";
+import {
+  fixtureReport,
+  fixtureReportWithSummary,
+  USI_SHIKEN_VS_FUNA,
+  WARS_KIF,
+} from "../core/__tests__/fixtures";
 import { parseKifu } from "../core/parse";
 import { db } from "../db/db";
 import { PlayerList } from "./PlayerList";
@@ -57,6 +62,24 @@ describe("対策レポート", () => {
     // 生 HTML は文字のまま
     expect(parts[1]!.textContent).toContain("<b>四間飛車</b>");
     expect(document.querySelector(".report-body b")).toBeNull();
+  });
+
+  it("要点の節があれば要点はその節だけで、全文には同じ段落を出さない", async () => {
+    const a = await seed();
+    await putReport("taro", fixtureReportWithSummary("taro", a.id));
+    render(<PlayerPage name="taro" />);
+    await waitFor(() => expect(screen.getByText("対策の要点")).toBeInTheDocument());
+    const [digest, full] = [...document.querySelectorAll("details.report-part")].map(
+      (d) => d.querySelector(".report-body")!.textContent ?? "",
+    );
+    expect(digest).toContain("終盤で崩れる四間飛車党。");
+    expect(digest).toContain("こちらが後手: 角交換で乱戦にする。");
+    expect(digest).not.toContain("一言でいうと");
+    expect(digest).not.toContain("居飛車穴熊にする。");
+    expect(full).not.toContain("終盤で崩れる四間飛車党。");
+    expect(full).not.toContain("要点");
+    expect(full).toContain("一言でいうとどういう相手か");
+    expect(full).toContain("痛かった手");
   });
 
   it("痛かった手の行から、その対局のその手数 (指す前の局面) へ飛べる", async () => {

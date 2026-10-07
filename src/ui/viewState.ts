@@ -105,6 +105,15 @@ export function canGoBack(): boolean {
 }
 
 /**
+ * `hash` の画面へ戻る。直前の画面がそれなら history.back() で戻り (表示状態が復元される)、
+ * そうでなければ新しく開く。
+ */
+export function goBackTo(hash: string): void {
+  if (entryState()?.prev === hash) history.back();
+  else if (location.hash !== hash) location.hash = hash;
+}
+
+/**
  * 画面のデータが揃ったら (ready)、このエントリで前に保存した表示状態を 1 回だけ復元する。
  * 新しく開いた画面には保存が無いので何もしない。
  */

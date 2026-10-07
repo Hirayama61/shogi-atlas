@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, type ReactNode } from "react";
 import { db } from "../db/db";
 import type { GameShape, GameSummary } from "../core/types";
-import { GAME_SHAPE_LABEL } from "../core/opening";
+import { GAME_SHAPE_LABEL, SIDE_STYLE_LABEL } from "../core/opening";
 import { SERVICE_LABEL, serviceOf } from "../core/source";
 import { listPlayers } from "../core/stats";
 import {
@@ -59,6 +59,7 @@ function describeQuery(q: ListQuery): string[] {
   if (q.player) parts.push(q.player);
   if (q.service) parts.push(SERVICE_LABEL[q.service]);
   if (q.shape) parts.push(GAME_SHAPE_LABEL[q.shape]);
+  if (q.selfStyle && q.player) parts.push(`本人: ${SIDE_STYLE_LABEL[q.selfStyle]}`);
   if (q.opening) parts.push(`${q.opening}${side(q.openingSide)}`);
   if (q.castle) parts.push(`${q.castle}${side(q.castleSide)}`);
   if (q.result && (q.player || (q.result !== "win" && q.result !== "loss")))

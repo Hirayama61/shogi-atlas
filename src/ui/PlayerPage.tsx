@@ -4,49 +4,44 @@ import { JUDGEMENT_LABEL, PHASE_LABEL } from "../core/analysis";
 import { buildPlayerProfile } from "../core/profile";
 import { findRepeatedLines, straightFrom, trunkOf, type LineNode } from "../core/lines";
 import {
-  computePortfolio,
-  matchesPortfolio,
-  portfolioCommonPositions,
-  type PortfolioCondition,
-  type PortfolioGroup,
-} from "../core/portfolio";
-import {
-  BRANCH_KINDS,
-  describeBranchMove,
-  reviewBranches,
-  type BranchKind,
-  type BranchMove,
-  type BranchReview,
-} from "../core/branches";
+  computeOpeningDetail,
+  computeStyleQuadrants,
+  type OpeningAxis,
+  type OpeningDetail,
+  type QuadrantStats,
+} from "../core/styles";
+import { BRANCH_KINDS, reviewBranches, type BranchKind, type BranchReview } from "../core/branches";
 import { branchCandidates, type BranchCandidates } from "../core/branchStudy";
 import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
-import {
-  computePlayerStats,
-  listPlayers,
-  playerSide,
-  type Bucket,
-  type CommonPosition,
-} from "../core/stats";
+import { computePlayerStats, listPlayers, playerSide, type Bucket } from "../core/stats";
 import type { GameRecord } from "../core/types";
 import { db } from "../db/db";
 import { Board } from "./Board";
 import { GameButtons } from "./GameButtons";
-import { describeCandidate, judgementTone, portfolioConditionLabel } from "./labels";
+import {
+  describeCandidate,
+  judgementTone,
+  quadrantQuery,
+  SIDE_LABEL,
+  STYLE_QUADRANT_LABEL,
+  STYLE_QUADRANT_NOTE,
+} from "./labels";
 import { ProfileCard } from "./ProfileCard";
 import { ReportPanel } from "./Report";
 import { ShareButton } from "./ShareButton";
 import {
-  fieldQuery,
   hashFor,
   navigate,
-  type GameFilterField,
   type ListQuery,
+  type PlayerView,
+  type Route,
   type SideFilter,
 } from "./router";
-import { useRestoreView } from "./viewState";
+import { goBackTo, useRestoreView } from "./viewState";
 
 interface Props {
   name: string;
+  view?: PlayerView;
 }
 
 function pct(wins: number, games: number): string {
@@ -93,58 +88,86 @@ function BucketTableLoss({
   );
 }
 
+/** 1 段に最初から出す行数。残りは「他 N 件」に畳む */
+const ROW_LIMIT = 10;
+
 /**
- * 戦法・囲いの集計表。`link` を渡すと各行が、その対局者のその戦法・囲いの対局一覧へのリンクになる。
- * 割合は `total` (本人の全対局数) に対する局数の割合。
+ * 戦法・囲いなどの集計表。`routeOf` が返す行は、そのルートへのリンクになる。
+ * 割合は `total` に対する局数の割合。`ROW_LIMIT` を超える行は「他 N 件」に畳む。
  */
-function BucketTable({
-  title,
+function BucketRows({
+  head = "",
   rows,
   total,
-  link,
+  routeOf,
+  selected,
 }: {
-  title: string;
+  head?: string;
   rows: Bucket[];
   total: number;
-  link?: { player: string; field: GameFilterField };
+  routeOf?: (r: Bucket) => Route | undefined;
+  selected?: string;
 }) {
+  const table = (list: Bucket[]) => (
+    <table className="stats">
+      <thead>
+        <tr>
+          <th>{head}</th>
+          <th>局</th>
+          <th>勝</th>
+          <th>敗</th>
+          <th>勝率</th>
+          <th>割合</th>
+        </tr>
+      </thead>
+      <tbody>
+        {list.map((r) => {
+          const route = routeOf?.(r);
+          const classes = [route ? "link" : "", r.name === selected ? "selected" : ""].filter(
+            Boolean,
+          );
+          return (
+            <tr
+              key={r.name}
+              className={classes.length ? classes.join(" ") : undefined}
+              aria-current={r.name === selected ? "true" : undefined}
+              onClick={route ? () => navigate(route) : undefined}
+            >
+              <td>{route ? <a href={hashFor(route)}>{r.name}</a> : r.name}</td>
+              <td>{r.games}</td>
+              <td>{r.wins}</td>
+              <td>{r.losses}</td>
+              <td className={r.games < FEW_GAMES ? "muted" : undefined}>
+                {pct(r.wins, r.wins + r.losses)}
+              </td>
+              <td>{share(r.games, total)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+  if (rows.length === 0) return null;
+  const rest = rows.slice(ROW_LIMIT);
+  return (
+    <>
+      {table(rows.slice(0, ROW_LIMIT))}
+      {rest.length > 0 && (
+        <details className="rows-more">
+          <summary>他 {rest.length} 件</summary>
+          {table(rest)}
+        </details>
+      )}
+    </>
+  );
+}
+
+function BucketTable({ title, rows, total }: { title: string; rows: Bucket[]; total: number }) {
   if (rows.length === 0) return null;
   return (
     <div className="panel">
       <strong>{title}</strong>
-      <table className="stats">
-        <thead>
-          <tr>
-            <th></th>
-            <th>局</th>
-            <th>勝</th>
-            <th>敗</th>
-            <th>勝率</th>
-            <th>割合</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const route = link
-              ? { kind: "list" as const, query: fieldQuery(link.player, link.field, r.name) }
-              : undefined;
-            return (
-              <tr
-                key={r.name}
-                className={route ? "link" : undefined}
-                onClick={route ? () => navigate(route) : undefined}
-              >
-                <td>{route ? <a href={hashFor(route)}>{r.name}</a> : r.name}</td>
-                <td>{r.games}</td>
-                <td>{r.wins}</td>
-                <td>{r.losses}</td>
-                <td>{pct(r.wins, r.wins + r.losses)}</td>
-                <td>{share(r.games, total)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <BucketRows rows={rows} total={total} />
     </div>
   );
 }
@@ -273,12 +296,6 @@ function ComboAnalysis({ combo, name }: { combo: ComboStats; name: string }) {
   );
 }
 
-/** 戦型ポートフォリオの条件ごとに出す分岐点の数 */
-const BRANCHES_PER_GROUP = 3;
-
-/** 分岐点の一覧で最初から出す行数。残りは 1 つの折りたたみに入れる */
-const BRANCH_ROWS = 20;
-
 const BRANCH_KIND_SHORT: Record<BranchKind, string> = {
   mistake: "悪手",
   correct: "正解",
@@ -324,10 +341,10 @@ function BranchList({
       </a>
     );
   };
-  const rest = sorted.slice(BRANCH_ROWS);
+  const rest = sorted.slice(ROW_LIMIT);
   return (
     <div className="branch-list">
-      {sorted.slice(0, BRANCH_ROWS).map(row)}
+      {sorted.slice(0, ROW_LIMIT).map(row)}
       {rest.length > 0 && (
         <details className="branch-more">
           <summary>他 {rest.length} 件</summary>
@@ -338,49 +355,18 @@ function BranchList({
   );
 }
 
-/** 分岐点 1 件。開くと盤面と、その局面を通った対局へのボタンが出る */
-function BranchDetails({
-  p,
-  byId,
-  name,
-  moves,
-}: {
-  p: CommonPosition & { flipped: boolean };
-  byId: Map<string, GameRecord>;
-  name: string;
-  /** 本人の手番の分岐点なら、本人が指した手の集計 */
-  moves?: BranchMove[];
-}) {
-  return (
-    <details className="branch">
-      <summary>
-        {p.ply} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
-        {moves && moves.length > 0 && (
-          <span className="muted branch-moves">
-            本人の手: {moves.map(describeBranchMove).join(" / ")}
-          </span>
-        )}
-      </summary>
-      <div className="detail-body">
-        <div style={{ maxWidth: 260 }}>
-          <Board sfen={p.key} flipped={p.flipped} />
-        </div>
-        <GameButtons gameIds={p.gameIds} ply={p.ply} byId={byId} name={name} />
-      </div>
-    </details>
-  );
-}
-
 /**
  * 本人が繰り返している手順。分岐の無いところは手を 1 列に並べ (局数は変わったところに出す)、
  * 分かれるところでは分かれた先を局数の多い順に畳んで出す。手をタップすると盤面と対局へのボタンが出る。
  */
 function RepeatedLines({
+  label,
   root,
   byId,
   name,
   flipped,
 }: {
+  label: string;
   root: LineNode;
   byId: Map<string, GameRecord>;
   name: string;
@@ -392,7 +378,7 @@ function RepeatedLines({
   return (
     <details className="lines">
       <summary>
-        繰り返している手順 · 幹 {tip.ply} 手目まで {tip.gameIds.length} 局
+        {label} · 幹 {tip.ply} 手目まで {tip.gameIds.length} 局
       </summary>
       <p className="muted">
         2
@@ -487,148 +473,243 @@ function LineSegment({
   );
 }
 
-/**
- * 戦型ポートフォリオ。条件 (本人の先後 × 相手の大分類) ごとに畳み、開くと相手の戦法名ごとに
- * 本人の応手 (戦法 + 囲い) と、その条件下の分岐点が出る。
- */
-function Portfolio({
-  groups,
-  games,
-  byId,
+/** 階層の一つ上へ戻るリンク。直前に見ていた画面なら history.back() で戻り、位置と折りたたみが復元される */
+function UpLink({ to, label }: { to: Route; label: string }) {
+  const hash = hashFor(to);
+  return (
+    <a
+      className="up-link"
+      href={hash}
+      onClick={(e) => {
+        e.preventDefault();
+        goBackTo(hash);
+      }}
+    >
+      ← {label}
+    </a>
+  );
+}
+
+/** 戦型の 4 区分。区分をタップすると、その区分の戦法の一覧を開く (もう一度タップで閉じる) */
+function StyleQuadrants({
+  quadrants,
+  total,
   name,
+  view,
 }: {
-  groups: PortfolioGroup[];
-  games: GameRecord[];
-  byId: Map<string, GameRecord>;
+  quadrants: QuadrantStats[];
+  total: number;
   name: string;
+  view?: PlayerView;
 }) {
-  const sideTotal = (side: PortfolioGroup["side"]) =>
-    groups.filter((g) => g.side === side).reduce((n, g) => n + g.games, 0);
   return (
     <div className="panel">
-      <strong>戦型ポートフォリオ</strong>
+      <strong>戦型</strong>
       <p className="muted">
-        先後と相手の戦型ごとに、どう応じたか。局数の少ない行は勝率より局数を見る。
+        自分と相手の戦型の組み合わせごとの成績。区分をタップすると、その中の戦法が出る。
       </p>
-      {groups.map((group) => (
-        <details key={`${group.side}/${group.vsStyle}`} className="portfolio">
-          <summary>
-            {portfolioConditionLabel(group.side, group.vsStyle)} · {group.games} 局 {group.wins} 勝{" "}
-            {group.losses} 敗 · 割合 {share(group.games, sideTotal(group.side))}
-          </summary>
-          {group.opponents.map((opp) => (
-            <PortfolioOpponentBlock
-              key={opp.vsOpening}
-              cond={{ side: group.side, vsStyle: group.vsStyle, vsOpening: opp.vsOpening }}
-              opp={opp}
-              groupGames={group.games}
-              games={games}
-              byId={byId}
-              name={name}
-            />
-          ))}
-        </details>
-      ))}
+      <div className="quadrants">
+        {quadrants.map((q) => {
+          const open = view?.quadrant === q.quadrant;
+          const route: Route = open
+            ? { kind: "player", name }
+            : { kind: "player", name, view: { quadrant: q.quadrant } };
+          return (
+            <a
+              key={q.quadrant}
+              className={`quadrant${open ? " selected" : ""}${q.games === 0 ? " empty" : ""}`}
+              href={hashFor(route)}
+              aria-current={open ? "true" : undefined}
+            >
+              <span className="quadrant-title">{STYLE_QUADRANT_LABEL[q.quadrant]}</span>
+              <span className="muted quadrant-note">{STYLE_QUADRANT_NOTE[q.quadrant]}</span>
+              <span className="quadrant-figures">
+                {q.games} 局 · 勝率 {pct(q.wins, q.wins + q.losses)} · 割合 {share(q.games, total)}
+              </span>
+              <span className="muted">
+                {q.wins} 勝 {q.losses} 敗 · 先手 {q.bySide.black.games} 局 {q.bySide.black.wins} 勝
+                · 後手 {q.bySide.white.games} 局 {q.bySide.white.wins} 勝
+              </span>
+            </a>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function PortfolioOpponentBlock({
-  cond,
-  opp,
-  groupGames,
+/** 区分の中の戦法の一覧。自分の戦法と相手の戦法を切り替えられ、行をタップすると戦法の詳細を開く */
+function OpeningList({ q, name, view }: { q: QuadrantStats; name: string; view: PlayerView }) {
+  const axis = view.axis ?? "self";
+  const rows = axis === "self" ? q.openings : q.vsOpenings;
+  const axisRoute = (a: OpeningAxis): Route => ({
+    kind: "player",
+    name,
+    view: a === "self" ? { quadrant: q.quadrant } : { quadrant: q.quadrant, axis: a },
+  });
+  return (
+    <div className="panel opening-list">
+      <UpLink to={{ kind: "player", name }} label="戦型" />
+      <strong>{STYLE_QUADRANT_LABEL[q.quadrant]} の戦法</strong>
+      <div className="axis-toggle" role="group" aria-label="戦法の側">
+        {(["self", "opponent"] as const).map((a) => (
+          <a
+            key={a}
+            className={`chip${a === axis ? " active" : ""}`}
+            href={hashFor(axisRoute(a))}
+            aria-pressed={a === axis}
+          >
+            {a === "self" ? "自分の戦法" : "相手の戦法"}
+          </a>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">この区分の対局はありません</p>
+      ) : (
+        <BucketRows
+          head={axis === "self" ? "自分の戦法" : "相手の戦法"}
+          rows={rows}
+          total={q.games}
+          selected={view.opening}
+          routeOf={(r) => ({
+            kind: "player",
+            name,
+            view: {
+              quadrant: q.quadrant,
+              ...(axis === "opponent" ? { axis } : {}),
+              opening: r.name,
+            },
+          })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 戦法の詳細の対局を棋譜一覧の絞り込み条件で表す */
+function detailQuery(name: string, d: OpeningDetail): ListQuery {
+  return {
+    ...quadrantQuery(name, d.quadrant),
+    opening: d.opening,
+    openingSide: d.axis === "self" ? "self" : "opponent",
+  };
+}
+
+/**
+ * 戦法の詳細: 囲い・相手の戦法 (相手の戦法で見ているときは自分の応手) の内訳、繰り返している手順、分岐点、
+ * 棋譜一覧へのリンクを 1 か所にまとめる。
+ */
+function OpeningDetailPanel({
+  detail,
+  view,
   games,
   byId,
+  branches,
   name,
 }: {
-  cond: PortfolioCondition & { vsOpening: string };
-  opp: PortfolioGroup["opponents"][number];
-  /** 割合の分母 (同じ先後 × 相手の大分類の局数) */
-  groupGames: number;
+  detail: OpeningDetail;
+  view: PlayerView;
   games: GameRecord[];
   byId: Map<string, GameRecord>;
+  branches: { reviews: BranchReview[]; candidates: Map<string, BranchCandidates> } | null;
   name: string;
 }) {
-  const branches = useMemo(
+  const ids = useMemo(() => new Set(detail.gameIds), [detail]);
+  const subset = useMemo(() => games.filter((g) => ids.has(g.id)), [games, ids]);
+  const lines = useMemo(
     () =>
-      portfolioCommonPositions(games, name, cond).map((p) => ({
-        ...p,
-        flipped: cond.side === "white",
-      })),
-    // cond はレンダーごとに作り直されるので中身で比べる
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [games, name, cond.side, cond.vsStyle, cond.vsOpening],
+      (["black", "white"] as const).flatMap((side) => {
+        const root = findRepeatedLines(
+          subset.filter((g) => playerSide(g, name) === side),
+          name,
+        )[0];
+        return root ? [{ side, root }] : [];
+      }),
+    [subset, name],
   );
-  const line = useMemo(
+  // 分岐点は全対局で出したもの (判定を変えない) のうち、通った対局の半分以上がこの戦法のもの
+  const reviews = useMemo(
     () =>
-      findRepeatedLines(
-        games.filter((g) => matchesPortfolio(g, name, cond)),
-        name,
-      )[0],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [games, name, cond.side, cond.vsStyle, cond.vsOpening],
+      branches?.reviews.filter(
+        (r) => r.gameIds.filter((id) => ids.has(id)).length * 2 >= r.gameIds.length,
+      ) ?? [],
+    [branches, ids],
   );
+  const list: Route = { kind: "list", query: detailQuery(name, detail) };
+  const parent: Route = {
+    kind: "player",
+    name,
+    view: { quadrant: view.quadrant, ...(view.axis === "opponent" ? { axis: view.axis } : {}) },
+  };
+  const isSelf = detail.axis === "self";
   return (
-    <div className="portfolio-opponent">
+    <div className="panel opening-detail">
+      <UpLink to={parent} label={`${STYLE_QUADRANT_LABEL[detail.quadrant]} の戦法`} />
+      <strong>
+        {isSelf ? "" : "相手: "}
+        {detail.opening}
+      </strong>
       <div className="muted">
-        相手: {opp.vsOpening} · {opp.games} 局 {opp.wins} 勝 {opp.losses} 敗 · 割合{" "}
-        {share(opp.games, groupGames)}
+        {STYLE_QUADRANT_LABEL[detail.quadrant]} · {detail.games} 局 {detail.wins} 勝 {detail.losses}{" "}
+        敗 · 勝率 {pct(detail.wins, detail.wins + detail.losses)}
       </div>
-      <table className="stats">
-        <thead>
-          <tr>
-            <th>応手</th>
-            <th>局</th>
-            <th>勝</th>
-            <th>敗</th>
-            <th>勝率</th>
-            <th>割合</th>
-          </tr>
-        </thead>
-        <tbody>
-          {opp.responses.map((r) => {
-            const route = {
-              kind: "list" as const,
-              portfolio: {
-                player: name,
-                condition: { ...cond, opening: r.opening, castle: r.castle },
-              },
-            };
-            const label = `${r.opening} + ${r.castle}`;
-            return (
-              <tr key={label} className="link" onClick={() => navigate(route)}>
-                <td>
-                  <a href={hashFor(route)}>{label}</a>
-                </td>
-                <td>{r.games}</td>
-                <td>{r.wins}</td>
-                <td>{r.losses}</td>
-                <td>{pct(r.wins, r.wins + r.losses)}</td>
-                <td>{share(r.games, opp.games)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {line && (
-        <RepeatedLines root={line} byId={byId} name={name} flipped={cond.side === "white"} />
-      )}
-      {branches.length > 0 && (
-        <div className="branch-group">
-          <div className="muted">
-            この条件での分岐点 · {branches.length} 局面
-            {branches.length > BRANCHES_PER_GROUP ? ` (上位 ${BRANCHES_PER_GROUP} 件)` : ""}
-          </div>
-          {branches.slice(0, BRANCHES_PER_GROUP).map((p) => (
-            <BranchDetails key={p.key} p={p} byId={byId} name={name} />
-          ))}
+      <p>
+        <a className="games-link" href={hashFor(list)}>
+          この戦法の棋譜一覧 ({detail.games} 局) →
+        </a>
+      </p>
+      <div className="stats-grid">
+        <div>
+          <strong>囲い</strong>
+          <BucketRows
+            head="自分の囲い"
+            rows={detail.castles}
+            total={detail.games}
+            routeOf={(r) => ({
+              kind: "list",
+              query: { ...detailQuery(name, detail), castle: r.name, castleSide: "self" },
+            })}
+          />
         </div>
-      )}
+        <div>
+          <strong>{isSelf ? "相手の戦法" : "自分の応手"}</strong>
+          <BucketRows
+            head={isSelf ? "相手の戦法" : "自分の戦法"}
+            rows={detail.counter}
+            total={detail.games}
+          />
+        </div>
+      </div>
+      {lines.map(({ side, root }) => (
+        <RepeatedLines
+          key={side}
+          label={`${SIDE_LABEL[side]}で繰り返している手順`}
+          root={root}
+          byId={byId}
+          name={name}
+          flipped={side === "white"}
+        />
+      ))}
+      <div className="detail-branches">
+        <strong>分岐点</strong>
+        <p className="muted">
+          この戦法で 2
+          局以上が同じ手順をたどり、そこから分かれた局面。悪手を指した分岐を先に並べる。
+          タップすると手順をたどって候補手を比べられる。
+        </p>
+        {!branches ? (
+          <p className="muted">読み込み中…</p>
+        ) : reviews.length === 0 ? (
+          <p className="muted">まだありません (同じ手順の対局が 2 局以上必要)</p>
+        ) : (
+          <BranchList reviews={reviews} candidates={branches.candidates} name={name} />
+        )}
+      </div>
     </div>
   );
 }
 
-export function PlayerPage({ name }: Props) {
+export function PlayerPage({ name, view }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
   const stats = useMemo(() => (games ? computePlayerStats(games, name) : null), [games, name]);
@@ -670,7 +751,15 @@ export function PlayerPage({ name }: Props) {
     const map = new Map((analyses ?? []).map((a) => [a.id, a] as const));
     return computeComboStats(own, name, map);
   }, [own, analyses, name]);
-  const portfolio = useMemo(() => computePortfolio(own, name), [own, name]);
+  const quadrants = useMemo(() => computeStyleQuadrants(own, name), [own, name]);
+  const quadrant = view ? quadrants.find((q) => q.quadrant === view.quadrant) : undefined;
+  const detail = useMemo(
+    () =>
+      view?.opening
+        ? computeOpeningDetail(own, name, view.quadrant, view.axis ?? "self", view.opening)
+        : null,
+    [own, name, view],
+  );
   const branches = useMemo(() => {
     if (!stats || !analyses) return null;
     const map = new Map(analyses.map((a) => [a.id, a] as const));
@@ -696,31 +785,18 @@ export function PlayerPage({ name }: Props) {
 
       {report && <ReportPanel report={report} gameIds={ownIds} />}
 
-      <div className="stats-grid">
-        <BucketTable
-          title="採用戦法"
-          rows={stats.openings}
-          total={stats.games}
-          link={{ player: name, field: "opening" }}
+      <StyleQuadrants quadrants={quadrants} total={stats.games} name={name} view={view} />
+      {view && quadrant && <OpeningList q={quadrant} name={name} view={view} />}
+      {view && detail && detail.games > 0 && (
+        <OpeningDetailPanel
+          detail={detail}
+          view={view}
+          games={own}
+          byId={byId}
+          branches={branches}
+          name={name}
         />
-        <BucketTable
-          title="囲い"
-          rows={stats.castles}
-          total={stats.games}
-          link={{ player: name, field: "castle" }}
-        />
-        <BucketTable
-          title="相手の戦法別"
-          rows={stats.vsOpenings}
-          total={stats.games}
-          link={{ player: name, field: "vsOpening" }}
-        />
-        <BucketTable title="持ち時間別" rows={stats.timeControls} total={stats.games} />
-      </div>
-
-      <ComboAnalysis combo={combo} name={name} />
-
-      <Portfolio groups={portfolio} games={own} byId={byId} name={name} />
+      )}
 
       {profile && (
         <div className="panel">
@@ -760,19 +836,9 @@ export function PlayerPage({ name }: Props) {
         </div>
       )}
 
-      <div className="panel">
-        <strong>分岐点</strong>
-        <p className="muted">
-          2 局以上で同じ手順をたどり、そこから先で分かれた局面。手数が深いほどよく指す形。
-          悪手を指した分岐を先に並べる。タップすると手順をたどって候補手を比べられる。
-        </p>
-        {stats.commonPositions.length === 0 && (
-          <p className="muted">まだありません (同じ人の対局が 2 局以上必要)</p>
-        )}
-        {branches && (
-          <BranchList reviews={branches.reviews} candidates={branches.candidates} name={name} />
-        )}
-      </div>
+      <ComboAnalysis combo={combo} name={name} />
+
+      <BucketTable title="持ち時間別" rows={stats.timeControls} total={stats.games} />
     </section>
   );
 }

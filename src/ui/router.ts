@@ -1,5 +1,6 @@
 import type { PortfolioRowCondition } from "../core/portfolio";
 import type { Side } from "../core/stats";
+import { STYLE_QUADRANTS, type OpeningAxis, type StyleQuadrant } from "../core/styles";
 import type { GameShape, SideStyle } from "../core/types";
 
 /** 戦法・囲いをどちらの側で見るか。self / opponent は対局者を指定したときだけ効く */
@@ -13,6 +14,8 @@ export interface ListQuery {
   player?: string;
   service?: "wars" | "quest";
   shape?: GameShape;
+  /** 対局者の戦型。対局者を指定したときだけ効く */
+  selfStyle?: Exclude<SideStyle, "unknown">;
   opening?: string;
   /** 省くと先手・後手どちらでも */
   openingSide?: SideFilter;
@@ -30,25 +33,38 @@ export interface PortfolioFilter {
   condition: PortfolioRowCondition;
 }
 
+/**
+ * 対局者ページの階層 (4 区分 → 戦法の一覧 → 戦法の詳細) のどこを見ているか。
+ * 省くと概要と 4 区分だけ。opening を付けると戦法の詳細。axis は戦法の一覧を相手の戦法で見るとき。
+ */
+export interface PlayerView {
+  quadrant: StyleQuadrant;
+  axis?: OpeningAxis;
+  opening?: string;
+}
+
 export type Route =
   | { kind: "list"; query?: ListQuery; portfolio?: PortfolioFilter }
   | { kind: "players" }
   | { kind: "settings" }
   | { kind: "updates" }
   | { kind: "game"; id: string; ply?: number }
-  | { kind: "player"; name: string }
+  | { kind: "player"; name: string; view?: PlayerView }
   /** 分岐点の学習画面。key は分岐点の局面キー */
   | { kind: "branch"; name: string; key: string };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
 const SERVICES = ["wars", "quest"] as const;
+const SELF_STYLES = ["ibisha", "furibisha"] as const;
+const AXES: readonly OpeningAxis[] = ["self", "opponent"];
 const SHAPES: readonly GameShape[] = ["aiIbisha", "taikokei", "aiFuribisha", "unknown"];
 /** URL に出す順 */
 const QUERY_KEYS = [
   "player",
   "service",
   "shape",
+  "selfStyle",
   "opening",
   "openingSide",
   "castle",
@@ -72,6 +88,7 @@ export function parseQuery(search: string): ListQuery {
     player: p.get("player") || undefined,
     service: pick(p.get("service"), SERVICES),
     shape: pick(p.get("shape"), SHAPES),
+    selfStyle: pick(p.get("selfStyle"), SELF_STYLES),
     opening: p.get("opening") || undefined,
     openingSide: pick(p.get("openingSide"), SIDE_FILTERS),
     castle: p.get("castle") || undefined,
@@ -108,6 +125,25 @@ function listRoute(query: ListQuery, portfolio?: PortfolioFilter): Route {
 }
 const SIDES: readonly Side[] = ["black", "white"];
 const STYLES: readonly SideStyle[] = ["ibisha", "furibisha", "unknown"];
+
+function parsePlayerView(search: string): PlayerView | undefined {
+  const p = new URLSearchParams(search);
+  const quadrant = pick(p.get("style"), STYLE_QUADRANTS);
+  if (!quadrant) return undefined;
+  const view: PlayerView = { quadrant };
+  const axis = pick(p.get("axis"), AXES);
+  if (axis === "opponent") view.axis = axis;
+  const opening = p.get("opening");
+  if (opening) view.opening = opening;
+  return view;
+}
+
+function playerViewString(view: PlayerView): string {
+  const p = new URLSearchParams({ style: view.quadrant });
+  if (view.axis === "opponent") p.set("axis", view.axis);
+  if (view.opening) p.set("opening", view.opening);
+  return p.toString();
+}
 
 export function parseHash(full: string): Route {
   const qi = full.indexOf("?");
@@ -164,7 +200,12 @@ export function parseHash(full: string): Route {
     };
   }
   const player = /^#\/player\/([^/]+)$/.exec(hash);
-  if (player?.[1]) return { kind: "player", name: decodeURIComponent(player[1]) };
+  if (player?.[1]) {
+    const route: Route = { kind: "player", name: decodeURIComponent(player[1]) };
+    const view = parsePlayerView(qi < 0 ? "" : full.slice(qi + 1));
+    if (view) route.view = view;
+    return route;
+  }
   if (hash.startsWith("#/players")) return { kind: "players" };
   if (hash.startsWith("#/settings")) return { kind: "settings" };
   if (hash.startsWith("#/updates")) return { kind: "updates" };
@@ -177,8 +218,10 @@ export function hashFor(route: Route): string {
   switch (route.kind) {
     case "game":
       return route.ply !== undefined ? `#/game/${route.id}/${route.ply}` : `#/game/${route.id}`;
-    case "player":
-      return `#/player/${encodeURIComponent(route.name)}`;
+    case "player": {
+      const path = `#/player/${encodeURIComponent(route.name)}`;
+      return route.view ? `${path}?${playerViewString(route.view)}` : path;
+    }
     case "branch":
       return `#/player/${encodeURIComponent(route.name)}/branch/${encodeURIComponent(route.key)}`;
     case "list": {

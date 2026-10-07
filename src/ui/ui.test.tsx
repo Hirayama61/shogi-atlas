@@ -257,7 +257,7 @@ describe("UI", () => {
   it("PlayerPage: 成績と戦法の内訳が出る", async () => {
     await seed();
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     // 先頭のカード: 局数と解析済み、勝率、先後の内訳。解析が無ければレーダーの代わりに「解析待ち」
     const card = document.querySelector(".profile-card") as HTMLElement;
     expect(card).toHaveTextContent("0/3 局");
@@ -268,14 +268,13 @@ describe("UI", () => {
     expect(screen.queryByRole("img", { name: /レーダーチャート/ })).toBeNull();
     // 解析が無ければ弱点プロファイルの欄は出さない
     expect(screen.queryByText("弱点プロファイル")).toBeNull();
-    expect(screen.getByText("相手の戦法別")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
   });
 
   it("PlayerPage: 全対局の一覧は出さず、局数のタイルからその人で絞った棋譜一覧へ飛ぶ", async () => {
     await seed();
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     expect(screen.queryByText("対局一覧")).toBeNull();
     expect(document.querySelector("ul.games")).toBeNull();
     const card = document.querySelector(".profile-card") as HTMLElement;
@@ -294,23 +293,184 @@ describe("UI", () => {
     expect(location.hash).toBe("#/player/Sukonbu3");
   });
 
-  it("PlayerPage: 戦法・囲い・相手の戦法の行から絞り込み済みの一覧へ飛ぶ", async () => {
-    const { b } = await seed();
+  it("PlayerPage: 採用戦法・囲い・相手の戦法別の表と戦型ポートフォリオ・分岐点の節は独立して並ばず、概要 → 4 区分 → 戦法 → 戦法の詳細の階層になる", async () => {
+    await seed();
     render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText(/3 局 · 1 勝 2 敗/)).toBeInTheDocument());
-    const table = (title: string) => screen.getByText(title).closest(".panel") as HTMLElement;
-    const cases = [
-      ["採用戦法", "opening", b.opening.blackOpening],
-      ["囲い", "castle", b.opening.blackCastle],
-      ["相手の戦法別", "vsOpening", b.opening.whiteOpening],
-    ] as const;
-    for (const [title, field, value] of cases) {
-      const link = within(table(title)).getByRole("link", { name: value });
-      const route = { kind: "list" as const, query: fieldQuery("Sukonbu3", field, value) };
-      expect(link).toHaveAttribute("href", hashFor(route));
-      fireEvent.click(link.closest("tr")!);
-      expect(parseHash(location.hash)).toEqual(route);
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
+    const headings = Array.from(document.querySelectorAll(".panel > strong")).map(
+      (el) => el.textContent,
+    );
+    for (const old of ["採用戦法", "囲い", "相手の戦法別", "戦型ポートフォリオ", "分岐点"]) {
+      expect(headings).not.toContain(old);
     }
+    expect(headings).toContain("戦型");
+    // 区分を選ぶまでは戦法の一覧も詳細も出ない
+    expect(document.querySelector(".opening-list")).toBeNull();
+    expect(document.querySelector(".opening-detail")).toBeNull();
+    // 概要 (カード) が戦型より前
+    const card = document.querySelector(".profile-card")!;
+    const quadrants = document.querySelector(".quadrants")!;
+    expect(card.compareDocumentPosition(quadrants) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("PlayerPage: 4 区分それぞれに局数・勝率・先後の内訳が出て、合計が全対局数に一致する", async () => {
+    await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
+    const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>("a.quadrant"));
+    expect(cards.map((c) => c.querySelector(".quadrant-title")!.textContent)).toEqual([
+      "相居飛車",
+      "対抗形 · 自分が居飛車",
+      "対抗形 · 自分が振り飛車",
+      "相振り飛車",
+    ]);
+    const games = cards.map((c) => Number(/(\d+) 局 · 勝率/.exec(c.textContent!)![1]));
+    expect(games).toEqual([0, 1, 2, 0]);
+    expect(games.reduce((x, y) => x + y, 0)).toBe(3);
+    // a (負け), b (勝ち) が振り飛車、c (負け) が居飛車。3 局とも先手
+    expect(cards[2]).toHaveTextContent("2 局 · 勝率 50%");
+    expect(cards[2]).toHaveTextContent("先手 2 局 1 勝 · 後手 0 局 0 勝");
+    expect(cards[1]).toHaveTextContent("0 勝 1 敗");
+    expect(parseHash(cards[2]!.getAttribute("href")!)).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { quadrant: "furiVsIbisha" },
+    });
+  });
+
+  it("PlayerPage: 区分を選ぶと戦法の一覧 (局数・勝率) が出て、自分の戦法と相手の戦法を切り替えられる", async () => {
+    const { b } = await seed();
+    const { rerender } = render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
+    await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
+    const list = document.querySelector(".opening-list") as HTMLElement;
+    expect(list).toHaveTextContent("対抗形 · 自分が振り飛車 の戦法");
+    expect(document.querySelector("a.quadrant.selected")).toHaveTextContent(
+      "対抗形 · 自分が振り飛車",
+    );
+    const heads = Array.from(list.querySelectorAll("thead th")).map((th) => th.textContent);
+    expect(heads).toEqual(["自分の戦法", "局", "勝", "敗", "勝率", "割合"]);
+    const row = within(list).getByRole("link", { name: b.opening.blackOpening }).closest("tr")!;
+    expect(Array.from(row.children).map((td) => td.textContent)).toEqual([
+      b.opening.blackOpening,
+      "2",
+      "1",
+      "1",
+      "50%",
+      "100%",
+    ]);
+    fireEvent.click(row);
+    expect(parseHash(location.hash)).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { quadrant: "furiVsIbisha", opening: b.opening.blackOpening },
+    });
+
+    const toggle = within(list).getByRole("group", { name: "戦法の側" });
+    const opp = within(toggle).getByRole("link", { name: "相手の戦法" });
+    expect(within(toggle).getByRole("link", { name: "自分の戦法" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const oppRoute = parseHash(opp.getAttribute("href")!);
+    expect(oppRoute).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { quadrant: "furiVsIbisha", axis: "opponent" },
+    });
+    if (oppRoute.kind !== "player") throw new Error("unreachable");
+    rerender(<PlayerPage name="Sukonbu3" view={oppRoute.view} />);
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll(".opening-list thead th")).map((t) => t.textContent),
+      ).toContain("相手の戦法"),
+    );
+    expect(
+      within(document.querySelector(".opening-list") as HTMLElement).getByRole("link", {
+        name: b.opening.whiteOpening,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("PlayerPage: 戦法を選ぶと囲い・相手の戦法・繰り返している手順・分岐点・棋譜一覧へのリンクが 1 画面に出る", async () => {
+    const { b } = await seedBranches();
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    render(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() =>
+      expect(document.querySelector(".opening-detail a.branch-row")).not.toBeNull(),
+    );
+    const detail = document.querySelector(".opening-detail") as HTMLElement;
+    // a, b, b2, b3 が本人のノーマル四間飛車
+    expect(detail).toHaveTextContent("4 局 1 勝 3 敗");
+    const tables = Array.from(detail.querySelectorAll("table"));
+    expect(tables.map((t) => t.querySelector("th")!.textContent)).toEqual([
+      "自分の囲い",
+      "相手の戦法",
+    ]);
+    const castle = within(tables[0]!).getByRole("link", { name: b.opening.blackCastle });
+    fireEvent.click(castle.closest("tr")!);
+    expect(parseHash(location.hash)).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        opening: b.opening.blackOpening,
+        openingSide: "self",
+        castle: b.opening.blackCastle,
+        castleSide: "self",
+      },
+    });
+    expect(within(tables[1]!).getByText(b.opening.whiteOpening)).toBeInTheDocument();
+    expect(detail.querySelector("details.lines > summary")).toHaveTextContent(
+      "先手で繰り返している手順",
+    );
+    expect(detail.querySelectorAll("a.branch-row").length).toBeGreaterThan(0);
+    const link = within(detail).getByRole("link", { name: /この戦法の棋譜一覧 \(4 局\)/ });
+    const route = parseHash(link.getAttribute("href")!);
+    expect(route).toEqual({
+      kind: "list",
+      query: {
+        player: "Sukonbu3",
+        shape: "taikokei",
+        selfStyle: "furibisha",
+        opening: b.opening.blackOpening,
+        openingSide: "self",
+      },
+    });
+    cleanup();
+    if (route.kind !== "list") throw new Error("unreachable");
+    render(<GameList query={route.query} />);
+    await waitFor(() => expect(screen.getByText("4 / 5 局")).toBeInTheDocument());
+  });
+
+  it("PlayerPage: 1 段の行数が上限を超えると「他 N 件」に畳まれる", async () => {
+    const { b } = await seed();
+    // 本人の振り飛車の戦法を 12 種に増やす
+    const many = await Promise.all(
+      Array.from({ length: 12 }, async (_, i) => {
+        const g = await parseKifu(USI_SHIKEN_VS_FUNA, { source });
+        Object.assign(g, {
+          id: `m${i}`,
+          black: "Sukonbu3",
+          white: `y${i}`,
+          result: "black",
+          tags: ["Sukonbu3"],
+        });
+        g.opening = { ...b.opening, blackOpening: `戦法${String(i).padStart(2, "0")}` };
+        return g;
+      }),
+    );
+    await db.games.bulkPut(many);
+    render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
+    await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
+    const list = document.querySelector(".opening-list") as HTMLElement;
+    // 13 種 (ノーマル四間飛車 + 12) のうち 10 行を出し、残り 3 件を畳む
+    const first = list.querySelector(":scope > table")!;
+    expect(first.querySelectorAll("tbody tr")).toHaveLength(10);
+    const more = list.querySelector<HTMLDetailsElement>("details.rows-more")!;
+    expect(more.open).toBe(false);
+    expect(more.querySelector("summary")).toHaveTextContent("他 3 件");
+    expect(more.querySelectorAll("tbody tr")).toHaveLength(3);
   });
 
   /** b と同じ 18 手目まで進み、19 手目 (本人) で分かれる b2 と、20 手目 (相手) で分かれる b3 */
@@ -350,14 +510,17 @@ describe("UI", () => {
     return { b, b2, b3 };
   }
 
-  it("PlayerPage: 分岐点は 1 件 1 行で入れ子が無く、戦法・手数・局数・候補手と判定が出て、悪手が先", async () => {
+  it("PlayerPage: 戦法の詳細の分岐点は 1 件 1 行で入れ子が無く、戦法・手数・局数・候補手と判定が出て、悪手が先", async () => {
     const { b, b2 } = await seedBranches();
     await db.games.delete("b3b3b3");
-    render(<PlayerPage name="Sukonbu3" />);
+    render(
+      <PlayerPage
+        name="Sukonbu3"
+        view={{ quadrant: "furiVsIbisha", opening: b.opening.blackOpening }}
+      />,
+    );
     await waitFor(() => expect(document.querySelector(".branch-row.mistake")).not.toBeNull());
-    const panel = screen
-      .getByText("分岐点", { selector: "strong" })
-      .closest(".panel") as HTMLElement;
+    const panel = document.querySelector(".detail-branches") as HTMLElement;
     expect(panel.querySelector("details")).toBeNull();
     const rows = Array.from(panel.querySelectorAll<HTMLAnchorElement>("a.branch-row"));
     expect(rows[0]!.classList.contains("mistake")).toBe(true);
@@ -431,87 +594,46 @@ describe("UI", () => {
     expect(b.positions[19]).toBe(b3.positions[19]);
   });
 
-  it("PlayerPage: 戦法・囲い・持ち時間の表と戦型ポートフォリオに割合が出る", async () => {
-    const { b } = await seed();
+  it("PlayerPage: 持ち時間別の表は末尾に残り、割合が出る", async () => {
+    await seed();
     render(<PlayerPage name="Sukonbu3" />);
     await waitFor(() => expect(screen.getByText(/3 局 · 1 勝 2 敗/)).toBeInTheDocument());
     const pctOf = (n: number, d: number) => `${Math.round((n / d) * 100)}%`;
-    // 各表: 見出しの最後が「割合」で、値は 局 / 本人の全対局 (3 局)。合計は 3 局
-    for (const title of ["採用戦法", "囲い", "相手の戦法別", "持ち時間別"]) {
-      const table = screen.getByText(title).closest(".panel")!.querySelector("table")!;
-      const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent);
-      expect(heads).toEqual(["", "局", "勝", "敗", "勝率", "割合"]);
-      let sum = 0;
-      for (const tr of table.querySelectorAll("tbody tr")) {
-        const games = Number(tr.children[1]!.textContent);
-        sum += games;
-        expect(tr.children[5]!.textContent).toBe(pctOf(games, 3));
-      }
-      expect(sum).toBe(3);
+    const panel = screen.getByText("持ち時間別").closest(".panel")!;
+    expect(panel.nextElementSibling).toBeNull();
+    const table = panel.querySelector("table")!;
+    const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent);
+    expect(heads).toEqual(["", "局", "勝", "敗", "勝率", "割合"]);
+    let sum = 0;
+    for (const tr of table.querySelectorAll("tbody tr")) {
+      const games = Number(tr.children[1]!.textContent);
+      sum += games;
+      expect(tr.children[5]!.textContent).toBe(pctOf(games, 3));
     }
-    const opening = within(screen.getByText("採用戦法").closest(".panel") as HTMLElement)
-      .getByRole("link", { name: b.opening.blackOpening })
-      .closest("tr")!;
-    expect(opening.children[5]!.textContent).toBe(
-      pctOf(Number(opening.children[1]!.textContent), 3),
-    );
-
-    const panel = screen.getByText("戦型ポートフォリオ").closest(".panel") as HTMLElement;
-    // グループの割合はその先後の対局 (カードの「先手 n 局」「後手 m 局」) に対する割合
-    const figures = document.querySelector(".profile-card .figures")!.textContent!;
-    const [, black] = /先手 (\d+) 局/.exec(figures)!;
-    const [, white] = /後手 (\d+) 局/.exec(figures)!;
-    const sideGames = { 先手: Number(black), 後手: Number(white) };
-    for (const g of panel.querySelectorAll("details.portfolio")) {
-      const summary = g.querySelector("summary")!.textContent!;
-      const games = Number(/(\d+) 局/.exec(summary)![1]);
-      const side = summary.includes("先手") ? "先手" : "後手";
-      expect(summary).toContain(`割合 ${pctOf(games, sideGames[side])}`);
-      // 相手の戦法ごと: グループ内の割合。応手の各行: その相手の戦法の対局に対する割合
-      for (const block of g.querySelectorAll(".portfolio-opponent")) {
-        const head = block.querySelector(".muted")!.textContent!;
-        const oppGames = Number(/(\d+) 局/.exec(head)![1]);
-        expect(head).toContain(`割合 ${pctOf(oppGames, games)}`);
-        const heads = Array.from(block.querySelectorAll("thead th")).map((th) => th.textContent);
-        expect(heads.at(-1)).toBe("割合");
-        for (const tr of block.querySelectorAll("tbody tr")) {
-          const n = Number(tr.children[1]!.textContent);
-          expect(tr.children[5]!.textContent).toBe(pctOf(n, oppGames));
-        }
-      }
-    }
+    expect(sum).toBe(3);
   });
 
-  it("PlayerPage: 戦型ポートフォリオは条件ごとに畳まれ、行から該当対局の一覧へ飛ぶ", async () => {
+  it("GameList: 戦型ポートフォリオの行の URL (古いリンク) は今も該当対局の一覧を出す", async () => {
     const { b, c } = await seed();
-    render(<PlayerPage name="Sukonbu3" />);
-    await waitFor(() => expect(screen.getByText("戦型ポートフォリオ")).toBeInTheDocument());
-    const panel = screen.getByText("戦型ポートフォリオ").closest(".panel") as HTMLElement;
-    const groups = panel.querySelectorAll("details.portfolio");
-    expect(groups.length).toBeGreaterThan(0);
-    for (const g of groups) expect((g as HTMLDetailsElement).open).toBe(false);
-    // 先手の 2 局 (b, c) と後手の 1 局 (a) がすべて入る
-    const total = Array.from(groups).reduce(
-      (n, g) => n + Number(/(\d+) 局/.exec(g.querySelector("summary")!.textContent!)![1]),
-      0,
+    const route = parseHash(
+      hashFor({
+        kind: "list",
+        portfolio: {
+          player: "Sukonbu3",
+          condition: {
+            side: "black",
+            vsStyle: "ibisha",
+            vsOpening: b.opening.whiteOpening,
+            opening: b.opening.blackOpening,
+            castle: b.opening.blackCastle,
+          },
+        },
+      }),
     );
-    expect(total).toBe(3);
-
-    const label = `${b.opening.blackOpening} + ${b.opening.blackCastle}`;
-    const link = within(panel).getAllByRole("link", { name: label })[0]!;
-    fireEvent.click(link.closest("tr")!);
-    const route = parseHash(location.hash);
-    expect(route).toMatchObject({
-      kind: "list",
-      portfolio: {
-        player: "Sukonbu3",
-        condition: { side: "black", opening: b.opening.blackOpening },
-      },
-    });
-    cleanup();
     if (route.kind !== "list" || !route.portfolio) throw new Error("unreachable");
     const portfolio = route.portfolio;
     render(<GameList portfolio={portfolio} />);
+    const label = `${b.opening.blackOpening} + ${b.opening.blackCastle}`;
     const expected = [b, c].filter(
       (g) =>
         g.opening.whiteOpening === portfolio.condition.vsOpening &&

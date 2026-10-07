@@ -6,6 +6,7 @@ import { matchesPortfolio } from "../core/portfolio";
 import { formatRating } from "../core/quest";
 import { SELF_NAME } from "../core/self";
 import { serviceOf } from "../core/source";
+import type { StyleQuadrant } from "../core/styles";
 import { outcomeFor, playerSide } from "../core/stats";
 import type { ListQuery, PortfolioFilter, ResultFilter, SideFilter } from "./router";
 
@@ -88,11 +89,17 @@ function matchesResult(g: GameSummary, result: ResultFilter, player: string | un
   return side !== null && outcomeFor(g.result, side) === result;
 }
 
+function matchesSelfStyle(g: GameSummary, player: string, style: SideStyle): boolean {
+  const side = playerSide(g, player);
+  return side !== null && g.opening[side] === style;
+}
+
 /** 棋譜一覧の絞り込み条件をすべて満たすか */
 export function matchesQuery(g: GameSummary, q: ListQuery): boolean {
   if (q.player && playerSide(g, q.player) === null) return false;
   if (q.service && serviceOf(g) !== q.service) return false;
   if (q.shape && g.opening.shape !== q.shape) return false;
+  if (q.selfStyle && q.player && !matchesSelfStyle(g, q.player, q.selfStyle)) return false;
   if (q.opening && !openingValues(g, q).includes(q.opening)) return false;
   if (q.castle && !castleValues(g, q).includes(q.castle)) return false;
   if (q.result && !matchesResult(g, q.result, q.player)) return false;
@@ -169,4 +176,38 @@ export function describeCandidate(c: BranchCandidate): string {
   if (c.loss !== null) parts.push(`損失 ${c.loss}`);
   if (c.bestLabel) parts.push(`最善 ${c.bestLabel}`);
   return parts.join(" · ");
+}
+
+/** 対局者ページの 4 区分の見出し */
+export const STYLE_QUADRANT_LABEL: Record<StyleQuadrant, string> = {
+  aiIbisha: "相居飛車",
+  ibishaVsFuri: "対抗形 · 自分が居飛車",
+  furiVsIbisha: "対抗形 · 自分が振り飛車",
+  aiFuribisha: "相振り飛車",
+  unknown: "戦型不明",
+};
+
+/** 区分の補足 (自分 × 相手) */
+export const STYLE_QUADRANT_NOTE: Record<StyleQuadrant, string> = {
+  aiIbisha: "自分 居飛車 × 相手 居飛車",
+  ibishaVsFuri: "自分 居飛車 × 相手 振り飛車",
+  furiVsIbisha: "自分 振り飛車 × 相手 居飛車",
+  aiFuribisha: "自分 振り飛車 × 相手 振り飛車",
+  unknown: "どちらかの戦型が判定できなかった対局",
+};
+
+/** 区分の対局を棋譜一覧の絞り込み条件で表す */
+export function quadrantQuery(player: string, quadrant: StyleQuadrant): ListQuery {
+  switch (quadrant) {
+    case "aiIbisha":
+      return { player, shape: "aiIbisha" };
+    case "ibishaVsFuri":
+      return { player, shape: "taikokei", selfStyle: "ibisha" };
+    case "furiVsIbisha":
+      return { player, shape: "taikokei", selfStyle: "furibisha" };
+    case "aiFuribisha":
+      return { player, shape: "aiFuribisha" };
+    case "unknown":
+      return { player, shape: "unknown" };
+  }
 }

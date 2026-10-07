@@ -20,6 +20,7 @@ describe("router", () => {
         player: "a/b c&d",
         service: "wars",
         shape: "taikokei",
+        selfStyle: "ibisha",
         opening: "四間飛車",
         openingSide: "opponent",
         castle: "美濃囲い",
@@ -32,6 +33,24 @@ describe("router", () => {
     expect(parseHash(hash)).toEqual(route);
     expect(hashFor({ kind: "list", query: {} })).toBe("#/");
     expect(parseHash("#/games?result=bogus&shape=x&openingSide=up")).toEqual({ kind: "list" });
+  });
+
+  it("対局者ページの階層 (区分・戦法の側・戦法) を URL で往復できる", () => {
+    const routes: Route[] = [
+      { kind: "player", name: "a/b" },
+      { kind: "player", name: "a/b", view: { quadrant: "aiIbisha" } },
+      { kind: "player", name: "a/b", view: { quadrant: "furiVsIbisha", axis: "opponent" } },
+      { kind: "player", name: "a/b", view: { quadrant: "ibishaVsFuri", opening: "舟囲い急戦&x" } },
+      {
+        kind: "player",
+        name: "a/b",
+        view: { quadrant: "aiFuribisha", axis: "opponent", opening: "向かい飛車" },
+      },
+    ];
+    for (const route of routes) expect(parseHash(hashFor(route))).toEqual(route);
+    expect(hashFor(routes[1]!)).toBe("#/player/a%2Fb?style=aiIbisha");
+    // 知らない区分は概要だけ
+    expect(parseHash("#/player/a?style=bogus&opening=x")).toEqual({ kind: "player", name: "a" });
   });
 
   it("#6 の対局者ページの URL は同じ条件に読み替える", () => {

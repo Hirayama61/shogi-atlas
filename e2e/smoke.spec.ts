@@ -36,7 +36,7 @@ test.describe("一通りの画面", () => {
     await expect(page.locator("ul.games li")).toHaveCount(4);
     await page.locator("ul.games li", { hasText: "taro" }).click();
 
-    await expect(page.getByText("採用戦法")).toBeVisible();
+    await expect(page.locator(".quadrants")).toBeVisible();
     // 先頭のカード: 局数と解析済み、勝率と先後、レーダーチャートがスクロールなしで見える
     const card = page.locator(".profile-card");
     await expect(card.getByText("1/3 局", { exact: true })).toBeInViewport();
@@ -68,10 +68,26 @@ test.describe("一通りの画面", () => {
     await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
     await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();
     await page.goBack();
-    const branches = page.locator(".panel", {
-      has: page.locator("strong", { hasText: /^分岐点$/ }),
-    });
+    // 採用戦法・戦型ポートフォリオ・分岐点の節は無く、4 区分 → 戦法 → 戦法の詳細とたどる
+    await expect(
+      page.locator(".panel > strong", { hasText: /^(採用戦法|戦型ポートフォリオ|分岐点)$/ }),
+    ).toHaveCount(0);
+    const quadrant = page.locator("a.quadrant", { hasText: "対抗形 · 自分が振り飛車" });
+    await expect(quadrant).toContainText("3 局");
+    await quadrant.click();
+    await expect(page).toHaveURL(/#\/player\/taro\?style=furiVsIbisha$/);
+    const openings = page.locator(".opening-list");
+    await openings.getByRole("link", { name: "相手の戦法" }).click();
+    await expect(page).toHaveURL(/axis=opponent$/);
+    await expect(openings.locator("thead th").first()).toHaveText("相手の戦法");
+    await openings.getByRole("link", { name: "自分の戦法" }).click();
+    await openings.getByRole("link", { name: "ノーマル四間飛車" }).click();
+    await expect(page).toHaveURL(/style=furiVsIbisha&opening=/);
+    const detail = page.locator(".opening-detail");
+    await expect(detail).toContainText("3 局 2 勝 1 敗");
+    const detailUrl = page.url();
     // 1 件 1 行。解析済みの a は最善、b は未解析 → 正しく指せた分岐
+    const branches = detail.locator(".detail-branches");
     const row = branches.locator("a.branch-row.correct", { hasText: "18 手目 · 2 局" });
     await expect(row).toContainText("本人: ▲1六歩 (最善) / ▲9六歩 (未解析)");
     await expect(branches.locator("details")).toHaveCount(0);
@@ -95,16 +111,30 @@ test.describe("一通りの画面", () => {
     await expect(page.getByText("19 手目")).toBeVisible();
     await page.goBack();
     await page.getByRole("button", { name: "← 閉じる" }).click();
-    await expect(page).toHaveURL(/#\/player\/taro$/);
+    await expect(page).toHaveURL(detailUrl);
 
-    // 採用戦法の行から、その戦法の対局一覧へ
-    await page.goto("#/player/taro");
-    await page
-      .locator(".panel", { hasText: "採用戦法" })
-      .getByRole("link", { name: "ノーマル四間飛車" })
-      .click();
-    await expect(page).toHaveURL(/#\/games\?player=taro&opening=[^&]+&openingSide=self$/);
-    await expect(page.getByText("絞り込み · taro · ノーマル四間飛車(本人)")).toBeVisible();
+    // 戦法の詳細の繰り返し手順: 18 手目まで 2 局が同じ。手をタップすると盤面と対局へのボタン
+    const lines = detail.locator("details.lines").first();
+    await expect(lines.locator("summary")).toContainText(
+      "先手で繰り返している手順 · 幹 18 手目まで 2 局",
+    );
+    await lines.locator("summary").click();
+    await expect(lines.locator(".line-move").first()).toHaveText("▲7六歩 (2)");
+    await expect(lines.locator("svg.board")).toBeHidden();
+    await lines.getByRole("button", { name: "△5四歩" }).click();
+    await expect(lines.locator("svg.board")).toBeVisible();
+    await lines.locator(".detail-body button").first().click();
+    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/18$/);
+    await page.goBack();
+    // 戻ると同じ戦法の詳細で、開いていた折りたたみがそのまま
+    await expect(page).toHaveURL(detailUrl);
+    await expect(lines).toHaveAttribute("open", "");
+
+    // 戦法の詳細から、その戦法の対局一覧へ
+    await detail.getByRole("link", { name: /この戦法の棋譜一覧/ }).click();
+    await expect(page).toHaveURL(
+      /#\/games\?player=taro&shape=taikokei&selfStyle=furibisha&opening=[^&]+&openingSide=self$/,
+    );
     await expect(page.locator("ul.games li")).toHaveCount(3);
     await expect(page.getByText("3 / 4 局")).toBeVisible();
     // 条件を足して URL に乗せ、戻るで前の条件に戻り、一括で消す
@@ -119,29 +149,6 @@ test.describe("一通りの画面", () => {
     // #6 の形式の URL も同じ絞り込みで開く
     await page.goto(`#/player/taro/games/opening/${encodeURIComponent("ノーマル四間飛車")}`);
     await expect(page.getByText("3 / 4 局")).toBeVisible();
-
-    // 戦型ポートフォリオ: 畳まれた条件を開き、行から該当対局の一覧へ
-    await page.goto("#/player/taro");
-    const portfolio = page.locator(".panel", { hasText: "戦型ポートフォリオ" });
-    await expect(portfolio.locator("details.portfolio[open]")).toHaveCount(0);
-    await portfolio.locator("details.portfolio summary").first().click();
-    // 相手の戦法ごとの繰り返し手順: 18 手目まで 2 局が同じ。手をタップすると盤面と対局へのボタン
-    const lines = portfolio.locator("details.portfolio[open] details.lines").first();
-    await expect(lines.locator("summary")).toContainText("幹 18 手目まで 2 局");
-    await lines.locator("summary").click();
-    await expect(lines.locator(".line-move").first()).toHaveText("▲7六歩 (2)");
-    await expect(lines.locator("svg.board")).toBeHidden();
-    await lines.getByRole("button", { name: "△5四歩" }).click();
-    await expect(lines.locator("svg.board")).toBeVisible();
-    await lines.locator(".detail-body button").first().click();
-    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/18$/);
-    await page.goBack();
-    // 戻ると開いていた折りたたみがそのまま
-    await expect(lines).toHaveAttribute("open", "");
-    await portfolio.locator("details.portfolio[open] tbody tr a").first().click();
-    await expect(page).toHaveURL(/#\/player\/taro\/portfolio\//);
-    await expect(page.getByText(/相手: /).first()).toBeVisible();
-    await expect(page.locator("ul.games li").first()).toBeVisible();
 
     // 外した検索ルートで開いてもトップの一覧になる
     await page.goto("#/search");

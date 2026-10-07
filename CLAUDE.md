@@ -18,7 +18,7 @@ GitHub Pages で公開し、スマホにインストールして使う。
 
 - `src/core/` 純粋な TypeScript。棋譜パース (`parse.ts`)、局面キー (`position.ts`)、戦型判定 (`opening.ts`)、将棋ウォーズ固有の解釈 (`wars.ts`)、将棋クエスト固有の解釈 (`quest.ts`: レート、時間切れ/接続切れ)、詰み判定 (`mate.ts`: 終局行が無い棋譜用)、共通スキーマ (`types.ts`)。DOM に依存しない。ブラウザと `scripts/` の両方から使う。
 - `src/core/self.ts` 自分の複数 ID を「自分」1 人にまとめる。ID 一覧はデータリポジトリの `index.json` の `self` (`自分` ラベルの Issue のタイトル) にだけあり、アプリは DB の読み出し時、`scripts/profile.ts` は読み込み時に置き換える。
-- `src/core/normalize.ts` 古いレコードを現在の型に揃える。`src/core/stats.ts` 対局者ごとの集計と分岐点。
+- `src/core/normalize.ts` 古いレコードを現在の型に揃える。`src/core/stats.ts` 対局者ごとの集計と分岐点。`src/core/styles.ts` 対局者ページの階層 (自分の戦型 × 相手の戦型の 4 区分 → 戦法 → 戦法の詳細) の集計。
 - `src/db/` Dexie (IndexedDB)。`positions` の multiEntry インデックスで局面の完全一致検索をする。読み出し時に normalize を通す。
 - `src/sync/` GitHub Contents API でデータリポジトリから `index.json` と `games/<id>.json` を取り込む。
 - `src/ui/` React コンポーネント。ハッシュルーティング (`ui/router.ts`)。

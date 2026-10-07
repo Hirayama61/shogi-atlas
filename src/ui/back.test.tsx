@@ -5,7 +5,7 @@ import { parseKifu } from "../core/parse";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "../core/__tests__/fixtures";
 import { db } from "../db/db";
 import App from "../App";
-import { navigate } from "./router";
+import { hashFor, navigate, type Route } from "./router";
 
 const source = { kind: "paste" as const };
 
@@ -29,6 +29,13 @@ async function seed() {
   await db.games.bulkPut([b, c]);
   return { b, c };
 }
+
+/** b, b2 (本人がノーマル四間飛車) の戦法の詳細 */
+const DETAIL: Route = {
+  kind: "player",
+  name: "Sukonbu3",
+  view: { quadrant: "furiVsIbisha", opening: "ノーマル四間飛車" },
+};
 
 function setScrollY(y: number) {
   Object.defineProperty(window, "scrollY", { value: y, configurable: true });
@@ -55,13 +62,20 @@ describe("棋譜画面から戻る", () => {
     await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
   });
 
-  it("対局者ページから開いたときは戻ると同じ折りたたみ・スクロール位置になる", async () => {
+  it("戦法の詳細から棋譜を開いて戻ると、同じ区分・戦法が開いた状態で同じ折りたたみ・スクロール位置になる", async () => {
     const { b } = await seed();
-    history.replaceState(null, "", "#/player/Sukonbu3");
+    const b2 = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
+    Object.assign(b2, { black: "Sukonbu3", white: "x3", result: "white", tags: ["Sukonbu3"] });
+    await db.games.put(b2);
+    history.replaceState(null, "", hashFor(DETAIL));
     render(<App />);
-    await screen.findByText("戦型ポートフォリオ");
-    const portfolio = () => document.querySelector<HTMLDetailsElement>("details.portfolio")!;
-    portfolio().open = true;
+    const lines = () =>
+      waitFor(() => {
+        const d = document.querySelector<HTMLDetailsElement>(".opening-detail details.lines");
+        expect(d).not.toBeNull();
+        return d!;
+      });
+    (await lines()).open = true;
     setScrollY(640);
 
     // 対局者ページの「局面を開く」などと同じアプリ内の遷移で棋譜を開く
@@ -70,29 +84,27 @@ describe("棋譜画面から戻る", () => {
     setScrollY(0);
     fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
 
-    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
-    await screen.findByText("戦型ポートフォリオ");
+    await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 640));
-    expect(portfolio().open).toBe(true);
+    expect((await lines()).open).toBe(true);
+    expect(document.querySelector(".opening-detail strong")).toHaveTextContent("ノーマル四間飛車");
   });
 
-  it("分岐点の学習画面を閉じると対局者ページの同じ折りたたみ・スクロール位置に戻る", async () => {
+  it("分岐点の学習画面を閉じると戦法の詳細の同じ折りたたみ・スクロール位置に戻る", async () => {
     await seed();
     const b2 = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", "9g9f 9c9d"), { source });
     Object.assign(b2, { black: "Sukonbu3", white: "x3", result: "white", tags: ["Sukonbu3"] });
     await db.games.put(b2);
-    history.replaceState(null, "", "#/player/Sukonbu3");
+    history.replaceState(null, "", hashFor(DETAIL));
     render(<App />);
-    await screen.findByText("戦型ポートフォリオ");
-    const portfolio = () => document.querySelector<HTMLDetailsElement>("details.portfolio")!;
-    portfolio().open = true;
-    setScrollY(900);
-
     const row = await waitFor(() => {
-      const a = document.querySelector<HTMLAnchorElement>("a.branch-row");
+      const a = document.querySelector<HTMLAnchorElement>(".opening-detail a.branch-row");
       expect(a).not.toBeNull();
       return a!;
     });
+    const lines = () => document.querySelector<HTMLDetailsElement>("details.lines")!;
+    lines().open = true;
+    setScrollY(900);
     act(() => {
       location.hash = row.getAttribute("href")!;
     });
@@ -100,10 +112,38 @@ describe("棋譜画面から戻る", () => {
     setScrollY(0);
     fireEvent.click(screen.getByRole("button", { name: "← 閉じる" }));
 
-    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
-    await screen.findByText("戦型ポートフォリオ");
+    await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 900));
-    expect(portfolio().open).toBe(true);
+    await waitFor(() => expect(lines().open).toBe(true));
+  });
+
+  it("区分 → 戦法の詳細と開き、一つ上に戻ると前の位置に戻る", async () => {
+    await seed();
+    history.replaceState(null, "", "#/player/Sukonbu3");
+    render(<App />);
+    const card = await screen.findByRole("link", { name: /対抗形 · 自分が振り飛車/ });
+    setScrollY(300);
+    act(() => {
+      location.hash = card.getAttribute("href")!;
+    });
+    const row = await screen.findByRole("link", { name: "ノーマル四間飛車" });
+    setScrollY(500);
+    act(() => {
+      location.hash = row.getAttribute("href")!;
+    });
+    await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
+    setScrollY(0);
+    fireEvent.click(await screen.findByRole("link", { name: /← 対抗形 · 自分が振り飛車 の戦法/ }));
+    await waitFor(() =>
+      expect(location.hash).toBe(
+        hashFor({ kind: "player", name: "Sukonbu3", view: { quadrant: "furiVsIbisha" } }),
+      ),
+    );
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 500));
+    expect(document.querySelector(".opening-detail")).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "← 戦型" }));
+    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 300));
   });
 
   it("絞り込んだ一覧から開いたときは同じ条件の一覧へ戻る", async () => {

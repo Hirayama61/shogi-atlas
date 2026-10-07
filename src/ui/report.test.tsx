@@ -130,7 +130,7 @@ describe("対策レポート", () => {
     await seed();
     await putReport("taro", fixtureReport("taro", "x"));
     render(<PlayerPage name="jiro" />);
-    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     expect(screen.queryByText("対策レポート")).not.toBeInTheDocument();
     expect(document.querySelector("details.report-part")).toBeNull();
   });

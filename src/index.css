@@ -458,7 +458,8 @@ table.stats td:first-child {
   color: var(--muted);
   font-size: 13px;
 }
-.branch-more > summary {
+.branch-more > summary,
+.rows-more > summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 13px;
@@ -640,6 +641,65 @@ table.stats tr.link {
 table.stats tr.losing td:first-child {
   color: var(--danger);
   font-weight: 700;
+}
+table.stats tr.selected td {
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+.quadrants {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.quadrant {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+.quadrant.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.quadrant.empty {
+  opacity: 0.6;
+}
+.quadrant-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+.up-link {
+  display: inline-block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.opening-list > strong,
+.opening-detail > strong {
+  display: block;
+}
+.axis-toggle {
+  margin: 6px 0;
+}
+.axis-toggle .chip {
+  text-decoration: none;
+  padding: 3px 10px;
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+.axis-toggle .chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.detail-branches {
+  margin-top: 12px;
 }
 .combo {
   padding: 6px 0;

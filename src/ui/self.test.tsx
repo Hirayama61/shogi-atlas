@@ -82,7 +82,7 @@ describe("自分の ID の統合", () => {
     cleanup();
 
     render(<PlayerPage name="自分" />);
-    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     const card = document.querySelector(".profile-card") as HTMLElement;
     expect(card).toHaveTextContent("マイページ");
     expect(card).toHaveTextContent("0/3 局");
@@ -111,7 +111,7 @@ describe("自分の ID の統合", () => {
   it("相手の対局者ページの集計は今までどおり", async () => {
     await seed();
     render(<PlayerPage name="rival" />);
-    await waitFor(() => expect(screen.getByText("採用戦法")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     const card = document.querySelector(".profile-card") as HTMLElement;
     expect(card).toHaveTextContent("rival");
     expect(card).toHaveTextContent("0/1 局");

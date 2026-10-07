@@ -61,7 +61,7 @@ export default function App() {
       </header>
       {route.kind === "list" && <GameList query={route.query} portfolio={route.portfolio} />}
       {route.kind === "players" && <PlayerList />}
-      {route.kind === "player" && <PlayerPage name={route.name} />}
+      {route.kind === "player" && <PlayerPage name={route.name} view={route.view} />}
       {route.kind === "branch" && <BranchStudyPage name={route.name} branchKey={route.key} />}
       {route.kind === "settings" && <SettingsPane />}
       {route.kind === "updates" && <UpdatesPane onSeen={onSeen} />}

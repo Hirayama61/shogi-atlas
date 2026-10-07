@@ -2,6 +2,7 @@
  * 解析済みの対局から対局者ごとの弱点プロファイルを作り、players/<name>/profile.{json,md} に書く。
  * 対象は Issue で登録した対局者 (タグに自分の名前が入っている人)。
  * 自分の ID (index.json の `self`) は 1 人の「自分」にまとめ、players/自分/ に 1 組だけ書く。
+ * 自分の ID のディレクトリが残っていれば消す (report.md は players/自分/ に無ければ引き継ぐ)。
  *
  *   DATA_DIR=../shogi-atlas-data pnpm build-profiles
  */
@@ -14,6 +15,7 @@ import { buildPlayerProfile, profileToMarkdown } from "../src/core/profile";
 import { applySelf, normalizeSelfIds } from "../src/core/self";
 import { listPlayers } from "../src/core/stats";
 import type { GameRecord } from "../src/core/types";
+import { removeSelfIdDirs } from "./players";
 
 const dataDir = path.resolve(process.env.DATA_DIR ?? "../shogi-atlas-data");
 
@@ -56,12 +58,7 @@ async function main(): Promise<void> {
     await writeFile(path.join(dir, "profile.md"), profileToMarkdown(profile));
     console.log(`${p.name}: 解析済み ${profile.games} / ${p.games} 局`);
   }
-  for (const id of selfIds) {
-    if (existsSync(path.join(dataDir, "players", id)))
-      console.warn(
-        `players/${id}/ は自分の ID のディレクトリです。players/自分/ にまとめたので消してください`,
-      );
-  }
+  await removeSelfIdDirs(path.join(dataDir, "players"), selfIds);
 }
 
 main().catch((e) => {

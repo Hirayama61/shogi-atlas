@@ -153,6 +153,7 @@ export interface RefSegment {
 
 /**
  * 本文の中の対局 ID (16 桁の 16 進、または 6 桁以上の先頭部分) と、直後の「N手目」を参照にする。
+ * ID と手数の間の「(相手名)」を 1 つ許す (`<id> (相手名) 70手目`。write-reports スキルの書式)。
  * ID は `resolve` が一意に対局に引けたものだけ参照にする (数字だけの 6 桁などを誤って拾わないため)。
  */
 export function splitGameRefs(
@@ -160,7 +161,8 @@ export function splitGameRefs(
   resolve: (prefix: string) => string | null,
 ): RefSegment[] {
   const out: RefSegment[] = [];
-  const re = /(?<![0-9a-zA-Z])([0-9a-f]{6,16})(?![0-9a-zA-Z])(?:\s*(\d+)\s*手目)?/g;
+  const re =
+    /(?<![0-9a-zA-Z])([0-9a-f]{6,16})(?![0-9a-zA-Z])(?:(?:\s*[(（][^()（）\n]{1,40}[)）])?\s*(\d+)\s*手目)?/g;
   let last = 0;
   for (const m of text.matchAll(re)) {
     const gameId = resolve(m[1]!);

@@ -81,6 +81,24 @@ describe("splitGameRefs", () => {
     ]);
   });
 
+  it("ID と手数の間の (相手名) を許す (実レポートの書式)", () => {
+    expect(splitGameRefs(`**${ID} (hanako) 70手目 △4一玉**`, resolve)).toEqual([
+      { text: "**" },
+      { text: `${ID} (hanako) 70手目`, ref: { gameId: ID, ply: 70 } },
+      { text: " △4一玉**" },
+    ]);
+    expect(splitGameRefs(`${ID}（花子）12手目`, resolve)).toEqual([
+      { text: `${ID}（花子）12手目`, ref: { gameId: ID, ply: 12 } },
+    ]);
+  });
+
+  it("手数が続かない (相手名) は参照に含めない", () => {
+    expect(splitGameRefs(`${ID} (hanako) で勝ち`, resolve)).toEqual([
+      { text: ID, ref: { gameId: ID } },
+      { text: " (hanako) で勝ち" },
+    ]);
+  });
+
   it("引けないもの、一意でないもの、長い数字の一部は参照にしない", () => {
     expect(splitGameRefs("abcdef 0123 123456789 0123fe", resolve)).toEqual([
       { text: "abcdef 0123 123456789 0123fe" },

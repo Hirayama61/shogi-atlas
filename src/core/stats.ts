@@ -190,7 +190,7 @@ export function findCommonPositions(games: GameRecord[], name: string): CommonPo
 /**
  * 本人 (登録した対局者) の側。タグに名前が入っている側で、両方か どちらも入っていなければ null。
  * 自分 (`SELF_NAME`) と登録した相手の対局では相手の側を返す (相手の対策のために見るので、今までどおり相手を手前にする)。
- * 棋譜ビューアで本人側を手前にするために使う。
+ * 棋譜ビューアでは `viewerSide` が開いた元の画面に応じてこれを上書きする。
  */
 export function trackedSide(g: Pick<GameSummary, "black" | "white" | "tags">): Side | null {
   const black = g.tags.includes(g.black);
@@ -201,6 +201,23 @@ export function trackedSide(g: Pick<GameSummary, "black" | "white" | "tags">): S
   }
   if (black === white) return null;
   return black ? "black" : "white";
+}
+
+/**
+ * 棋譜ビューアで手前・太字にする側。開いた元の画面の対局者 (`context`) が対局に出ていればその側、
+ * 出ていなければ自分 (`SELF_NAME`) の側、自分も出ていなければ `trackedSide`。
+ * 自分 vs 登録相手の対局は、相手のページから開いたときだけ相手が手前になる。
+ */
+export function viewerSide(
+  g: Pick<GameSummary, "black" | "white" | "tags">,
+  context?: string,
+): Side | null {
+  for (const name of [context, SELF_NAME]) {
+    if (!name || g.black === g.white) continue;
+    if (g.black === name) return "black";
+    if (g.white === name) return "white";
+  }
+  return trackedSide(g);
 }
 
 export interface PlayerSummary {

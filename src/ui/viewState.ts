@@ -104,6 +104,11 @@ export function canGoBack(): boolean {
   return !!entryState()?.prev;
 }
 
+/** アプリ内の遷移で今の画面に来たときの遷移元のハッシュ。URL を直接開いたときは undefined */
+export function previousHash(): string | undefined {
+  return entryState()?.prev || undefined;
+}
+
 /**
  * `hash` の画面へ戻る。直前の画面がそれなら history.back() で戻り (表示状態が復元される)、
  * そうでなければ新しく開く。

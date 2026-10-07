@@ -304,6 +304,20 @@ export function hashFor(route: Route): string {
   }
 }
 
+/** その画面がどの対局者の文脈か (対局者ページ・分岐点・比較・対局者で絞った棋譜一覧)。無ければ undefined */
+export function routePlayer(route: Route): string | undefined {
+  switch (route.kind) {
+    case "player":
+    case "branch":
+    case "compare":
+      return route.name;
+    case "list":
+      return route.portfolio?.player ?? route.query?.player;
+    default:
+      return undefined;
+  }
+}
+
 export function navigate(route: Route): void {
   const hash = hashFor(route);
   if (location.hash !== hash) location.hash = hash;

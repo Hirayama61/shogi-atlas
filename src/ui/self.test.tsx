@@ -56,6 +56,11 @@ const noIds = () => {
   }
 };
 
+/** `prev` の画面から棋譜を開いた履歴エントリにする (null は URL を直接開いたとき) */
+function openFrom(id: string, prev: string | null) {
+  history.replaceState(prev ? { viewKey: "test", prev } : null, "", `#/game/${id}`);
+}
+
 describe("自分の ID の統合", () => {
   beforeEach(async () => {
     await db.games.clear();
@@ -66,6 +71,7 @@ describe("自分の ID の統合", () => {
   afterEach(() => {
     cleanup();
     setSelfIds([]);
+    history.replaceState(null, "", "#/");
   });
 
   it("対局者一覧: 2 つの ID が「自分」1 人にまとまる", async () => {
@@ -104,7 +110,7 @@ describe("自分の ID の統合", () => {
     noIds();
   });
 
-  it("棋譜ビューア: 盤の上下と KIF に ID が出ない。相手との対局は相手が手前のまま", async () => {
+  it("棋譜ビューア: 盤の上下と KIF に ID が出ない。相手のページから開いた相手との対局は相手が手前のまま", async () => {
     const { a, c } = await seed();
     render(<GameViewer id={a.id} initialPly={0} />);
     await waitFor(() => expect(screen.getByText(/0 手目/)).toBeInTheDocument());
@@ -115,6 +121,7 @@ describe("自分の ID の統合", () => {
     noIds();
     cleanup();
 
+    openFrom(c.id, "#/player/rival");
     render(<GameViewer id={c.id} initialPly={0} />);
     await waitFor(() => expect(screen.getByText(/0 手目/)).toBeInTheDocument());
     rows = document.querySelectorAll(".side-row");
@@ -124,6 +131,33 @@ describe("自分の ID の統合", () => {
     expect(rows[1]).toHaveTextContent("☗ rival 三段");
     noSelfRank(rows[0]!);
     noIds();
+  });
+
+  it("棋譜ビューア: 自分 vs 登録相手の対局は、相手の文脈以外 (マイページ・比較・学習・直接 URL) から開くと自分が手前", async () => {
+    const { c } = await seed();
+    const contexts: Array<[string | null, "自分" | "rival"]> = [
+      ["#/player/自分", "自分"],
+      ["#/player/自分/compare/rival?opening=x", "自分"],
+      ["#/player/自分/branch/k?at=3", "自分"],
+      ["#/games?player=自分", "自分"],
+      [null, "自分"],
+      ["#/", "自分"],
+      ["#/player/rival?style=ibisha-ibisha", "rival"],
+      ["#/games?player=rival", "rival"],
+      ["#/player/rival/compare/自分", "rival"],
+    ];
+    for (const [prev, front] of contexts) {
+      openFrom(c.id, prev);
+      render(<GameViewer id={c.id} initialPly={0} />);
+      await waitFor(() => expect(screen.getByText(/0 手目/)).toBeInTheDocument());
+      const rows = document.querySelectorAll(".side-row");
+      const mark = front === "自分" ? "☖" : "☗";
+      expect(rows[1], `${prev}`).toHaveTextContent(`${mark} ${front}`);
+      expect(rows[1]!.querySelector(".player.tracked"), `${prev}`).not.toBeNull();
+      expect(rows[0]!.querySelector(".player.tracked"), `${prev}`).toBeNull();
+      noIds();
+      cleanup();
+    }
   });
 
   it("相手の対局者ページの集計は今までどおり", async () => {

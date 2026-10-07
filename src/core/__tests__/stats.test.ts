@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseKifu } from "../parse";
-import { computePlayerStats, listPlayers, outcomeFor, trackedSide } from "../stats";
+import { computePlayerStats, listPlayers, outcomeFor, trackedSide, viewerSide } from "../stats";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "./fixtures";
 
 const source = { kind: "paste" as const };
@@ -18,6 +18,17 @@ describe("stats", () => {
     expect(trackedSide({ black: "a", white: "b", tags: ["b", "大会相手"] })).toBe("white");
     expect(trackedSide({ black: "a", white: "b", tags: ["a", "b"] })).toBeNull();
     expect(trackedSide({ black: "a", white: "b", tags: [] })).toBeNull();
+  });
+
+  it("viewerSide: 開いた元の対局者 → 自分 → trackedSide の順で手前を決める", () => {
+    const g = { black: "rival", white: "自分", tags: ["rival", "自分"] };
+    expect(viewerSide(g)).toBe("white");
+    expect(viewerSide(g, "自分")).toBe("white");
+    expect(viewerSide(g, "rival")).toBe("black");
+    expect(viewerSide(g, "other")).toBe("white");
+    expect(viewerSide({ black: "a", white: "b", tags: ["b"] })).toBe("white");
+    expect(viewerSide({ black: "a", white: "b", tags: ["b"] }, "a")).toBe("black");
+    expect(viewerSide({ black: "a", white: "b", tags: [] })).toBeNull();
   });
 
   it("対局者の成績と分岐点をまとめる", async () => {

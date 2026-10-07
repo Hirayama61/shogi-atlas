@@ -6,14 +6,14 @@ import { formatUsiMove } from "../core/branches";
 import { importRecord } from "../core/parse";
 import { positionKey } from "../core/position";
 import { GAME_SHAPE_LABEL } from "../core/opening";
-import { trackedSide } from "../core/stats";
+import { viewerSide } from "../core/stats";
 import { db, findGamesByPosition } from "../db/db";
 import { Board } from "./Board";
 import { EvalChart } from "./EvalChart";
 import { LossHelp } from "./LossHelp";
 import { describeGame, fmtCp, formatDate, playerLabel } from "./labels";
-import { navigate, type Route } from "./router";
-import { canGoBack } from "./viewState";
+import { navigate, parseHash, routePlayer, type Route } from "./router";
+import { canGoBack, previousHash } from "./viewState";
 
 interface Props {
   id: string;
@@ -43,8 +43,15 @@ export function GameViewer({ id, initialPly }: Props) {
     [review],
   );
   const [ply, setPly] = useState(initialPly ?? 0);
-  // 本人 (登録した対局者) が後手なら最初から後手を手前にする。「反転」で上書きできる (対局ごと)
-  const tracked = game ? trackedSide(game) : null;
+  // 開いた元の画面の対局者 (無ければ自分、自分もいなければ登録した対局者) が後手なら最初から後手を手前にする。
+  // 「反転」で上書きできる (対局ごと)
+  const context = useMemo(() => {
+    const prev = previousHash();
+    return prev ? routePlayer(parseHash(prev)) : undefined;
+    // 棋譜を開くたびに (id が変わったら) 遷移元を読み直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  const tracked = game ? viewerSide(game, context) : null;
   const [flipOverride, setFlipOverride] = useState<{ id: string; value: boolean } | null>(null);
   const flipped = flipOverride?.id === id ? flipOverride.value : tracked === "white";
   const [copied, setCopied] = useState("");

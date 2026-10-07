@@ -7,9 +7,17 @@
 #   DATA_DIR      データリポジトリの clone (必須)
 #   GITHUB_TOKEN  Issue の読み書きができるトークン (必須。受信箱処理が使う)
 #   MAX_GAMES     1 回で解析する最大局数 (既定: 20)
-#   TIME_BUDGET   解析の目安時間 (秒)。超えたら新しい対局を始めない (既定: 3000 = 50 分)。エンジンは 1 本で 4 コアを使い切るので並列にはしない
+#   TIME_BUDGET   解析の時間の上限 (秒、既定: 3000 = 50 分)。エンジンは 1 本で 4 コアを使い切るので並列にはしない
 #   DEPTH, ONLY, MOVE_TIME_LIMIT   scripts/analyze.ts にそのまま渡す (MOVE_TIME_LIMIT は 1 局面の探索時間の上限 (秒)、既定 20)
 #   SKIP_PUSH     1 なら commit まで行い push しない (動作確認用)
+#
+# 時間の上限の関係 (ルーティンは外側で `timeout 65m` をかけて呼ぶ):
+#   外側の timeout > 受信箱 + TIME_BUDGET + MOVE_TIME_LIMIT + プロファイル・commit・push
+#   (既定: 65 分 > 数分 + 50 分 + 20 秒 + 数分)
+# 解析は TIME_BUDGET の内側で終わる (scripts/budget.ts)。残り時間が 1 局の最悪見積もり (局面数 × MOVE_TIME_LIMIT) に
+# 足りなければ新しい対局を始めず、始めた対局も次の 1 局面で上限を超えるなら打ち切って次回に回す。
+# はみ出すのは最後の 1 局面の stop の遅れ程度。MOVE_TIME_LIMIT=0 (無制限) にするとこの保証は無くなる。
+# それでも殺されたときは、次回の最初に scripts/recover-data.sh が残骸を片付ける (書き終えた解析結果はコミット、他は捨てる)。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,7 +42,7 @@ commit_if_changed() {
 }
 
 echo "== 最新化"
-data checkout -q main
+bash scripts/recover-data.sh "$DATA_DIR"
 data pull -q --rebase origin main
 
 echo "== 受信箱"

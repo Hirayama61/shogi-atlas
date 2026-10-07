@@ -510,9 +510,44 @@ describe("UI", () => {
     return { b, b2, b3 };
   }
 
-  it("PlayerPage: 戦法の詳細の分岐点は 1 件 1 行で入れ子が無く、戦法・手数・局数・候補手と判定が出て、悪手が先", async () => {
+  it("PlayerPage: 戦法の詳細の分岐点は木で、下流の分岐点が親の手の先に字下げして出る。入れ子の details は無く、悪手の枝が先", async () => {
     const { b, b2 } = await seedBranches();
     await db.games.delete("b3b3b3");
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    render(<PlayerPage name="Sukonbu3" view={view} />);
+    await waitFor(() => expect(document.querySelector(".branch-row.mistake")).not.toBeNull());
+    const panel = document.querySelector(".detail-branches") as HTMLElement;
+    expect(panel.querySelector("details")).toBeNull();
+    const rows = Array.from(panel.querySelectorAll<HTMLAnchorElement>("a.branch-row"));
+    // a・b・b2 が 7 手目 (相手) で分かれ、△4二玉 の先の 18 手目で本人が分かれる (悪手あり)
+    expect(rows.map((r) => [r.dataset.depth, r.className])).toEqual([
+      ["0", "branch-row opponent"],
+      ["1", "branch-row mistake"],
+    ]);
+    expect(rows[0]!.textContent).toContain(`${b.opening.blackOpening} · 7 手目 · 3 局`);
+    expect(rows[0]!.querySelector(".branch-via")).toBeNull();
+    const text = rows[1]!.textContent ?? "";
+    expect(rows[1]!.querySelector(".branch-via")).toHaveTextContent("└ △4二玉 の先");
+    expect(text).toContain(`${b.opening.blackOpening} · 18 手目 · 2 局`);
+    expect(text).toContain("本人: ▲1六歩 (最善) / ▲9六歩 (悪手 · 損失 400 · 最善 ▲1六歩)");
+    expect(parseHash(rows[1]!.getAttribute("href")!)).toEqual({
+      kind: "branch",
+      name: "Sukonbu3",
+      key: b2.positions[18],
+      view,
+    });
+  });
+
+  it("PlayerPage: 別の戦法の対局との共通局面は戦法の詳細の分岐点に混ざらない", async () => {
+    const { b } = await seedBranches();
+    // b と同じ手順の 3 局を別の戦法にする。全対局で数えるとこの戦法は 18 手目の分岐点で少数派
+    const others = [1, 2, 3].map((i) => ({
+      ...b,
+      id: `o${i}o${i}`,
+      white: `o${i}`,
+      opening: { ...b.opening, blackOpening: "三間飛車" },
+    }));
+    await db.games.bulkPut(others);
     render(
       <PlayerPage
         name="Sukonbu3"
@@ -520,18 +555,15 @@ describe("UI", () => {
       />,
     );
     await waitFor(() => expect(document.querySelector(".branch-row.mistake")).not.toBeNull());
-    const panel = document.querySelector(".detail-branches") as HTMLElement;
-    expect(panel.querySelector("details")).toBeNull();
-    const rows = Array.from(panel.querySelectorAll<HTMLAnchorElement>("a.branch-row"));
-    expect(rows[0]!.classList.contains("mistake")).toBe(true);
-    const text = rows[0]!.textContent ?? "";
-    expect(text).toContain(`${b.opening.blackOpening} · 18 手目 · 2 局`);
-    expect(text).toContain("本人: ▲1六歩 (最善) / ▲9六歩 (悪手 · 損失 400 · 最善 ▲1六歩)");
-    expect(parseHash(rows[0]!.getAttribute("href")!)).toEqual({
-      kind: "branch",
-      name: "Sukonbu3",
-      key: b2.positions[18],
-    });
+    const rows = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>(".detail-branches a.branch-row"),
+    );
+    // この戦法 (a, b, b2, b3) だけで数えた局数が出る
+    expect(rows.map((r) => r.querySelector(".branch-head")!.textContent)).toEqual([
+      `${b.opening.blackOpening} · 7 手目 · 4 局 1 勝`,
+      `${b.opening.blackOpening} · 18 手目 · 3 局 1 勝`,
+      `${b.opening.blackOpening} · 19 手目 · 2 局 1 勝`,
+    ]);
   });
 
   it("分岐点の学習画面: 開始局面から 1 手ずつたどり、分岐点で候補手を比べ、選んだ手の先から棋譜へ飛ぶ", async () => {
@@ -574,6 +606,68 @@ describe("UI", () => {
     expect(await ply()).toBe("20 手目 △9四歩");
     fireEvent.click(screen.getByRole("button", { name: /^棋譜で開く/ }));
     expect(parseHash(location.hash)).toEqual({ kind: "game", id: b2.id, ply: 20 });
+  });
+
+  it("分岐点の学習画面: 候補を選んで進むと次の分岐点で候補手と判定が出て、選ぶとそこから続けられる", async () => {
+    const { b, b3 } = await seedBranches();
+    await db.analyses.put({
+      schema: 1,
+      id: b3.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: Array.from({ length: 21 }, (_, ply) => ({ ply, cp: ply >= 20 ? 300 : 0 })),
+    });
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    location.hash = hashFor({ kind: "branch", name: "Sukonbu3", key: b.positions[18]!, view });
+    render(<App />);
+    const ply = async () =>
+      (await screen.findByText(/開始局面|手目/, { selector: ".study-ply" })).textContent;
+    expect(await ply()).toBe("開始局面");
+    fireEvent.click(screen.getByRole("button", { name: "分岐点" }));
+    expect(await ply()).toBe("18 手目 △5四歩");
+    // ▲1六歩 (b, b3) を選ぶと、その先の 19 手目が次の分岐点 (相手の手番)
+    const self = screen.getByRole("group", { name: "本人の候補手" });
+    fireEvent.click(within(self).getByRole("button", { name: /^▲1六歩/ }));
+    expect(await ply()).toBe("19 手目 ▲1六歩");
+    expect(screen.getByText(/^次の分岐点 \(19 手目\)/)).toBeInTheDocument();
+    const opp = screen.getByRole("group", { name: "相手の候補手" });
+    const buttons = within(opp).getAllByRole("button");
+    expect(buttons[0]).toHaveTextContent("△1四歩 ×1 最善");
+    expect(buttons[1]!.textContent).toMatch(/^△9四歩 ×1 (疑問手|悪手|大悪手) · 損失 300/);
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelectorAll(".board-mark")).toHaveLength(2);
+    // 次の分岐点で別の手を選ぶと、その分岐点から続ける
+    fireEvent.click(buttons[1]!);
+    expect(await ply()).toBe("20 手目 △9四歩");
+    fireEvent.click(screen.getByRole("button", { name: /^棋譜で開く/ }));
+    expect(parseHash(location.hash)).toEqual({ kind: "game", id: b3.id, ply: 20 });
+  });
+
+  it("分岐点の学習画面: 分岐点から分岐点へ飛べる", async () => {
+    const { b } = await seedBranches();
+    const view = { quadrant: "furiVsIbisha" as const, opening: b.opening.blackOpening };
+    location.hash = hashFor({
+      kind: "branch",
+      name: "Sukonbu3",
+      key: b.positions[18]!,
+      view,
+      at: 19,
+      pick: "1g1f",
+      line: b.id,
+    });
+    render(<App />);
+    const ply = async () =>
+      (await screen.findByText(/開始局面|手目/, { selector: ".study-ply" })).textContent;
+    expect(await ply()).toBe("19 手目 ▲1六歩");
+    fireEvent.click(screen.getByRole("button", { name: "前の分岐点" }));
+    expect(await ply()).toBe("18 手目 △5四歩");
+    fireEvent.click(screen.getByRole("button", { name: "前の分岐点" }));
+    expect(await ply()).toBe("7 手目 ▲7七角");
+    expect(screen.getByRole("button", { name: "前の分岐点" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "次の分岐点" }));
+    expect(await ply()).toBe("18 手目 △5四歩");
+    fireEvent.click(screen.getByRole("button", { name: "次の分岐点" }));
+    expect(await ply()).toBe("19 手目 ▲1六歩");
   });
 
   it("分岐点の学習画面: 相手の手番の分岐点では相手の候補手が並ぶ", async () => {

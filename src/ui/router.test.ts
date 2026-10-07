@@ -11,6 +11,15 @@ describe("router", () => {
     const hash = hashFor(route);
     expect(hash.startsWith("#/player/a%2Fb/branch/")).toBe(true);
     expect(parseHash(hash)).toEqual(route);
+    // 戦法の詳細と学習画面の状態 (手数・候補・続きの対局) も往復する
+    const state: Route = {
+      ...route,
+      view: { quadrant: "furiVsIbisha", opening: "ノーマル四間飛車" },
+      at: 19,
+      pick: "9g9f",
+      line: "b2b2b2",
+    };
+    expect(parseHash(hashFor(state))).toEqual(state);
   });
 
   it("比較の画面の URL を往復できる", () => {

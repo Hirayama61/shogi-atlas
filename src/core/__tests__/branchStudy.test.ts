@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisRecord } from "../analysis";
-import { branchCandidates, buildBranchStudy } from "../branchStudy";
+import { buildBranchStudy, buildBranchTrees, flattenBranchTree } from "../branchStudy";
 import { parseKifu } from "../parse";
 import { findCommonPositions } from "../stats";
 import type { GameRecord } from "../types";
@@ -96,13 +96,89 @@ describe("branchStudy", () => {
     ]);
   });
 
-  it("一覧用に分岐点ごとの候補手をまとめて出す", async () => {
+  it("戦法の対局から分岐点を節に持つ木を作る。下流の分岐点は親の候補手の先に付く", async () => {
     const { a, b, c } = await games();
-    const gs = [a, b, c];
-    const positions = findCommonPositions(gs, "taro");
-    const map = branchCandidates(positions, gs, new Map(), "taro");
-    expect(map.size).toBe(positions.length);
-    const at18 = positions.find((p) => p.ply === 18)!;
-    expect(map.get(at18.key)!.candidates.map((c) => c.label)).toEqual(["▲1六歩", "▲9六歩"]);
+    const bad = flat.map((cp, ply) => (ply >= 19 ? -400 : cp));
+    const map = new Map(
+      [fakeAnalysis(a.id, flat), fakeAnalysis(b.id, bad, { 18: "1g1f" })].map(
+        (x) => [x.id, x] as const,
+      ),
+    );
+    const trees = buildBranchTrees([a, b, c], map, "taro");
+    expect(trees.map((t) => [t.side, t.size, t.roots.length])).toEqual([["black", 2, 1]]);
+    const root = trees[0]!.roots[0]!;
+    // 18 手目で本人が分かれ (悪手あり)、▲1六歩 の先の 19 手目で相手が分かれる
+    expect(root).toMatchObject({ ply: 18, kind: "mistake", mover: "self", key: a.positions[18] });
+    expect(root.gameIds).toEqual([a.id, b.id, c.id].sort());
+    expect(root.via).toBeUndefined();
+    expect(root.candidates.map((x) => [x.label, x.count, x.judgement, x.loss])).toEqual([
+      ["▲1六歩", 2, "good", 0],
+      ["▲9六歩", 1, "mistake", 400],
+    ]);
+    expect(root.children).toHaveLength(1);
+    const child = root.children[0]!;
+    expect(child).toMatchObject({
+      ply: 19,
+      kind: "opponent",
+      mover: "opponent",
+      key: a.positions[19],
+      via: { usi: "1g1f", label: "▲1六歩" },
+      children: [],
+    });
+    expect(child.gameIds).toEqual([a.id, c.id].sort());
+    expect(child.candidates.map((x) => [x.label, x.judgement])).toEqual([
+      ["△1四歩", "good"],
+      ["△9四歩", null],
+    ]);
+    expect(flattenBranchTree(trees[0]!.roots).map((x) => [x.node.ply, x.depth])).toEqual([
+      [18, 0],
+      [19, 1],
+    ]);
+  });
+
+  it("本人の側ごとに別の木にする", async () => {
+    const { a, b } = await games();
+    const w1 = { ...a, id: "w1", black: "jiro", white: "taro" };
+    const w2 = { ...b, id: "w2", black: "saburo", white: "taro" };
+    const trees = buildBranchTrees([a, b, w1, w2], new Map(), "taro");
+    expect(trees.map((t) => [t.side, t.roots.map((r) => r.gameIds)])).toEqual([
+      ["black", [[a.id, b.id].sort()]],
+      ["white", [["w1", "w2"]]],
+    ]);
+    expect(trees[1]!.roots[0]).toMatchObject({ mover: "opponent", kind: "unanalyzed" });
+  });
+
+  it("分岐点はその戦法の対局だけで求める。別の戦法の共通局面は混ざらず、戦法の分岐点はすべて木に入る", async () => {
+    const { a, b, c } = await games();
+    // 別の戦法 (と見なす) の 4 局。a と同じ手順なので 19 手目まで a / c と共通
+    const others = ["d", "e", "f", "g"].map((id) => ({
+      ...a,
+      id,
+      opening: { ...a.opening, blackOpening: "三間飛車" },
+    }));
+    const all = [a, b, c, ...others];
+    const mine = [a, b, c];
+    const ids = new Set(mine.map((g) => g.id));
+    // 全対局で求めると 18 手目の分岐点は 7 局のうち 3 局しかこの戦法でなく、多数決ではどこにも入らなかった
+    const global = findCommonPositions(all, "taro").find((p) => p.key === a.positions[18])!;
+    expect(global.gameIds).toHaveLength(7);
+    const nodes = buildBranchTrees(mine, new Map(), "taro").flatMap((t) =>
+      flattenBranchTree(t.roots),
+    );
+    expect(nodes.map((x) => x.node.key)).toContain(a.positions[18]);
+    for (const { node } of nodes) {
+      expect(node.gameIds.every((id) => ids.has(id))).toBe(true);
+      expect(node.opening).toBe("ノーマル四間飛車");
+    }
+    expect(nodes.map((x) => x.node.key).sort()).toEqual(
+      findCommonPositions(mine, "taro")
+        .map((p) => p.key)
+        .sort(),
+    );
+    // 別の戦法の木にもこの戦法の対局は入らない
+    const otherNodes = buildBranchTrees(others, new Map(), "taro").flatMap((t) =>
+      flattenBranchTree(t.roots),
+    );
+    expect(otherNodes.every(({ node }) => node.gameIds.every((id) => !ids.has(id)))).toBe(true);
   });
 });

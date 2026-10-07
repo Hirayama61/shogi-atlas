@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseKifu } from "../core/parse";
 import { USI_ANAGUMA_VS_SHIKEN, USI_SHIKEN_VS_FUNA } from "../core/__tests__/fixtures";
@@ -115,6 +115,58 @@ describe("棋譜画面から戻る", () => {
     await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 900));
     await waitFor(() => expect(lines().open).toBe(true));
+  });
+
+  it("分岐点の学習画面から棋譜へ飛んで戻ると、手数・選んだ候補・続きの対局が保たれる", async () => {
+    await seed();
+    const variant = async (id: string, to: string, white: string) => {
+      const g = await parseKifu(USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", to), { source });
+      Object.assign(g, { id, black: "Sukonbu3", white, result: "white", tags: ["Sukonbu3"] });
+      return g;
+    };
+    const b2 = await variant("b2b2b2", "9g9f 9c9d", "x3");
+    const b4 = await variant("b4b4b4", "9g9f 1c1d", "x4");
+    await db.games.bulkPut([b2, b4]);
+    history.replaceState(null, "", hashFor(DETAIL));
+    render(<App />);
+    const row = await waitFor(() => {
+      const a = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(".opening-detail a.branch-row"),
+      ).find((x) => x.textContent?.includes("18 手目"));
+      expect(a).toBeDefined();
+      return a!;
+    });
+    act(() => {
+      location.hash = row.getAttribute("href")!;
+    });
+    const group = await screen.findByRole("group", { name: "本人の候補手" });
+    // ▲9六歩 (b2, b4) を選び、続きの対局を b4 にして 1 手進める
+    fireEvent.click(within(group).getByRole("button", { name: /^▲9六歩/ }));
+    const lines = () => document.querySelector(".study-lines") as HTMLElement;
+    await waitFor(() => expect(lines()).not.toBeNull());
+    fireEvent.click(within(lines()).getByRole("button", { name: /vs x4/ }));
+    fireEvent.click(screen.getByRole("button", { name: "進む" }));
+    const ply = () => document.querySelector(".study-ply")!.textContent;
+    await waitFor(() => expect(ply()).toBe("20 手目 △1四歩"));
+    fireEvent.click(screen.getByRole("button", { name: /^棋譜で開く/ }));
+    await waitFor(() => expect(location.hash).toBe(`#/game/${b4.id}/20`));
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+
+    await waitFor(() =>
+      expect(document.querySelector(".study-ply")?.textContent).toBe("20 手目 △1四歩"),
+    );
+    const restored = screen.getByRole("group", { name: "本人の候補手" });
+    expect(within(restored).getByRole("button", { name: /^▲9六歩/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(lines()).getByRole("button", { name: /vs x4/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // 閉じると戦法の詳細へ戻る
+    fireEvent.click(screen.getByRole("button", { name: "← 閉じる" }));
+    await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
   });
 
   it("区分 → 戦法の詳細と開き、一つ上に戻ると前の位置に戻る", async () => {

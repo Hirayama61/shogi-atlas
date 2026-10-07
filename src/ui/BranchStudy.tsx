@@ -1,26 +1,71 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
-import { BRANCH_KIND_LABEL, reviewBranches } from "../core/branches";
-import { buildBranchStudy, type StudyCandidate, type StudyStep } from "../core/branchStudy";
-import { findCommonPositions, playerSide } from "../core/stats";
+import { BRANCH_KIND_LABEL } from "../core/branches";
+import {
+  STUDY_CONTINUATION_PLIES,
+  buildBranchStudy,
+  buildBranchTrees,
+  flattenBranchTree,
+  type BranchCandidate,
+  type BranchNode,
+  type BranchTree,
+  type StudyStep,
+} from "../core/branchStudy";
+import type { AnalysisRecord } from "../core/analysis";
+import type { GameRecord } from "../core/types";
+import { playerSide } from "../core/stats";
+import { computeOpeningDetail } from "../core/styles";
 import { db } from "../db/db";
 import { Board, type BoardMark } from "./Board";
 import { describeCandidate, formatDate, judgementTone } from "./labels";
 import { GameButtons } from "./GameButtons";
-import { navigate } from "./router";
+import { hashFor, navigate, type BranchState, type Route } from "./router";
 import { canGoBack } from "./viewState";
 
-interface Props {
-  name: string;
-  /** 分岐点の局面キー */
-  branchKey: string;
+type Props = { name: string; branchKey: string } & BranchState;
+
+/** 局面キー (手数を除いた SFEN の先頭 3 項目) */
+function keyOf(sfen: string): string {
+  return sfen.split(" ").slice(0, 3).join(" ");
+}
+
+/**
+ * 木の中の分岐点 `key` の学習用の手順と、同じ木の節 (局面キー → 節)。見つからなければ null。
+ * 続きは、その節の下流で最も深い分岐点を越えるところまで。
+ */
+function studyAt(
+  trees: BranchTree[],
+  key: string,
+  games: GameRecord[],
+  analyses: Map<string, AnalysisRecord>,
+  name: string,
+) {
+  for (const tree of trees) {
+    const nodes = flattenBranchTree(tree.roots);
+    const node = nodes.find((x) => x.node.key === key)?.node;
+    if (!node) continue;
+    const deepest = Math.max(...flattenBranchTree([node]).map((x) => x.node.ply));
+    const study = buildBranchStudy(
+      node,
+      games,
+      analyses,
+      name,
+      STUDY_CONTINUATION_PLIES + (deepest - node.ply),
+    );
+    if (!study) return null;
+    const nodeByKey = new Map(nodes.map((x) => [x.node.key, x.node] as const));
+    return { node, study, nodeByKey };
+  }
+  return null;
 }
 
 /**
  * 分岐点を学ぶ画面。開始局面から分岐点までの共通手順を 1 手ずつたどり、分岐点で候補手を盤の上で比べ、
- * 選んだ候補手の先をその手を指した対局の手順で進める。
+ * 選んだ候補手の先をその手を指した対局の手順で進める。分岐点は戦法ごとの木の節で、
+ * 手順の途中にある別の分岐点 (祖先・子孫) でもその節の候補手が出て、選ぶとその節から学び直す。
+ * 状態 (分岐点・手数・候補・続きの対局) は URL に持たせ、棋譜ビューアから戻ったときに復元する。
  */
-export function BranchStudyPage({ name, branchKey }: Props) {
+export function BranchStudyPage({ name, branchKey, view, at: initialAt, pick, line }: Props) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
   const own = useMemo(
@@ -28,29 +73,53 @@ export function BranchStudyPage({ name, branchKey }: Props) {
     [games, name],
   );
   const byId = useMemo(() => new Map(own.map((g) => [g.id, g] as const)), [own]);
-  const data = useMemo(() => {
-    if (!games || !analyses) return undefined;
-    const p = findCommonPositions(own, name).find((x) => x.key === branchKey);
-    if (!p) return null;
-    const map = new Map(analyses.map((a) => [a.id, a] as const));
-    const study = buildBranchStudy(p, own, map, name);
-    const review = reviewBranches([p], own, map, name)[0];
-    return study && review ? { p, study, review } : null;
-  }, [games, analyses, own, name, branchKey]);
+  // 分岐点の木は戦法の詳細と同じ対局集合で作る (URL に戦法が無ければ本人の全対局)
+  const subset = useMemo(() => {
+    if (!view?.opening) return own;
+    const ids = new Set(
+      computeOpeningDetail(own, name, view.quadrant, view.axis ?? "self", view.opening).gameIds,
+    );
+    return own.filter((g) => ids.has(g.id));
+  }, [own, name, view]);
+  const map = useMemo(
+    () => (analyses ? new Map(analyses.map((a) => [a.id, a] as const)) : undefined),
+    [analyses],
+  );
+  const trees = useMemo(
+    () => (games && map ? buildBranchTrees(subset, map, name) : undefined),
+    [games, map, subset, name],
+  );
 
+  const [rootKey, setRootKey] = useState(branchKey);
   // cursor: 0 = 開始局面、path.length = 分岐点、それより先は選んだ候補手の続き
-  const [cursor, setCursor] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [lineIndex, setLineIndex] = useState(0);
+  const [cursor, setCursor] = useState(initialAt ?? 0);
+  const [selected, setSelected] = useState<string | null>(pick ?? null);
+  const [lineId, setLineId] = useState<string | null>(line ?? null);
 
-  const candidate: StudyCandidate | undefined =
-    selected === null ? undefined : data?.study.candidates[selected];
-  const line = candidate?.lines[lineIndex] ?? candidate?.lines[0];
+  const data = useMemo(
+    () => (trees && map ? studyAt(trees, rootKey, subset, map, name) : undefined),
+    [trees, map, rootKey, subset, name],
+  );
+
+  const candidate = data?.study.candidates.find((c) => c.usi === selected);
+  const studyLine = candidate?.lines.find((l) => l.gameId === lineId) ?? candidate?.lines[0];
   const steps: StudyStep[] = useMemo(
-    () => (data ? [...data.study.path, ...(line?.steps ?? [])] : []),
-    [data, line],
+    () => (data ? [...data.study.path, ...(studyLine?.steps ?? [])] : []),
+    [data, studyLine],
   );
   const last = steps.length;
+  const at = Math.min(cursor, last);
+  // 手順の上の分岐点 (手数 → 節)
+  const branchAt = useMemo(() => {
+    const out = new Map<number, BranchNode>();
+    if (!data) return out;
+    for (let i = 0; i <= steps.length; i++) {
+      const sfen = i === 0 ? data.study.start : steps[i - 1]!.sfen;
+      const n = data.nodeByKey.get(keyOf(sfen));
+      if (n) out.set(i, n);
+    }
+    return out;
+  }, [data, steps]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,9 +130,20 @@ export function BranchStudyPage({ name, branchKey }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [last]);
 
+  // 今の状態を URL に書き戻す (履歴は増やさない)。棋譜ビューアから戻るとこの URL で開き直す
+  useEffect(() => {
+    if (!data) return;
+    const route: Route = { kind: "branch", name, key: rootKey, at };
+    if (view) route.view = view;
+    if (candidate) route.pick = candidate.usi;
+    if (studyLine) route.line = studyLine.gameId;
+    const hash = hashFor(route);
+    if (location.hash !== hash) history.replaceState(history.state, "", hash);
+  }, [data, name, rootKey, at, view, candidate, studyLine]);
+
   const back = () => {
     if (canGoBack()) history.back();
-    else navigate({ kind: "player", name });
+    else navigate(view ? { kind: "player", name, view } : { kind: "player", name });
   };
 
   if (data === undefined) return <p className="muted">読み込み中…</p>;
@@ -77,34 +157,51 @@ export function BranchStudyPage({ name, branchKey }: Props) {
       </section>
     );
 
-  const { p, study, review } = data;
-  const branchAt = study.path.length;
-  const at = Math.min(cursor, last);
+  const { node, study } = data;
+  const rootAt = study.path.length;
   const step = at === 0 ? null : steps[at - 1]!;
   const sfen = step ? step.sfen : study.start;
-  const atBranch = at === branchAt;
-  const marks: BoardMark[] = atBranch
-    ? study.candidates.map((c, i) => ({
+  // 今の局面が分岐点ならその節、そうでなければこの画面の分岐点の候補を出す
+  const here = branchAt.get(at);
+  const shown = here ?? node;
+  const isRoot = shown.key === node.key;
+  // 選んでいる候補: 根では選んだ候補、ほかの分岐点では今の手順で次に指した手
+  const pickedHere = isRoot ? (candidate?.usi ?? null) : at < last ? steps[at]!.usi : null;
+  const marks: BoardMark[] = here
+    ? here.candidates.map((c) => ({
         usi: c.usi,
         tone: judgementTone(c.judgement),
-        selected: i === selected,
+        selected: c.usi === pickedHere,
       }))
     : [];
-  const select = (i: number) => {
-    setSelected(i);
-    setLineIndex(0);
-    setCursor(branchAt + 1);
+  const branchStepOf = (n: BranchNode) =>
+    Array.from(branchAt).find(([, x]) => x.key === n.key)?.[0];
+  const choose = (n: BranchNode, c: BranchCandidate) => {
+    if (n.key !== node.key) setRootKey(n.key);
+    setSelected(c.usi);
+    setLineId(c.gameIds[0] ?? null);
+    // 分岐点の手数は開始局面からの手数と同じ (共通手順は対局の先頭から)
+    setCursor((n.key === node.key ? rootAt : (branchStepOf(n) ?? n.ply)) + 1);
   };
+  const cursors = Array.from(branchAt.keys()).sort((a, b) => a - b);
+  const prevBranch = cursors.filter((c) => c < at).pop();
+  const nextBranch = cursors.find((c) => c > at);
   // 棋譜ビューアで開く対局と手数。候補手を選んでいればその対局、無ければ共通手順をとった対局
-  const viewerGame = line?.gameId ?? study.pathGameId;
+  const viewerGame = studyLine?.gameId ?? study.pathGameId;
   const viewerPly =
-    at <= branchAt ? (line ? line.steps[0]!.ply - 1 - (branchAt - at) : at) : step!.ply;
+    at <= rootAt ? (studyLine ? studyLine.steps[0]!.ply - 1 - (rootAt - at) : at) : step!.ply;
   const gameLabel = (id: string) => {
     const g = byId.get(id);
     if (!g) return id;
     return `${formatDate(g.startedAt).slice(0, 10)} vs ${playerSide(g, name) === "black" ? g.white : g.black}`;
   };
-  const who = study.mover === "self" ? "本人" : "相手";
+  const who = shown.mover === "self" ? "本人" : "相手";
+
+  let note: string;
+  if (here)
+    note = isRoot ? `分岐点 · ${who}の候補手` : `次の分岐点 (${here.ply} 手目) · ${who}の候補手`;
+  else if (at < rootAt) note = `分岐点まであと ${rootAt - at} 手 · ${who}の候補手`;
+  else note = `${candidate?.label ?? ""} の続き`;
 
   return (
     <section className="study">
@@ -114,8 +211,8 @@ export function BranchStudyPage({ name, branchKey }: Props) {
         </button>
       </div>
       <div className="study-title">
-        <span className={`branch-tag ${review.kind}`}>{BRANCH_KIND_LABEL[review.kind]}</span>{" "}
-        {review.opening} · {branchAt} 手目まで共通 · {p.gameIds.length} 局 · {name} の {p.wins} 勝
+        <span className={`branch-tag ${node.kind}`}>{BRANCH_KIND_LABEL[node.kind]}</span>{" "}
+        {node.opening} · {rootAt} 手目まで共通 · {node.gameIds.length} 局 · {name} の {node.wins} 勝
       </div>
       <div className="study-body">
         <div className="study-board">
@@ -128,6 +225,14 @@ export function BranchStudyPage({ name, branchKey }: Props) {
           <div className="controls" style={{ marginTop: 6 }}>
             <button className="ghost" aria-label="開始局面" onClick={() => setCursor(0)}>
               |◀
+            </button>
+            <button
+              className="ghost"
+              aria-label="前の分岐点"
+              disabled={prevBranch === undefined}
+              onClick={() => prevBranch !== undefined && setCursor(prevBranch)}
+            >
+              ◆◀
             </button>
             <button
               className="ghost"
@@ -148,27 +253,29 @@ export function BranchStudyPage({ name, branchKey }: Props) {
             >
               ▶
             </button>
-            <button className="ghost" aria-label="分岐点" onClick={() => setCursor(branchAt)}>
+            <button
+              className="ghost"
+              aria-label="次の分岐点"
+              disabled={nextBranch === undefined}
+              onClick={() => nextBranch !== undefined && setCursor(nextBranch)}
+            >
+              ▶◆
+            </button>
+            <button className="ghost" aria-label="分岐点" onClick={() => setCursor(rootAt)}>
               ◆
             </button>
           </div>
         </div>
         <div className="study-side">
-          <div className="muted">
-            {atBranch
-              ? `分岐点 · ${who}の候補手`
-              : at < branchAt
-                ? `分岐点まであと ${branchAt - at} 手 · ${who}の候補手`
-                : `${candidate?.label ?? ""} の続き`}
-          </div>
+          <div className="muted">{note}</div>
           <div className="candidates" role="group" aria-label={`${who}の候補手`}>
-            {study.candidates.map((c, i) => (
+            {shown.candidates.map((c) => (
               <button
                 key={c.usi}
                 type="button"
                 className={`candidate ${judgementTone(c.judgement)}`}
-                aria-pressed={selected === i}
-                onClick={() => select(i)}
+                aria-pressed={here ? c.usi === pickedHere : isRoot && c.usi === candidate?.usi}
+                onClick={() => choose(shown, c)}
               >
                 <strong>{c.label}</strong> ×{c.count}{" "}
                 <span className="candidate-note">{describeCandidate(c)}</span>
@@ -178,15 +285,15 @@ export function BranchStudyPage({ name, branchKey }: Props) {
           {candidate && candidate.lines.length > 1 && (
             <div className="row study-lines">
               <span className="muted">続きの対局:</span>
-              {candidate.lines.map((l, i) => (
+              {candidate.lines.map((l) => (
                 <button
                   key={l.gameId}
                   type="button"
                   className="ghost"
-                  aria-pressed={(line?.gameId ?? "") === l.gameId}
+                  aria-pressed={(studyLine?.gameId ?? "") === l.gameId}
                   onClick={() => {
-                    setLineIndex(i);
-                    setCursor(Math.min(cursor, branchAt + l.steps.length));
+                    setLineId(l.gameId);
+                    setCursor(Math.min(cursor, rootAt + l.steps.length));
                   }}
                 >
                   {gameLabel(l.gameId)}
@@ -205,8 +312,8 @@ export function BranchStudyPage({ name, branchKey }: Props) {
             </button>
           </div>
           <details className="study-games">
-            <summary>この分岐点を通った対局 · {p.gameIds.length} 局</summary>
-            <GameButtons gameIds={p.gameIds} ply={p.ply} byId={byId} name={name} />
+            <summary>この分岐点を通った対局 · {node.gameIds.length} 局</summary>
+            <GameButtons gameIds={node.gameIds} ply={node.ply} byId={byId} name={name} />
           </details>
         </div>
       </div>

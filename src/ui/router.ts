@@ -43,6 +43,17 @@ export interface PlayerView {
   opening?: string;
 }
 
+/**
+ * 分岐点の学習画面の状態。view は分岐点の木を作った戦法の詳細 (省くと本人の全対局)、
+ * at は開始局面からの手数、pick は分岐点で選んだ候補手 (USI)、line は続きをたどる対局。
+ */
+export interface BranchState {
+  view?: PlayerView;
+  at?: number;
+  pick?: string;
+  line?: string;
+}
+
 export type Route =
   | { kind: "list"; query?: ListQuery; portfolio?: PortfolioFilter }
   | { kind: "players" }
@@ -50,8 +61,8 @@ export type Route =
   | { kind: "updates" }
   | { kind: "game"; id: string; ply?: number }
   | { kind: "player"; name: string; view?: PlayerView }
-  /** 分岐点の学習画面。key は分岐点の局面キー */
-  | { kind: "branch"; name: string; key: string }
+  /** 分岐点の学習画面。key は分岐点の局面キー。残りは学習画面の状態 (戻ったときに復元する) */
+  | ({ kind: "branch"; name: string; key: string } & BranchState)
   /** 参考の対局者 (other) と同じ局面で何を指したかの比較。opening で 2 人の戦法を絞る */
   | { kind: "compare"; name: string; other: string; opening?: string; diffOnly?: boolean };
 
@@ -195,11 +206,22 @@ export function parseHash(full: string): Route {
   }
   const branch = /^#\/player\/([^/]+)\/branch\/([^/]+)$/.exec(hash);
   if (branch?.[1] && branch[2]) {
-    return {
+    const route: Route = {
       kind: "branch",
       name: decodeURIComponent(branch[1]),
       key: decodeURIComponent(branch[2]),
     };
+    const search = qi < 0 ? "" : full.slice(qi + 1);
+    const view = parsePlayerView(search);
+    if (view) route.view = view;
+    const p = new URLSearchParams(search);
+    const at = Number(p.get("at"));
+    if (p.get("at") && Number.isInteger(at) && at >= 0) route.at = at;
+    const pick = p.get("pick");
+    if (pick) route.pick = pick;
+    const line = p.get("line");
+    if (line) route.line = line;
+    return route;
   }
   const compare = /^#\/player\/([^/]+)\/compare\/([^/]+)$/.exec(hash);
   if (compare?.[1] && compare[2]) {
@@ -237,8 +259,15 @@ export function hashFor(route: Route): string {
       const path = `#/player/${encodeURIComponent(route.name)}`;
       return route.view ? `${path}?${playerViewString(route.view)}` : path;
     }
-    case "branch":
-      return `#/player/${encodeURIComponent(route.name)}/branch/${encodeURIComponent(route.key)}`;
+    case "branch": {
+      const path = `#/player/${encodeURIComponent(route.name)}/branch/${encodeURIComponent(route.key)}`;
+      const p = new URLSearchParams(route.view ? playerViewString(route.view) : "");
+      if (route.at !== undefined) p.set("at", String(route.at));
+      if (route.pick) p.set("pick", route.pick);
+      if (route.line) p.set("line", route.line);
+      const qs = p.toString();
+      return qs ? `${path}?${qs}` : path;
+    }
     case "compare": {
       const path = `#/player/${encodeURIComponent(route.name)}/compare/${encodeURIComponent(route.other)}`;
       const p = new URLSearchParams();

@@ -97,7 +97,7 @@ test.describe("一通りの画面", () => {
     await expect(ply).toHaveText("開始局面");
     await page.getByRole("button", { name: "進む" }).click();
     await expect(ply).toHaveText("1 手目 ▲7六歩");
-    await page.getByRole("button", { name: "分岐点" }).click();
+    await page.getByRole("button", { name: "分岐点", exact: true }).click();
     await expect(ply).toHaveText("18 手目 △5四歩");
     // 盤・進む戻る・候補手がスマホの縦画面に収まる
     await expect(page.locator(".study-board svg.board")).toBeInViewport();

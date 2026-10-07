@@ -64,7 +64,16 @@ export default function App() {
       {route.kind === "list" && <GameList query={route.query} portfolio={route.portfolio} />}
       {route.kind === "players" && <PlayerList />}
       {route.kind === "player" && <PlayerPage name={route.name} view={route.view} />}
-      {route.kind === "branch" && <BranchStudyPage name={route.name} branchKey={route.key} />}
+      {route.kind === "branch" && (
+        <BranchStudyPage
+          name={route.name}
+          branchKey={route.key}
+          view={route.view}
+          at={route.at}
+          pick={route.pick}
+          line={route.line}
+        />
+      )}
       {route.kind === "compare" && <ComparePage route={route} />}
       {route.kind === "settings" && <SettingsPane />}
       {route.kind === "updates" && <UpdatesPane onSeen={onSeen} />}

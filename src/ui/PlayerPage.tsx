@@ -10,8 +10,14 @@ import {
   type OpeningDetail,
   type QuadrantStats,
 } from "../core/styles";
-import { BRANCH_KINDS, reviewBranches, type BranchKind, type BranchReview } from "../core/branches";
-import { branchCandidates, type BranchCandidates } from "../core/branchStudy";
+import type { BranchKind } from "../core/branches";
+import {
+  buildBranchTrees,
+  flattenBranchTree,
+  type BranchNode,
+  type BranchTree,
+} from "../core/branchStudy";
+import type { AnalysisRecord } from "../core/analysis";
 import { computeComboStats, type ComboBucket, type ComboStats } from "../core/combo";
 import { SELF_NAME } from "../core/self";
 import { computePlayerStats, listPlayers, playerSide, type Bucket } from "../core/stats";
@@ -306,32 +312,38 @@ const BRANCH_KIND_SHORT: Record<BranchKind, string> = {
 };
 
 /**
- * 分岐点の一覧。1 件 1 行で、悪手を指した分岐 → 正しく指せた分岐 → 相手の選択 → 未解析の順。
- * 行をタップすると分岐点の学習画面へ。
+ * 分岐点の木。1 節 1 行で、下流の分岐点は親の下に字下げして「親で指した手の先」と添える。
+ * 悪手を含む枝を先に並べる。行をタップすると分岐点の学習画面へ。
+ * 行数が上限を超えたら、根の単位で残りを「他 N 件」に畳む (木を途中で切らない)。
  */
-function BranchList({
-  reviews,
-  candidates,
+function BranchTreeList({
+  trees,
   name,
+  view,
 }: {
-  reviews: BranchReview[];
-  candidates: Map<string, BranchCandidates>;
+  trees: BranchTree[];
   name: string;
+  view: PlayerView;
 }) {
-  const sorted = BRANCH_KINDS.flatMap((k) => reviews.filter((r) => r.kind === k));
-  const row = (r: BranchReview) => {
-    const c = candidates.get(r.key);
-    const route = { kind: "branch" as const, name, key: r.key };
+  const row = ({ node: n, depth }: { node: BranchNode; depth: number }) => {
+    const route = { kind: "branch" as const, name, key: n.key, view };
     return (
-      <a key={r.key} className={`branch-row ${r.kind}`} href={hashFor(route)}>
-        <span className={`branch-tag ${r.kind}`}>{BRANCH_KIND_SHORT[r.kind]}</span>
+      <a
+        key={n.key}
+        className={`branch-row ${n.kind}`}
+        href={hashFor(route)}
+        data-depth={depth}
+        style={{ paddingLeft: depth * 16 }}
+      >
+        {n.via && <span className="branch-via">└ {n.via.label} の先</span>}
+        <span className={`branch-tag ${n.kind}`}>{BRANCH_KIND_SHORT[n.kind]}</span>
         <span className="branch-head">
-          {r.opening} · {r.ply} 手目 · {r.gameIds.length} 局 {r.wins} 勝
+          {n.opening} · {n.ply} 手目 · {n.gameIds.length} 局 {n.wins} 勝
         </span>
-        {c && c.candidates.length > 0 && (
+        {n.candidates.length > 0 && (
           <span className="branch-moves">
-            {c.mover === "self" ? "本人" : "相手"}:{" "}
-            {c.candidates.map((m, i) => (
+            {n.mover === "self" ? "本人" : "相手"}:{" "}
+            {n.candidates.map((m, i) => (
               <span key={m.usi} className={`candidate-text ${judgementTone(m.judgement)}`}>
                 {i > 0 ? " / " : ""}
                 {m.label}
@@ -343,10 +355,28 @@ function BranchList({
       </a>
     );
   };
-  const rest = sorted.slice(ROW_LIMIT);
+  const shown: Array<{ node: BranchNode; depth: number }> = [];
+  const rest: Array<{ node: BranchNode; depth: number }> = [];
+  for (const tree of trees) {
+    for (const root of tree.roots) {
+      const rows = flattenBranchTree([root]);
+      (shown.length < ROW_LIMIT ? shown : rest).push(...rows);
+    }
+  }
+  const sides = trees.length > 1;
   return (
     <div className="branch-list">
-      {sorted.slice(0, ROW_LIMIT).map(row)}
+      {trees.map((tree) => {
+        const keys = new Set(flattenBranchTree(tree.roots).map((x) => x.node.key));
+        const mine = shown.filter((x) => keys.has(x.node.key));
+        if (mine.length === 0) return null;
+        return (
+          <div key={tree.side} className="branch-tree">
+            {sides && <div className="muted">{SIDE_LABEL[tree.side]}</div>}
+            {mine.map(row)}
+          </div>
+        );
+      })}
       {rest.length > 0 && (
         <details className="branch-more">
           <summary>他 {rest.length} 件</summary>
@@ -606,14 +636,14 @@ function OpeningDetailPanel({
   view,
   games,
   byId,
-  branches,
+  analyses,
   name,
 }: {
   detail: OpeningDetail;
   view: PlayerView;
   games: GameRecord[];
   byId: Map<string, GameRecord>;
-  branches: { reviews: BranchReview[]; candidates: Map<string, BranchCandidates> } | null;
+  analyses: Map<string, AnalysisRecord> | null;
   name: string;
 }) {
   const ids = useMemo(() => new Set(detail.gameIds), [detail]);
@@ -629,13 +659,10 @@ function OpeningDetailPanel({
       }),
     [subset, name],
   );
-  // 分岐点は全対局で出したもの (判定を変えない) のうち、通った対局の半分以上がこの戦法のもの
-  const reviews = useMemo(
-    () =>
-      branches?.reviews.filter(
-        (r) => r.gameIds.filter((id) => ids.has(id)).length * 2 >= r.gameIds.length,
-      ) ?? [],
-    [branches, ids],
+  // 分岐点はこの戦法の対局だけで求め、節どうしの包含関係で木にする
+  const trees = useMemo(
+    () => (analyses ? buildBranchTrees(subset, analyses, name) : null),
+    [subset, analyses, name],
   );
   const list: Route = { kind: "list", query: detailQuery(name, detail) };
   const parent: Route = {
@@ -696,15 +723,15 @@ function OpeningDetailPanel({
         <strong>分岐点</strong>
         <p className="muted">
           この戦法で 2
-          局以上が同じ手順をたどり、そこから分かれた局面。悪手を指した分岐を先に並べる。
-          タップすると手順をたどって候補手を比べられる。
+          局以上が同じ手順をたどり、そこから分かれた局面。字下げした行は、上の分岐点でその手を指した先にある分岐点。
+          悪手を含む枝を先に並べる。タップすると手順をたどって候補手を比べられる。
         </p>
-        {!branches ? (
+        {!trees ? (
           <p className="muted">読み込み中…</p>
-        ) : reviews.length === 0 ? (
+        ) : trees.length === 0 ? (
           <p className="muted">まだありません (同じ手順の対局が 2 局以上必要)</p>
         ) : (
-          <BranchList reviews={reviews} candidates={branches.candidates} name={name} />
+          <BranchTreeList trees={trees} name={name} view={view} />
         )}
       </div>
     </div>
@@ -812,14 +839,10 @@ export function PlayerPage({ name, view }: Props) {
         : null,
     [own, name, view],
   );
-  const branches = useMemo(() => {
-    if (!stats || !analyses) return null;
-    const map = new Map(analyses.map((a) => [a.id, a] as const));
-    return {
-      reviews: reviewBranches(stats.commonPositions, own, map, name),
-      candidates: branchCandidates(stats.commonPositions, own, map, name),
-    };
-  }, [stats, analyses, own, name]);
+  const analysisMap = useMemo(
+    () => (analyses ? new Map(analyses.map((a) => [a.id, a] as const)) : null),
+    [analyses],
+  );
   useRestoreView(!!games && !!analyses && report !== undefined);
 
   if (!games || !stats) return <p className="muted">読み込み中…</p>;
@@ -847,7 +870,7 @@ export function PlayerPage({ name, view }: Props) {
           view={view}
           games={own}
           byId={byId}
-          branches={branches}
+          analyses={analysisMap}
           name={name}
         />
       )}

@@ -1,13 +1,22 @@
 import { Position } from "tsshogi";
 import type { AnalysisRecord, Judgement, MoveReview } from "./analysis";
 import {
+  BRANCH_KINDS,
   SEVERITY,
   createReviewLookup,
   formatPositionMove,
   formatUsiMove,
+  reviewBranches,
   usiMoves,
+  type BranchKind,
 } from "./branches";
-import { COMMON_POSITION_PLIES, playerSide, type CommonPosition, type Side } from "./stats";
+import {
+  COMMON_POSITION_PLIES,
+  findCommonPositions,
+  playerSide,
+  type CommonPosition,
+  type Side,
+} from "./stats";
 import type { GameRecord } from "./types";
 
 /**
@@ -166,25 +175,6 @@ function candidatesWith(
 }
 
 /**
- * 分岐点ごとの候補手 (本人の手番なら本人の手、相手の手番なら相手の手) と判定。一覧の 1 行に出す用。
- * 解析の引き直しを避けるため、まとめて計算する。
- */
-export function branchCandidates(
-  positions: CommonPosition[],
-  games: GameRecord[],
-  analyses: Map<string, AnalysisRecord>,
-  name: string,
-): Map<string, BranchCandidates> {
-  const reviewOf = createReviewLookup(analyses);
-  const out = new Map<string, BranchCandidates>();
-  for (const p of positions) {
-    const c = candidatesWith(p, games, name, reviewOf);
-    if (c) out.set(p.key, { turn: c.turn, side: c.side, mover: c.mover, candidates: c.candidates });
-  }
-  return out;
-}
-
-/**
  * 分岐点 1 件の学習用の手順の木を作る。共通手順は通った対局の先頭の対局の手順をとる
  * (手順前後で同じ局面に来た対局があっても、幹は 1 本)。候補手の先は `continuation` 手まで。
  */
@@ -225,4 +215,110 @@ export function buildBranchStudy(
     pathGameId: first.id,
     candidates,
   };
+}
+
+/** 分岐点の木の節。節どうしは「親の分岐点で指した手の先にある分岐点」でつながる */
+export interface BranchNode extends CommonPosition, BranchCandidates {
+  kind: BranchKind;
+  /** 本人の戦法 (通った対局で多いもの) */
+  opening: string;
+  /** 親の分岐点でこの節へ進んだ手 (親の候補手)。根なら省略 */
+  via?: { usi: string; label: string };
+  /** 下流の分岐点。悪手を含む枝 → 局数の多い順 */
+  children: BranchNode[];
+}
+
+export interface BranchTree {
+  /** 本人の側 */
+  side: Side;
+  roots: BranchNode[];
+  /** 節の数 */
+  size: number;
+}
+
+function hasMistake(n: BranchNode): boolean {
+  return n.kind === "mistake" || n.children.some(hasMistake);
+}
+
+function sortNodes(nodes: BranchNode[]): BranchNode[] {
+  for (const n of nodes) sortNodes(n.children);
+  const rank = new Map(nodes.map((n) => [n, hasMistake(n) ? 0 : 1] as const));
+  return nodes.sort(
+    (a, b) =>
+      rank.get(a)! - rank.get(b)! ||
+      BRANCH_KINDS.indexOf(a.kind) - BRANCH_KINDS.indexOf(b.kind) ||
+      b.gameIds.length - a.gameIds.length ||
+      a.ply - b.ply,
+  );
+}
+
+/**
+ * `games` (戦法などで絞った対局集合) のうち `name` が指した対局から、分岐点を節に持つ木を作る。
+ * 分岐点はこの対局集合だけで求める (findCommonPositions) ので、集合の外の対局との共通局面は混ざらない。
+ * 先手・後手で手順が別になるので、本人の側ごとに 1 本。節の親は、その節の対局をすべて含む分岐点のうち最も深いもの。
+ */
+export function buildBranchTrees(
+  games: GameRecord[],
+  analyses: Map<string, AnalysisRecord>,
+  name: string,
+): BranchTree[] {
+  const reviewOf = createReviewLookup(analyses);
+  return (["black", "white"] as const).flatMap((side) => {
+    const list = games.filter((g) => playerSide(g, name) === side);
+    const positions = findCommonPositions(list, name);
+    const nodes: BranchNode[] = reviewBranches(positions, list, analyses, name).flatMap((r) => {
+      const c = candidatesWith(r, list, name, reviewOf);
+      if (!c) return [];
+      return [
+        {
+          key: r.key,
+          ply: r.ply,
+          gameIds: r.gameIds,
+          wins: r.wins,
+          kind: r.kind,
+          opening: r.opening,
+          turn: c.turn,
+          side: c.side,
+          mover: c.mover,
+          candidates: c.candidates,
+          children: [],
+        },
+      ];
+    });
+    if (nodes.length === 0) return [];
+    const byPly = [...nodes].sort((a, b) => a.ply - b.ply);
+    const roots: BranchNode[] = [];
+    for (const n of byPly) {
+      const ids = new Set(n.gameIds);
+      let parent: BranchNode | undefined;
+      for (const p of byPly) {
+        if (p.ply >= n.ply) break;
+        if (p.gameIds.length > ids.size && n.gameIds.every((id) => p.gameIds.includes(id)))
+          parent = p;
+      }
+      if (!parent) {
+        roots.push(n);
+        continue;
+      }
+      parent.children.push(n);
+      const via = [...parent.candidates].sort(
+        (a, b) =>
+          b.gameIds.filter((id) => ids.has(id)).length -
+          a.gameIds.filter((id) => ids.has(id)).length,
+      )[0];
+      if (via && via.gameIds.some((id) => ids.has(id))) n.via = { usi: via.usi, label: via.label };
+    }
+    return [{ side, roots: sortNodes(roots), size: nodes.length }];
+  });
+}
+
+/** 木を上から順 (親 → 子) に並べる。depth は根が 0 */
+export function flattenBranchTree(roots: BranchNode[]): Array<{ node: BranchNode; depth: number }> {
+  const out: Array<{ node: BranchNode; depth: number }> = [];
+  const visit = (n: BranchNode, depth: number) => {
+    out.push({ node: n, depth });
+    for (const c of n.children) visit(c, depth + 1);
+  };
+  for (const r of roots) visit(r, 0);
+  return out;
 }

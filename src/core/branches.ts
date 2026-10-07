@@ -1,6 +1,5 @@
 import { Position, formatMove, type ImmutablePosition, type Move } from "tsshogi";
 import {
-  JUDGEMENT_LABEL,
   isAnalysisStale,
   reviewMoves,
   type AnalysisRecord,
@@ -27,29 +26,12 @@ export const BRANCH_KIND_LABEL: Record<BranchKind, string> = {
   unanalyzed: "未解析",
 };
 
-export interface BranchMove {
-  /** 指した手 (USI) */
-  usi: string;
-  /** 表示用 (例: ▲6五歩) */
-  label: string;
-  count: number;
-  /** 解析済みの対局での判定。対局ごとに違えば悪い方。解析が無ければ null */
-  judgement: Judgement | null;
-  /** 最善手 (USI)。指した手が最善なら省略 */
-  best?: string;
-  /** 最善手の表示用 */
-  bestLabel?: string;
-  gameIds: string[];
-}
-
 export interface BranchReview extends CommonPosition {
   /** 分岐点の局面での手番 */
   turn: Side;
   /** 本人の戦法。対局ごとに違えば局数の多いもの (同数なら名前順で先) */
   opening: string;
   kind: BranchKind;
-  /** 本人の手番だった対局で本人が指した手 (回数の多い順) */
-  moves: BranchMove[];
 }
 
 export const SEVERITY: Record<Judgement, number> = {
@@ -142,7 +124,8 @@ export function reviewBranches(
         playerSide(g, name) === "white" ? g.opening.whiteOpening : g.opening.blackOpening,
       ),
     );
-    const moves = new Map<string, BranchMove>();
+    // 本人が指した手ごとの判定 (解析済みの対局のみ。対局ごとに違えば悪い方)
+    const moves = new Map<string, Judgement | null>();
     let analyzed = false;
     for (const g of list) {
       const review = reviewOf(g);
@@ -150,80 +133,22 @@ export function reviewBranches(
       if (playerSide(g, name) !== turn) continue;
       const usi = usiMoves(g.usi)[p.ply];
       if (!usi) continue;
-      const m = moves.get(usi) ?? {
-        usi,
-        label: formatUsiMove(p.key, usi),
-        count: 0,
-        judgement: null,
-        gameIds: [],
-      };
-      m.count++;
-      m.gameIds.push(g.id);
       const r = review?.get(p.ply + 1);
-      if (r && r.played === usi) {
-        if (m.judgement === null || SEVERITY[r.judgement] > SEVERITY[m.judgement]) {
-          m.judgement = r.judgement;
-        }
-        if (r.best && !m.best) {
-          m.best = r.best;
-          m.bestLabel = formatUsiMove(p.key, r.best);
-        }
-      }
-      moves.set(usi, m);
+      const prev = moves.get(usi) ?? null;
+      moves.set(
+        usi,
+        r && r.played === usi && (prev === null || SEVERITY[r.judgement] > SEVERITY[prev])
+          ? r.judgement
+          : prev,
+      );
     }
-    const sorted = Array.from(moves.values()).sort(
-      (a, b) => b.count - a.count || a.usi.localeCompare(b.usi),
-    );
-    const judged = sorted.filter((m) => m.judgement !== null);
+    const judged = Array.from(moves.values()).filter((j) => j !== null);
     let kind: BranchKind;
     if (!analyzed) kind = "unanalyzed";
-    else if (sorted.length === 0) kind = "opponent";
+    else if (moves.size === 0) kind = "opponent";
     else if (judged.length === 0) kind = "unanalyzed";
-    else if (judged.some((m) => m.judgement !== "good")) kind = "mistake";
+    else if (judged.some((j) => j !== "good")) kind = "mistake";
     else kind = "correct";
-    return { ...p, turn, opening, kind, moves: sorted };
+    return { ...p, turn, opening, kind };
   });
-}
-
-export interface BranchOpeningGroup {
-  opening: string;
-  /** 空の分類は含めない。順序は BRANCH_KINDS */
-  kinds: Array<{ kind: BranchKind; positions: BranchReview[] }>;
-  total: number;
-}
-
-/**
- * 本人の戦法 × 分類でまとめる。戦法は分岐点の数の多い順 (同数なら名前順)。
- * 分類の中では元の順 (局数・手数の多い順) を保つ。
- */
-export function groupBranchReviews(reviews: BranchReview[]): BranchOpeningGroup[] {
-  const groups = new Map<string, Map<BranchKind, BranchReview[]>>();
-  for (const r of reviews) {
-    const g = groups.get(r.opening) ?? new Map<BranchKind, BranchReview[]>();
-    const list = g.get(r.kind) ?? [];
-    list.push(r);
-    g.set(r.kind, list);
-    groups.set(r.opening, g);
-  }
-  return Array.from(groups)
-    .map(([opening, kinds]) => {
-      const list = BRANCH_KINDS.filter((k) => kinds.has(k)).map((kind) => ({
-        kind,
-        positions: kinds.get(kind)!,
-      }));
-      return { opening, kinds: list, total: list.reduce((n, k) => n + k.positions.length, 0) };
-    })
-    .sort((a, b) => b.total - a.total || a.opening.localeCompare(b.opening));
-}
-
-/** 本人の手 1 つの表示 (例: ▲6五歩 ×2 (悪手, 最善 ▲4五歩)) */
-export function describeBranchMove(m: BranchMove): string {
-  let note: string;
-  if (m.judgement === null) note = "未解析";
-  else if (m.judgement === "good") note = "最善";
-  else
-    note = m.bestLabel
-      ? `${JUDGEMENT_LABEL[m.judgement]}, 最善 ${m.bestLabel}`
-      : JUDGEMENT_LABEL[m.judgement];
-  return `${m.label} ×${m.count} (${note})`;
 }

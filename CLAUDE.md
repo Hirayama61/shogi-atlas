@@ -27,7 +27,7 @@ GitHub Pages で公開し、スマホにインストールして使う。
 - `scripts/engine.ts` やねうら王 (WebAssembly, `@mizarjp/yaneuraou.k-p`) の USI ラッパー。`scripts/analyze.ts` がデータリポジトリの未解析の対局を解析して `analysis/<id>.{json,kif}` を書き、`scripts/profile.ts` が `players/<name>/profile.{json,md}` と `analysis/index.json` を書く。
 - `scripts/process-inbox.ts` データリポジトリの Issue 受信箱を処理して `games/` と `index.json` を書く。
 - `scripts/pipeline.sh` (`pnpm pipeline`) 上の 3 つを pull → 受信箱 → 解析 → プロファイル → commit → push の順に 1 本で回す。Claude のルーティン「shogi-atlas 取り込み・解析 (2時間おき)」が、本体とデータリポジトリを接続した専用セッション「棋譜データ取り込みルーティン」で 2 時間おきに実行する。1 回の解析は 20 局・50 分まで (`MAX_GAMES`, `TIME_BUDGET`)。エンジン 1 本で 4 コアを使い切るので、並列化ではなく上限で調整する。
-  時間の上限は「外側の `timeout` (65 分) > 受信箱 + `TIME_BUDGET` + `MOVE_TIME_LIMIT` + プロファイル・commit・push」の関係を保つ。解析は `TIME_BUDGET` の内側で終わる (`scripts/budget.ts`: 残り時間が 1 局の最悪見積もり = 局面数 × `MOVE_TIME_LIMIT` に足りなければ始めず、途中の対局も上限を超えそうなら打ち切って次回へ)。それでも殺されたら次回の最初に `scripts/recover-data.sh` が片付ける (書き終えた `analysis/<id>.{json,kif}` はコミット、他の残骸は捨てる) ので `git pull` で止まらない。
+  時間の上限は「外側の `timeout` (65 分) > 受信箱 + `TIME_BUDGET` + `MOVE_TIME_LIMIT` + プロファイル・commit・push」の関係を保つ。解析は `TIME_BUDGET` の内側で終わる (`scripts/budget.ts`: 残り時間が 1 局の見積もり = 局面数 × その回で実測した 1 局面の平均 × 3 (`MOVE_TIME_LIMIT` で頭打ち) に足りなければ始めず、途中の対局も上限を超えそうなら打ち切って次回へ)。それでも殺されたら次回の最初に `scripts/recover-data.sh` が片付ける (書き終えた `analysis/<id>.{json,kif}` はコミット、他の残骸は捨てる) ので `git pull` で止まらない。
   データリポジトリの `process-inbox.yml` と `analyze.yml` は定期実行せず、手動実行の予備としてだけ残す。データリポジトリは private なので Actions の実行時間は無料枠を消費する。定期処理を Actions に戻さない。
   運用は「対局者ごとに Issue を 1 本、タイトル = 対局者名、コメントに棋譜を貼る」。処理済みは `inbox-state.json` で管理し、Issue は閉じない。
   棋譜の取り込み経路はこれだけ。アプリ側に貼り付け取り込みは置かない (Issue 指定やラベル付けが不便なため外した)。

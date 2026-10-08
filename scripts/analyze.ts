@@ -6,7 +6,7 @@
  *   DEPTH         探索深さ (既定: 14)
  *   THREADS       スレッド数 (既定: CPU 数、最大 4)
  *   MAX_GAMES     1 回の実行で解析する最大局数 (既定: 20)
- *   TIME_BUDGET   1 回の実行の解析時間の上限 (秒)。残り時間が 1 局の最悪見積もりに足りなければ新しい対局を始めず、
+ *   TIME_BUDGET   1 回の実行の解析時間の上限 (秒)。残り時間が 1 局の見積もり (実測の 1 局面平均から) に足りなければ新しい対局を始めず、
  *                 途中の対局も予算を超えそうなら打ち切って次回に回す (scripts/budget.ts。既定: 5400)
  *   MOVE_TIME_LIMIT 1 局面の探索時間の上限 (秒)。超えたら stop で打ち切り、到達した深さを plies[].depth に残す (既定: 20、0 で無制限)
  *   ONLY          対局者名。指定するとその人の対局だけを優先する
@@ -66,6 +66,7 @@ async function analyzeGame(
   engine: Engine,
   game: GameRecord,
   budget: () => BudgetState,
+  onPly: (ms: number) => void,
 ): Promise<{ analysis: AnalysisRecord; stopped: number } | null> {
   const moves = game.usi
     .replace(/^position startpos( moves)?\s*/, "")
@@ -77,7 +78,9 @@ async function analyzeGame(
     if (!canStartPly(budget())) return null;
     const usi =
       ply === 0 ? "position startpos" : `position startpos moves ${moves.slice(0, ply).join(" ")}`;
+    const t = Date.now();
     const r = await engine.analyze(usi, depth, moveTimeLimit);
+    onPly(Date.now() - t);
     const blackToMove = ply % 2 === 0;
     const { cp, mate } = toBlackCp(r.cp, r.mate, blackToMove);
     const entry: PlyEval = { ply, cp };
@@ -142,10 +145,17 @@ async function main(): Promise<void> {
 
   const engine = await Engine.create();
   const started = Date.now();
+  let plyCount = 0;
+  let plyMsTotal = 0;
+  const onPly = (ms: number) => {
+    plyCount++;
+    plyMsTotal += ms;
+  };
   const budget = (): BudgetState => ({
     elapsedMs: Date.now() - started,
     budgetMs: timeBudget,
     moveTimeLimitMs: moveTimeLimit,
+    ...(plyCount ? { avgPlyMs: plyMsTotal / plyCount } : {}),
   });
   let done = 0;
   let skipped = 0;
@@ -157,7 +167,7 @@ async function main(): Promise<void> {
         continue;
       }
       const t = Date.now();
-      const result = await analyzeGame(engine, game, budget);
+      const result = await analyzeGame(engine, game, budget, onPly);
       if (!result) {
         console.log(`${game.id}: 時間の上限に達したので途中で打ち切り、次回に回します`);
         skipped++;

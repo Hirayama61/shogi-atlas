@@ -14,7 +14,7 @@
 # 時間の上限の関係 (ルーティンは外側で `timeout 65m` をかけて呼ぶ):
 #   外側の timeout > 受信箱 + TIME_BUDGET + MOVE_TIME_LIMIT + プロファイル・commit・push
 #   (既定: 65 分 > 数分 + 50 分 + 20 秒 + 数分)
-# 解析は TIME_BUDGET の内側で終わる (scripts/budget.ts)。残り時間が 1 局の最悪見積もり (局面数 × MOVE_TIME_LIMIT) に
+# 解析は TIME_BUDGET の内側で終わる (scripts/budget.ts)。残り時間が 1 局の見積もり (局面数 × 実測の 1 局面平均 × 3) に
 # 足りなければ新しい対局を始めず、始めた対局も次の 1 局面で上限を超えるなら打ち切って次回に回す。
 # はみ出すのは最後の 1 局面の stop の遅れ程度。MOVE_TIME_LIMIT=0 (無制限) にするとこの保証は無くなる。
 # それでも殺されたときは、次回の最初に scripts/recover-data.sh が残骸を片付ける (書き終えた解析結果はコミット、他は捨てる)。

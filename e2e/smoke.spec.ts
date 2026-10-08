@@ -249,6 +249,37 @@ test.describe("一通りの画面", () => {
     expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 
+  test("幅 390px: 主要な画面で横スクロールが出ない", async ({ page }) => {
+    const games = await fixtureGames();
+    await syncWithMock(page, games, fixtureAnalyses(games), {
+      taro: fixtureReport("taro", games[0]!.id),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const noOverflow = async (hash: string) => {
+      await page.goto(hash);
+      await page.waitForLoadState("networkidle");
+      // 折りたたみも開いた状態で測る (レポート本文・分岐点など)
+      await page.evaluate('document.querySelectorAll("details").forEach((d) => (d.open = true))');
+      const width = await page.evaluate<number>("document.documentElement.scrollWidth");
+      expect(width, hash).toBeLessThanOrEqual(390);
+    };
+    await noOverflow("#/players");
+    await page.locator("ul.games li").first().waitFor();
+    await noOverflow("#/player/taro");
+    await expect(page.locator(".panel.report")).toBeVisible();
+    await noOverflow("#/player/taro?style=furiVsIbisha");
+    await noOverflow(
+      `#/player/taro?style=furiVsIbisha&opening=${encodeURIComponent("ノーマル四間飛車")}`,
+    );
+    await expect(page.locator(".opening-detail")).toBeVisible();
+    await noOverflow("#/games");
+    await noOverflow("#/game/f000000000000000/14");
+    await expect(page.locator("svg.board")).toBeVisible();
+    await noOverflow("#/player/taro/compare/hanako");
+    await noOverflow("#/updates");
+    await noOverflow("#/settings");
+  });
+
   test("PWA のマニフェストと Service Worker が配信される", async ({ page }) => {
     await page.goto("#/");
     const manifest = await page.evaluate(() => fetch("manifest.webmanifest").then((r) => r.status));

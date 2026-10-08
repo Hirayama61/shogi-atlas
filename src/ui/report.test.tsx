@@ -11,6 +11,8 @@ import { parseKifu } from "../core/parse";
 import { db } from "../db/db";
 import { PlayerList } from "./PlayerList";
 import { PlayerPage } from "./PlayerPage";
+import { ReportPanel } from "./Report";
+import css from "../index.css?raw";
 
 const source = { kind: "paste" as const };
 
@@ -133,5 +135,44 @@ describe("対策レポート", () => {
     await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
     expect(screen.queryByText("対策レポート")).not.toBeInTheDocument();
     expect(document.querySelector("details.report-part")).toBeNull();
+  });
+});
+
+describe("対策レポートの余白", () => {
+  afterEach(() => {
+    cleanup();
+    document.head.innerHTML = "";
+  });
+
+  /** jsdom は var() を解かないので、:root の変数を引いて数値にする */
+  function value(el: Element, prop: string): number {
+    const raw = getComputedStyle(el).getPropertyValue(prop).trim();
+    const resolved = raw.replace(/var\((--[\w-]+)\)/g, (_, name: string) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
+    );
+    return parseFloat(resolved);
+  }
+
+  it("段落の間隔が本文の行間より広い", () => {
+    const style = document.createElement("style");
+    style.textContent = css;
+    document.head.append(style);
+    const markdown = "# r\n\n## 1. 見出し\n\n一つめの段落。\n\n二つめの段落。\n\n- 箇条書き\n";
+    render(
+      <ReportPanel
+        report={{ name: "taro", markdown, hash: "h", fetchedAt: "2026-10-06T00:00:00Z" }}
+        gameIds={[]}
+      />,
+    );
+    const body = document.querySelector(".report-body")!;
+    const p = body.querySelector("p")!;
+    const fontSize = value(body, "font-size");
+    const leading = value(body, "line-height");
+    // 行と行の隙間 (行の高さ - 文字の大きさ) より、段落・箇条書きの前後の余白が広い
+    const lineGap = fontSize * leading - fontSize;
+    expect(lineGap).toBeGreaterThan(0);
+    expect(value(p, "margin-top")).toBeGreaterThan(lineGap);
+    expect(value(p, "margin-bottom")).toBeGreaterThan(lineGap);
+    expect(value(body.querySelector("ul")!, "margin-top")).toBeGreaterThan(lineGap);
   });
 });

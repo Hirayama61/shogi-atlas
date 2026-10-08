@@ -13,8 +13,20 @@
   --danger: #b91c1c;
   --good: #15803d;
   font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  /* 余白の段階。margin / padding / gap はこの変数だけを使う */
+  --space-hair: 2px; /* 行内の詰めた隙間 (バッジ・タグの縦) */
+  --space-inline: 4px; /* 行内 (主の行と補足の行の間など) */
+  --space-row: 8px; /* 行と行 */
+  --space-block: 12px; /* 節の中のまとまり */
+  --space-wide: 16px; /* パネルの内側 */
+  --space-section: 24px; /* 節と節 */
+  /* 行間の段階 */
+  --leading-tight: 1.35; /* 見出し・バッジ */
+  --leading-body: 1.6; /* 本文・一覧 */
+  --leading-loose: 1.8; /* 読み物 (対策レポート) */
+  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
   font-size: 15px;
-  line-height: 1.5;
+  line-height: var(--leading-body);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -45,24 +57,24 @@ body {
 #root {
   max-width: 960px;
   margin: 0 auto;
-  padding: 0 12px 80px;
+  padding: 0 var(--space-block) calc(var(--space-section) * 3);
 }
 header.app {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 0;
+  gap: var(--space-row);
+  padding: var(--space-block) 0;
 }
 nav.tabs {
   display: flex;
-  gap: 4px;
+  gap: var(--space-inline);
 }
 nav.tabs button {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 6px 10px;
+  padding: var(--space-row) var(--space-row);
   border-radius: 999px;
   font-size: 13px;
 }
@@ -70,7 +82,7 @@ nav.tabs button .dot {
   display: inline-block;
   width: 7px;
   height: 7px;
-  margin-left: 5px;
+  margin-left: var(--space-inline);
   border-radius: 50%;
   background: #c0392b;
   vertical-align: middle;
@@ -94,14 +106,14 @@ button.primary {
   background: var(--accent);
   color: #fff;
   border: none;
-  padding: 8px 14px;
+  padding: var(--space-row) var(--space-wide);
   border-radius: 8px;
 }
 button.ghost {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: var(--space-row) var(--space-block);
   border-radius: 8px;
 }
 button:disabled {
@@ -111,14 +123,36 @@ button:disabled {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 12px;
+  padding: var(--space-wide);
+  margin-bottom: var(--space-block);
+}
+/* 見出しは下に行間ぶん、パネルの最初と最後の要素は外側の余白を持たない */
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--leading-tight);
+  margin: var(--space-section) 0 var(--space-row);
+}
+.panel > :first-child {
+  margin-top: 0;
+}
+.panel > :last-child {
+  margin-bottom: 0;
+}
+p {
+  margin: var(--space-row) 0;
+}
+/* 補足行は本文に埋もれないよう前後を空ける */
+p.muted {
+  margin: var(--space-row) 0;
+  line-height: var(--leading-body);
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: var(--space-inline);
+  margin-bottom: var(--space-block);
 }
 .field label {
   font-size: 13px;
@@ -130,7 +164,7 @@ button:disabled {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px;
+  padding: var(--space-row);
 }
 .field textarea {
   min-height: 160px;
@@ -139,7 +173,7 @@ button:disabled {
 }
 .row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-row);
   flex-wrap: wrap;
   align-items: center;
 }
@@ -153,19 +187,19 @@ button:disabled {
 .chip {
   display: inline-block;
   font-size: 12px;
-  padding: 1px 8px;
+  padding: var(--space-hair) var(--space-row);
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--text);
-  margin-right: 4px;
+  margin-right: var(--space-inline);
 }
 .badge {
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.4;
-  padding: 0 6px;
-  margin-right: 6px;
+  line-height: var(--leading-tight);
+  padding: 0 var(--space-inline);
+  margin-right: var(--space-row);
   border-radius: 4px;
   vertical-align: middle;
   color: #fff;
@@ -184,7 +218,7 @@ ul.games {
 }
 ul.games li {
   border-bottom: 1px solid var(--border);
-  padding: 10px 4px;
+  padding: var(--space-block) var(--space-inline);
   cursor: pointer;
 }
 ul.games li:hover {
@@ -192,6 +226,12 @@ ul.games li:hover {
 }
 .game-title {
   font-weight: 600;
+  line-height: var(--leading-tight);
+}
+/* 一覧の行は「主の情報 + 補足 (薄め・小さめ)」の 2 行構成 */
+ul.games li > .muted {
+  margin-top: var(--space-inline);
+  line-height: var(--leading-body);
 }
 .game-title .win {
   text-decoration: underline;
@@ -201,7 +241,7 @@ ul.games li:hover {
 .viewer {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: var(--space-block);
 }
 @media (min-width: 720px) {
   .viewer {
@@ -211,16 +251,16 @@ ul.games li:hover {
 .board-wrap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-row);
 }
 .side-row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-hair);
 }
 .side-name {
   display: flex;
-  gap: 8px;
+  gap: var(--space-row);
   align-items: center;
   font-size: 14px;
   min-height: 20px;
@@ -230,7 +270,7 @@ ul.games li:hover {
 }
 .turn-badge {
   font-size: 11px;
-  padding: 1px 6px;
+  padding: var(--space-hair) var(--space-row);
   border-radius: 999px;
   background: var(--accent);
   color: var(--panel);
@@ -238,14 +278,14 @@ ul.games li:hover {
 }
 .hand {
   display: flex;
-  gap: 6px;
+  gap: var(--space-row);
   flex-wrap: wrap;
   min-height: 28px;
   align-items: center;
   font-size: 14px;
 }
 .hand .piece {
-  padding: 2px 6px;
+  padding: var(--space-hair) var(--space-row);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
@@ -258,7 +298,7 @@ ul.games li:hover {
 }
 .controls {
   display: flex;
-  gap: 6px;
+  gap: var(--space-row);
   justify-content: center;
 }
 .moves {
@@ -273,7 +313,7 @@ ul.games li:hover {
   text-align: left;
   background: transparent;
   border: none;
-  padding: 3px 6px;
+  padding: var(--space-inline) var(--space-row);
   border-radius: 4px;
 }
 .moves button.current {
@@ -283,7 +323,7 @@ ul.games li:hover {
 .kv {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 2px 12px;
+  gap: var(--space-hair) var(--space-block);
   font-size: 13px;
 }
 .kv dt {
@@ -305,7 +345,7 @@ ul.games li:hover {
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0 12px;
+  gap: 0 var(--space-block);
 }
 @media (min-width: 720px) {
   .stats-grid {
@@ -316,17 +356,17 @@ table.stats {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  margin-top: 6px;
+  margin-top: var(--space-row);
 }
 table.stats th {
   text-align: right;
   color: var(--muted);
   font-weight: normal;
-  padding: 2px 6px;
+  padding: var(--space-hair) var(--space-row);
 }
 table.stats td {
   text-align: right;
-  padding: 3px 6px;
+  padding: var(--space-inline) var(--space-row);
   border-top: 1px solid var(--border);
 }
 table.stats th:first-child,
@@ -334,11 +374,11 @@ table.stats td:first-child {
   text-align: left;
 }
 .branch-group {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .branch,
 .worst {
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
 }
 .branch > summary,
@@ -349,11 +389,11 @@ table.stats td:first-child {
   text-overflow: ellipsis;
 }
 .branch-list {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .branch-row {
   display: block;
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
   color: inherit;
   text-decoration: none;
@@ -361,8 +401,8 @@ table.stats td:first-child {
 .branch-tag {
   display: inline-block;
   min-width: 3em;
-  margin-right: 6px;
-  padding: 0 6px;
+  margin-right: var(--space-row);
+  padding: 0 var(--space-row);
   border-radius: 4px;
   font-size: 12px;
   text-align: center;
@@ -378,6 +418,7 @@ table.stats td:first-child {
 }
 .branch-moves {
   display: block;
+  margin-top: var(--space-hair);
   white-space: normal;
   font-size: 13px;
   color: var(--muted);
@@ -390,12 +431,12 @@ table.stats td:first-child {
 }
 .study-title {
   font-size: 14px;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-row);
 }
 .study-body {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px 16px;
+  gap: var(--space-row) var(--space-wide);
 }
 @media (min-width: 720px) {
   .study-body {
@@ -420,13 +461,13 @@ table.stats td:first-child {
 .candidates {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--space-inline);
+  margin-top: var(--space-inline);
 }
 .candidate {
   font: inherit;
   font-size: 13px;
-  padding: 4px 8px;
+  padding: var(--space-inline) var(--space-row);
   border-radius: 6px;
   border: 2px dashed var(--muted);
   background: var(--panel);
@@ -444,14 +485,14 @@ table.stats td:first-child {
   background: var(--accent-soft);
 }
 .study-lines {
-  margin-top: 6px;
+  margin-top: var(--space-row);
   font-size: 13px;
 }
 .study-lines button[aria-pressed="true"] {
   background: var(--accent-soft);
 }
 .study-games {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .study-games > summary {
   cursor: pointer;
@@ -463,10 +504,10 @@ table.stats td:first-child {
   cursor: pointer;
   color: var(--muted);
   font-size: 13px;
-  padding: 4px 0;
+  padding: var(--space-inline) 0;
 }
 .lines {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .lines > summary,
 .line-branch > summary {
@@ -475,13 +516,13 @@ table.stats td:first-child {
 .line-moves {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 4px;
-  padding: 4px 0;
+  gap: var(--space-hair) var(--space-inline);
+  padding: var(--space-inline) 0;
 }
 .line-move {
   background: none;
   border: none;
-  padding: 2px 2px;
+  padding: var(--space-hair) var(--space-hair);
   font: inherit;
   font-size: 14px;
   color: inherit;
@@ -492,28 +533,28 @@ table.stats td:first-child {
   border-radius: 4px;
 }
 .line-fork {
-  padding-left: 10px;
+  padding-left: var(--space-block);
   border-left: 2px solid var(--border);
 }
 .line-branch > summary {
-  padding: 2px 0;
+  padding: var(--space-hair) 0;
 }
 .detail-body {
   display: flex;
-  gap: 12px;
+  gap: var(--space-block);
   flex-wrap: wrap;
-  padding-top: 8px;
+  padding-top: var(--space-row);
 }
 .help {
   font-size: 13px;
-  margin: 4px 0;
+  margin: var(--space-inline) 0;
 }
 .help > summary {
   cursor: pointer;
   color: var(--muted);
 }
 .help p {
-  margin: 4px 0;
+  margin: var(--space-inline) 0;
 }
 .eval-chart svg {
   width: 100%;
@@ -528,13 +569,13 @@ table.stats td:first-child {
 .moves .mark {
   color: var(--danger);
   font-weight: 700;
-  margin-left: 6px;
+  margin-left: var(--space-row);
 }
 .profile-card .figures {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin: 8px 0;
+  gap: var(--space-row);
+  margin: var(--space-row) 0;
 }
 @media (min-width: 720px) {
   .profile-card .figures {
@@ -545,7 +586,7 @@ table.stats td:first-child {
 .profile-card .figures > a {
   background: var(--bg);
   border-radius: 8px;
-  padding: 6px 8px;
+  padding: var(--space-row) var(--space-row);
 }
 .profile-card .figures > a.figure-link {
   display: block;
@@ -565,7 +606,7 @@ table.stats td:first-child {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
+  gap: var(--space-inline) var(--space-block);
 }
 svg.radar {
   width: 100%;
@@ -585,7 +626,7 @@ svg.radar {
   display: grid;
   grid-template-columns: 6.5em 2.5em 1fr;
   align-items: baseline;
-  padding: 2px 4px;
+  padding: var(--space-hair) var(--space-inline);
   border-top: 1px solid var(--border);
 }
 .radar-axes li:has(> button) {
@@ -600,7 +641,7 @@ svg.radar {
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 2px 4px;
+  padding: var(--space-hair) var(--space-inline);
   text-align: left;
   color: inherit;
   font: inherit;
@@ -612,13 +653,13 @@ svg.radar {
 }
 .radar-axes strong {
   text-align: right;
-  padding-right: 8px;
+  padding-right: var(--space-row);
 }
 .rate-breakdown {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-row);
 }
 .rate-row {
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
 }
 .rate-row > summary {
@@ -649,14 +690,14 @@ table.stats tr.selected td {
 .quadrants {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-row);
+  margin-top: var(--space-row);
 }
 .quadrant {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
+  gap: var(--space-hair);
+  padding: var(--space-row);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: inherit;
@@ -671,12 +712,12 @@ table.stats tr.selected td {
   font-size: 15px;
 }
 .quadrant-more {
-  margin-top: 2px;
+  margin-top: var(--space-hair);
   color: var(--accent);
   font-weight: 700;
 }
 .crumbs {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-inline);
   font-size: 13px;
   color: var(--muted);
 }
@@ -692,7 +733,7 @@ table.stats tr.selected td {
   font-size: 17px;
 }
 .level-note {
-  margin: 2px 0 6px;
+  margin: var(--space-hair) 0 var(--space-row);
 }
 /* 行がリンクの表は、行をタップすると先へ進めることを矢印で示す */
 table.stats tr.link td:first-child a::after {
@@ -700,11 +741,11 @@ table.stats tr.link td:first-child a::after {
   color: var(--muted);
 }
 .axis-toggle {
-  margin: 6px 0;
+  margin: var(--space-row) 0;
 }
 .axis-toggle .chip {
   text-decoration: none;
-  padding: 3px 10px;
+  padding: var(--space-inline) var(--space-block);
   font-size: 13px;
   background: transparent;
   border: 1px solid var(--border);
@@ -714,10 +755,10 @@ table.stats tr.link td:first-child a::after {
   border-color: var(--accent);
 }
 .detail-branches {
-  margin-top: 12px;
+  margin-top: var(--space-block);
 }
 .combo {
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
 }
 .combo > summary {
@@ -730,7 +771,7 @@ ul.changelog {
   margin: 0;
 }
 ul.changelog > li {
-  padding: 10px 0;
+  padding: var(--space-block) 0;
   border-top: 1px solid var(--border);
 }
 ul.changelog > li:first-child {
@@ -739,7 +780,7 @@ ul.changelog > li:first-child {
 }
 .changelog-head {
   display: flex;
-  gap: 10px;
+  gap: var(--space-block);
   align-items: baseline;
   flex-wrap: wrap;
 }
@@ -748,66 +789,76 @@ ul.changelog > li:first-child {
   font-variant-numeric: tabular-nums;
 }
 ul.changelog-details {
-  margin: 4px 0 0;
-  padding-left: 18px;
+  margin: var(--space-inline) 0 0;
+  padding-left: var(--space-section);
   font-size: 13px;
 }
 ul.changelog-details li {
-  margin: 2px 0;
+  margin: var(--space-hair) 0;
 }
 .portfolio {
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
 }
 .portfolio > summary {
   cursor: pointer;
 }
 .portfolio-opponent {
-  margin: 8px 0 4px 8px;
+  margin: var(--space-row) 0 var(--space-inline) var(--space-row);
 }
 details.filters summary {
   cursor: pointer;
 }
 details.filters[open] summary {
-  margin-bottom: 10px;
+  margin-bottom: var(--space-block);
 }
 details.filters select {
   min-width: 0;
   max-width: 100%;
 }
 .report .chip.new {
-  margin-left: 8px;
+  margin-left: var(--space-row);
   background: var(--danger);
   color: #fff;
 }
 .report-part {
-  padding: 6px 0;
+  padding: var(--space-row) 0;
   border-top: 1px solid var(--border);
 }
 .report-part:first-of-type {
-  margin-top: 6px;
+  margin-top: var(--space-row);
 }
 .report-part > summary {
   cursor: pointer;
 }
 .report-body {
   font-size: 14px;
-  line-height: 1.6;
+  line-height: var(--leading-loose);
   overflow-wrap: anywhere;
 }
+/* 読み物なので、段落・箇条書き・見出しの間は本文の行間より広く空ける */
 .report-body h3,
 .report-body h4,
 .report-body h5 {
   font-size: 15px;
-  margin: 12px 0 4px;
+  line-height: var(--leading-tight);
+  margin: var(--space-section) 0 var(--space-row);
+}
+.report-body > :first-child {
+  margin-top: 0;
 }
 .report-body ul,
 .report-body ol {
-  padding-left: 20px;
-  margin: 4px 0;
+  padding-left: var(--space-section);
+  margin-top: var(--space-block);
+  margin-bottom: var(--space-block);
+}
+.report-body li + li {
+  margin-top: var(--space-inline);
 }
 .report-body p {
-  margin: 4px 0;
+  margin-top: var(--space-block);
+  margin-bottom: var(--space-block);
 }
 .report-body code {
   font-size: 12px;
@@ -821,10 +872,10 @@ ul.games .chip.new {
   color: #fff;
 }
 .share {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-block);
 }
 .share-preview {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .share-preview img {
   display: block;
@@ -835,15 +886,15 @@ ul.games .chip.new {
 }
 .share-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-row);
   align-items: center;
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }
 .share-save {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 6px 12px;
+  padding: var(--space-row) var(--space-block);
   border-radius: 8px;
   text-decoration: none;
 }
@@ -853,5 +904,5 @@ ul.games .chip.new {
   color: var(--muted);
 }
 .branch-tree + .branch-tree {
-  margin-top: 8px;
+  margin-top: var(--space-row);
 }

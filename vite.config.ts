@@ -40,6 +40,8 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
     // 画面・DB・同期のテストはファイル先頭の `// @vitest-environment jsdom` で jsdom に切り替える
     setupFiles: ["src/test/setup.ts"],
+    // 余白のテストが index.css を ?raw で読む。既定では CSS は空文字に置き換わる
+    css: { include: [/index\.css/] },
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],

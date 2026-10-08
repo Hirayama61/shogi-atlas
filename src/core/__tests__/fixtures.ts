@@ -311,3 +311,19 @@ export const USI_ENDGAME_A = "position sfen 9/6sk1/6ppp/9/9/9/9/9/K8 b G2R 1 mov
 export const USI_ENDGAME_B = "position sfen 9/6sk1/6ppp/9/9/9/9/9/K8 b G2R 1 moves 9i8h";
 /** C: A / B の盤を 180 度回した形 (☗玉 8八 が守る側)。最善の △8九飛 を逃して △2一玉 */
 export const USI_ENDGAME_C = "position sfen 8k/9/9/9/9/9/PPP6/1KS6/9 w g2r 1 moves 1a2a";
+
+/**
+ * 詰み探索 (tsume.ts) 用の架空の局面。☖玉が 1 一 か 5 一 にいて、☗玉は 9 九。
+ * 1 手詰: ▲5二金。3 手詰: ▲3三角 △2一玉 ▲2二金。5 手詰: ▲3三角 △1二玉 ▲2二金 △1三玉 ▲2四金。詰まない: 銀 1 枚。
+ */
+export const SFEN_MATE_1 = "4k4/9/4P4/9/9/9/9/9/K8 b G 1";
+export const SFEN_MATE_3 = "8k/8p/9/9/9/9/9/9/K8 b BG 1";
+export const SFEN_MATE_5 = "8k/9/9/9/9/9/9/9/K8 b B2G 1";
+export const SFEN_NO_MATE = "4k4/9/4P4/9/9/9/9/9/K8 b S 1";
+/** 詰めろ: ▲2三歩 (次に ▲2二金 で詰む)。▲9八玉 は詰めろではない */
+export const SFEN_TSUMERO = "8k/8p/9/7P1/9/9/9/9/K8 b G 1";
+/** A: ▲2三歩 (詰めろ) △1三歩 ▲2二金 (詰み)。B: 同じ詰めろの後、詰みを逃して ▲9八玉 */
+export const USI_TSUMERO_A = `position sfen ${SFEN_TSUMERO} moves 2d2c 1b1c G*2b`;
+export const USI_TSUMERO_B = `position sfen ${SFEN_TSUMERO} moves 2d2c 1b1c 9i9h`;
+/** C: 最初から 3 手詰がある局面 (詰めろの問題にはしない) */
+export const USI_TSUMERO_C = `position sfen ${SFEN_MATE_3} moves B*3c 1a2a G*2b`;

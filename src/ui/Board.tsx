@@ -54,6 +54,12 @@ interface Props {
   tracked?: Side | null;
   /** 候補手の印 */
   marks?: BoardMark[];
+  /** 渡すとマスを押せるようにする。マスは USI ("2d") */
+  onSquare?: (square: string) => void;
+  /** 渡すと手番側の持ち駒を押せるようにする。駒は SFEN の大文字 ("G") */
+  onHand?: (piece: string) => void;
+  /** 選んでいるマス (USI) か持ち駒 ("G*") */
+  selected?: string;
 }
 
 function parseHand(hand: string): Array<{ piece: string; count: number; black: boolean }> {
@@ -81,10 +87,12 @@ interface SideRowProps {
   name?: string;
   toMove: boolean;
   tracked: boolean;
+  onHand?: (piece: string) => void;
+  selected?: string;
 }
 
 /** 盤の上下に出す 1 行: 先後の印・対局者名・手番・持ち駒 */
-function SideRow({ hand, black, name, toMove, tracked }: SideRowProps) {
+function SideRow({ hand, black, name, toMove, tracked, onHand, selected }: SideRowProps) {
   const pieces = parseHand(hand)
     .filter((p) => p.black === black)
     .sort((a, b) => HAND_ORDER.indexOf(a.piece) - HAND_ORDER.indexOf(b.piece));
@@ -100,12 +108,26 @@ function SideRow({ hand, black, name, toMove, tracked }: SideRowProps) {
       </div>
       <div className="hand" aria-label={`${side}の持ち駒`}>
         {pieces.length === 0 && <span className="muted">持ち駒なし</span>}
-        {pieces.map((p) => (
-          <span key={p.piece} className="piece">
-            {GLYPH[p.piece]}
-            {p.count > 1 ? p.count : ""}
-          </span>
-        ))}
+        {pieces.map((p) =>
+          onHand && toMove ? (
+            <button
+              key={p.piece}
+              type="button"
+              className="piece"
+              aria-label={`持ち駒の${GLYPH[p.piece]}`}
+              aria-pressed={selected === `${p.piece}*`}
+              onClick={() => onHand(p.piece)}
+            >
+              {GLYPH[p.piece]}
+              {p.count > 1 ? p.count : ""}
+            </button>
+          ) : (
+            <span key={p.piece} className="piece">
+              {GLYPH[p.piece]}
+              {p.count > 1 ? p.count : ""}
+            </span>
+          ),
+        )}
       </div>
     </div>
   );
@@ -119,6 +141,9 @@ export function Board({
   white,
   tracked,
   marks = [],
+  onSquare,
+  onHand,
+  selected,
 }: Props) {
   const [boardPart = "", turn = "b", handPart = "-"] = sfen.trim().split(/\s+/);
   const pieces = parseBoardSfen(boardPart);
@@ -136,13 +161,20 @@ export function Board({
       name={isBlack ? black : white}
       toMove={isBlack === blackToMove}
       tracked={tracked === (isBlack ? "black" : "white")}
+      onHand={onHand}
+      selected={selected}
     />
   );
 
   return (
     <div className="board-wrap">
       {row(flipped)}
-      <svg className="board" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="盤面">
+      <svg
+        className="board"
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        role={onSquare ? "group" : "img"}
+        aria-label="盤面"
+      >
         <rect x={PAD} y={PAD} width={CELL * 9} height={CELL * 9} fill="var(--board)" />
         {targetFile > 0 && (
           <rect
@@ -238,6 +270,38 @@ export function Board({
             </text>
           );
         })}
+        {selected && /^[1-9][a-i]$/.test(selected) && (
+          <rect
+            className="board-selected"
+            x={cellX(Number(selected[0]))}
+            y={cellY(selected.charCodeAt(1) - 96)}
+            width={CELL}
+            height={CELL}
+            fill="var(--accent)"
+            opacity={0.3}
+          />
+        )}
+        {onSquare &&
+          Array.from({ length: 81 }, (_, i) => {
+            const file = (i % 9) + 1;
+            const rank = Math.floor(i / 9) + 1;
+            const usi = `${file}${String.fromCharCode(96 + rank)}`;
+            return (
+              <rect
+                key={usi}
+                role="button"
+                aria-label={`${file}${RANK_LABELS[rank - 1]}`}
+                data-square={usi}
+                x={cellX(file)}
+                y={cellY(rank)}
+                width={CELL}
+                height={CELL}
+                fill="transparent"
+                style={{ cursor: "pointer" }}
+                onClick={() => onSquare(usi)}
+              />
+            );
+          })}
       </svg>
       {row(!flipped)}
     </div>

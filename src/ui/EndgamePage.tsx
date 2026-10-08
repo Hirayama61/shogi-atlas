@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { JUDGEMENT_LABEL } from "../core/analysis";
 import {
   PROBLEM_KIND_LABEL,
@@ -15,6 +15,7 @@ import {
 import { SELF_NAME } from "../core/self";
 import { db } from "../db/db";
 import { Board } from "./Board";
+import { MatePractice } from "./MatePractice";
 import { readProblemRecords, recordAnswer } from "./endgameRecords";
 import { formatDate, SIDE_LABEL } from "./labels";
 import { hashFor, navigate, type Route } from "./router";
@@ -50,6 +51,62 @@ function selfNote(g: ProblemGroup): string | null {
  * 状態 (囲い・問題群・出している問題) は URL に持たせ、棋譜ビューアから戻ったときに同じ問題を開き直す。
  */
 export function EndgamePage({ route }: { route: EndgameRoute }) {
+  const [records, setRecords] = useState(readProblemRecords);
+  const onAnswer = (id: string, correct: boolean) => setRecords(recordAnswer(id, correct));
+  const mate = route.mode === "mate";
+  const tabs = (
+    <div className="row" role="group" aria-label="問題の種類" style={{ margin: "8px 0" }}>
+      <button
+        type="button"
+        className={mate ? "ghost" : ""}
+        aria-pressed={!mate}
+        onClick={() => navigate({ kind: "endgame" })}
+      >
+        囲い崩し
+      </button>
+      <button
+        type="button"
+        className={mate ? "" : "ghost"}
+        aria-pressed={mate}
+        onClick={() => navigate({ kind: "endgame", mode: "mate" })}
+      >
+        詰めろと詰み
+      </button>
+    </div>
+  );
+  if (mate)
+    return (
+      <MatePractice
+        route={route}
+        records={records}
+        onAnswer={onAnswer}
+        header={
+          <>
+            <h2 style={{ fontSize: 16, margin: "4px 0" }}>終盤力強化</h2>
+            {tabs}
+            <p className="muted" style={{ margin: "4px 0" }}>
+              全棋譜の解析済みの局面から、短手数の詰みがある局面の 1 手前を出題する。
+              詰めろをかける手を盤で指し、相手の応手の後は王手の連続で詰ませる。
+            </p>
+          </>
+        }
+      />
+    );
+  return <CastlePractice route={route} tabs={tabs} records={records} onAnswer={onAnswer} />;
+}
+
+/** 囲い崩しの問題群の一覧と出題 */
+function CastlePractice({
+  route,
+  tabs,
+  records,
+  onAnswer,
+}: {
+  route: EndgameRoute;
+  tabs: ReactNode;
+  records: Record<string, ProblemRecord>;
+  onAnswer: (id: string, correct: boolean) => void;
+}) {
   const games = useLiveQuery(() => db.games.toArray(), []);
   const analyses = useLiveQuery(() => db.analyses.toArray(), []);
   const groups = useMemo(
@@ -59,7 +116,6 @@ export function EndgamePage({ route }: { route: EndgameRoute }) {
         : undefined,
     [games, analyses],
   );
-  const [records, setRecords] = useState(readProblemRecords);
   const [shown, setShown] = useState(PAGE);
   useRestoreView(!!groups && !route.group);
 
@@ -68,6 +124,7 @@ export function EndgamePage({ route }: { route: EndgameRoute }) {
   const header = (
     <>
       <h2 style={{ fontSize: 16, margin: "4px 0" }}>終盤力強化</h2>
+      {tabs}
       <p className="muted" style={{ margin: "4px 0" }}>
         全棋譜の解析済みの局面から、囲いを崩す手 (崩し方) と崩されかけた囲いを受ける手 (崩され方)
         を出題する。同じ囲い・同じ玉周りの形の局面は 1 つの問題群にまとまる。
@@ -87,15 +144,7 @@ export function EndgamePage({ route }: { route: EndgameRoute }) {
     );
 
   const group = route.group ? groups.find((g) => g.key === route.group) : undefined;
-  if (group)
-    return (
-      <Quiz
-        group={group}
-        route={route}
-        records={records}
-        onAnswer={(id, correct) => setRecords(recordAnswer(id, correct))}
-      />
-    );
+  if (group) return <Quiz group={group} route={route} records={records} onAnswer={onAnswer} />;
 
   const castles = castleCounts(groups);
   const list = route.castle ? groups.filter((g) => g.castle === route.castle) : groups;

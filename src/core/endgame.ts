@@ -290,12 +290,19 @@ function rank(record: ProblemRecord | undefined): number {
   return record.correct ? 2 : 1;
 }
 
+/** 出題順を決めるのに使う問題の項目。囲い崩しと詰めろの問題で共通 */
+export interface OrderableProblem {
+  id: string;
+  mover: string;
+  missed: boolean;
+}
+
 /** 出題順。未出題 → 最後に不正解 → 正解の順、同じなら自分が逃した問題 → 手数の順 */
-export function orderProblems(
-  problems: EndgameProblem[],
+export function orderProblems<T extends OrderableProblem>(
+  problems: T[],
   records: Record<string, ProblemRecord>,
-): EndgameProblem[] {
-  const selfFirst = (p: EndgameProblem) => (p.mover === SELF_NAME && p.missed ? 0 : 1);
+): T[] {
+  const selfFirst = (p: T) => (p.mover === SELF_NAME && p.missed ? 0 : 1);
   return [...problems].sort(
     (a, b) =>
       rank(records[a.id]) - rank(records[b.id]) ||
@@ -305,11 +312,11 @@ export function orderProblems(
 }
 
 /** 次に出す問題。今の問題 (current) は、ほかに問題があれば後回しにする */
-export function nextProblem(
-  problems: EndgameProblem[],
+export function nextProblem<T extends OrderableProblem>(
+  problems: T[],
   records: Record<string, ProblemRecord>,
   current?: string,
-): EndgameProblem | undefined {
+): T | undefined {
   const ordered = orderProblems(problems, records);
   return ordered.find((p) => p.id !== current) ?? ordered[0];
 }

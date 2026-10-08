@@ -290,6 +290,15 @@ ul.games li > .muted {
   border-radius: 6px;
   background: var(--panel);
 }
+button.piece {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.piece[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 .board {
   width: 100%;
   height: auto;

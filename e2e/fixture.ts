@@ -6,6 +6,7 @@ import {
   USI_ANAGUMA_VS_SHIKEN,
   USI_KAKUGAWARI,
   USI_SHIKEN_VS_FUNA,
+  USI_TSUMERO_A,
 } from "../src/core/__tests__/fixtures";
 
 const source = { kind: "issue" as const, issue: 1 };
@@ -81,6 +82,30 @@ export function fixtureAnalyses(games: GameRecord[]): AnalysisRecord[] {
       ),
     },
   ];
+}
+
+/** 詰めろの問題 (▲2三歩 → △1三歩 → ▲2二金 で詰み) が 1 問できる対局と、その解析 */
+export async function fixtureMateGame(): Promise<{
+  games: GameRecord[];
+  analyses: AnalysisRecord[];
+}> {
+  const g = await parseKifu(USI_TSUMERO_A, { source });
+  Object.assign(g, { black: "taro", white: "jiro", result: "black", id: "c9".padEnd(16, "0") });
+  Object.assign(g, { startedAt: "2026-10-05T10:00:00" });
+  const plies = [
+    { ply: 0, cp: 800, best: "2d2c" },
+    { ply: 1, cp: 3000, mate: -3 },
+    { ply: 2, cp: 3000, mate: 1, best: "G*2b" },
+    { ply: 3, cp: 3000 },
+  ];
+  const analysis: AnalysisRecord = {
+    schema: 1,
+    id: g.id,
+    engine: { name: "fake", depth: 1 },
+    analyzedAt: "2026-01-01T00:00:00Z",
+    plies,
+  };
+  return { games: [g], analyses: [analysis] };
 }
 
 /** GitHub Contents API をモックしてデータリポジトリの代わりにする */

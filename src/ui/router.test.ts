@@ -40,6 +40,17 @@ describe("router", () => {
       problem: "abc:41",
     };
     expect(parseHash(hashFor(route))).toEqual(route);
+    const mate: Route = {
+      kind: "endgame",
+      mode: "mate",
+      castle: "穴熊",
+      mate: "3",
+      problem: "mate:abc:41",
+    };
+    expect(hashFor(mate)).toBe(
+      "#/endgame?mode=mate&castle=%E7%A9%B4%E7%86%8A&mate=3&problem=mate%3Aabc%3A41",
+    );
+    expect(parseHash(hashFor(mate))).toEqual(mate);
   });
 
   it("絞り込みつき一覧の URL を往復できる", () => {

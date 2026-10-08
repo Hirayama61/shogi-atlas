@@ -74,8 +74,18 @@ export type Route =
    * all で一致の局面と数手以内に合流する分岐も出す (既定では隠す)
    */
   | { kind: "compare"; name: string; other: string; opening?: string; all?: boolean }
-  /** 終盤力強化。castle で囲いを絞り、group (問題群のキー) を選ぶと出題、problem は出している問題 */
-  | { kind: "endgame"; castle?: string; group?: string; problem?: string };
+  /**
+   * 終盤力強化。castle で囲いを絞り、group (問題群のキー) を選ぶと出題、problem は出している問題。
+   * mode が "mate" なら「詰めろと詰み」の問題で、mate (詰みの手数) と castle で絞り、problem で出題する
+   */
+  | {
+      kind: "endgame";
+      mode?: string;
+      castle?: string;
+      mate?: string;
+      group?: string;
+      problem?: string;
+    };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
@@ -84,6 +94,8 @@ const SELF_STYLES = ["ibisha", "furibisha"] as const;
 const AXES: readonly OpeningAxis[] = ["self", "opponent"];
 const SIDES: readonly Side[] = ["black", "white"];
 const SHAPES: readonly GameShape[] = ["aiIbisha", "taikokei", "aiFuribisha", "unknown"];
+/** 終盤力強化の URL の項目 (出す順) */
+const ENDGAME_KEYS = ["mode", "castle", "mate", "group", "problem"] as const;
 /** URL に出す順 */
 const QUERY_KEYS = [
   "player",
@@ -264,7 +276,7 @@ export function parseHash(full: string): Route {
   if (hash === "#/endgame") {
     const route: Route = { kind: "endgame" };
     const p = new URLSearchParams(qi < 0 ? "" : full.slice(qi + 1));
-    for (const k of ["castle", "group", "problem"] as const) {
+    for (const k of ENDGAME_KEYS) {
       const v = p.get(k);
       if (v) route[k] = v;
     }
@@ -305,7 +317,7 @@ export function hashFor(route: Route): string {
     }
     case "endgame": {
       const p = new URLSearchParams();
-      for (const k of ["castle", "group", "problem"] as const) {
+      for (const k of ENDGAME_KEYS) {
         const v = route[k];
         if (v) p.set(k, v);
       }

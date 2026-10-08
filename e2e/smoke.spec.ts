@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { fixtureReport } from "../src/core/__tests__/fixtures";
-import { fixtureAnalyses, fixtureGames, fixtureSelfGames, syncWithMock } from "./fixture";
+import {
+  fixtureAnalyses,
+  fixtureGames,
+  fixtureMateGame,
+  fixtureSelfGames,
+  syncWithMock,
+} from "./fixture";
 
 /**
  * 棋譜ビューアへ飛んだことを確かめる。URL はクリックの時点で変わるが、画面の描き直しは hashchange の後なので、
@@ -302,6 +308,25 @@ test.describe("一通りの画面", () => {
     const sw = await page.evaluate(() => fetch("sw.js").then((r) => r.status));
     expect(manifest).toBe(200);
     expect(sw).toBe(200);
+  });
+
+  test("終盤力強化: 詰めろを盤で指し、相手の応手の後に詰ませる", async ({ page }) => {
+    const { games, analyses } = await fixtureMateGame();
+    await syncWithMock(page, games, analyses);
+    await page.goto("#/endgame");
+    await page.getByRole("button", { name: "詰めろと詰み" }).click();
+    await page.getByRole("button", { name: "出題する" }).click();
+    await expect(page.getByText(/詰めろをかける手を盤で指してください/)).toBeVisible();
+    await page.getByRole("button", { name: "2四" }).click();
+    await page.getByRole("button", { name: "2三" }).click();
+    await page.getByRole("button", { name: "成らない" }).click();
+    await expect(page.getByText(/相手は △1三歩。ここから詰ませてください/)).toBeVisible();
+    await page.getByRole("button", { name: "持ち駒の金" }).click();
+    await page.getByRole("button", { name: "2二" }).click();
+    await expect(page.getByRole("status")).toContainText("正解");
+    await page.getByRole("button", { name: /棋譜で開く/ }).click();
+    await expectGame(page, /#\/game\/c90{14}\/0$/);
+    expect((page as unknown as { errors: string[] }).errors).toEqual([]);
   });
 
   test("更新情報: タブの印が開くと消える", async ({ page }) => {

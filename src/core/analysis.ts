@@ -121,6 +121,8 @@ export interface MoveReview {
   played: string;
   /** エンジンの最善手 (USI)。指した手と同じならそれが最善 */
   best?: string;
+  /** 指した手がエンジンの最善手と一致した。解析に最善手が無ければ付かない */
+  playedBest?: boolean;
   /** 指す前の評価値 (先手視点) */
   cpBefore: number;
   /** 指した後の評価値 (先手視点) */
@@ -173,7 +175,8 @@ export function reviewMoves(game: GameRecord, analysis: AnalysisRecord): MoveRev
       swing,
       judgement: judge(swing, loss),
     };
-    if (before.best && before.best !== played) review.best = before.best;
+    if (before.best === played) review.playedBest = true;
+    else if (before.best) review.best = before.best;
     out.push(review);
   }
   return out;

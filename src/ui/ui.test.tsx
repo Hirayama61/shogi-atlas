@@ -1095,6 +1095,35 @@ describe("UI", () => {
     expect(document.body.textContent).not.toContain("undefined");
   });
 
+  it("GameViewer: 読み出しの指し手は最善手と同じ表記。最善手の無い解析では「これが最善」と出さない", async () => {
+    const { a } = await seed();
+    const played = a.usi.replace(/^position startpos moves\s*/, "").split(/\s+/);
+    const cps = [0, 10, 0, 20, 0, -400, -380, -400, 600, 580, 600, 620, 600, 610, 600];
+    const withBest = (best: Record<number, string>): AnalysisRecord => ({
+      schema: 1,
+      id: a.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) => (best[ply] ? { ply, cp, best: best[ply] } : { ply, cp })),
+    });
+    const readout = () => document.querySelector(".panel p")!.textContent!;
+
+    // 最善手が無い解析
+    await db.analyses.put(withBest({}));
+    const { unmount } = render(<GameViewer id={a.id} initialPly={1} />);
+    await waitFor(() => expect(readout()).toContain("1手目 ▲7六歩"));
+    expect(readout()).not.toMatch(/[☗☖０-９]/);
+    expect(readout()).not.toContain("これが最善");
+    expect(readout()).not.toContain("最善");
+    unmount();
+
+    // 指した手と最善手が一致したときだけ「これが最善」
+    await db.analyses.put(withBest({ 0: played[0]! }));
+    render(<GameViewer id={a.id} initialPly={1} />);
+    await waitFor(() => expect(readout()).toContain("これが最善"));
+    expect(readout()).toContain("1手目 ▲7六歩");
+  });
+
   it("PlayerPage: 解析があれば弱点プロファイルが出る", async () => {
     const { b } = await seed();
     const cps = Array.from({ length: 21 }, (_, i) => (i >= 15 ? -900 : 0));

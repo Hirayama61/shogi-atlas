@@ -72,6 +72,14 @@ describe("analysis", () => {
     expect(m8.judgement).toBe("blunder");
     // 指した手が最善なら best は付かない
     expect(moves[6]!.best).toBeUndefined();
+    // 最善手の無い解析では一致したとも言わない
+    expect(moves[6]!.playedBest).toBeUndefined();
+    expect(m5.playedBest).toBeUndefined();
+    // 最善手と一致した手には印が付く
+    const first = g.usi.replace(/^position startpos moves\s*/, "").split(/\s+/)[0]!;
+    const agreed = reviewMoves(g, fakeAnalysis(g.id, cps, { 0: first }))[0]!;
+    expect(agreed.playedBest).toBe(true);
+    expect(agreed.best).toBeUndefined();
     // 指した側にとって評価が上がった手の損失は 0 (2 手目: 後手が +10 → 0 に戻した)
     expect(moves[1]!.loss).toBe(0);
 

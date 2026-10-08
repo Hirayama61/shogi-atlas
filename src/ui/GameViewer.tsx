@@ -22,7 +22,10 @@ interface Props {
 
 interface PlyInfo {
   ply: number;
+  /** 手の一覧の表記 (tsshogi のまま。例: ☗７六歩) */
   text: string;
+  /** 読み出しの表記。最善手と揃える (例: ▲7六歩) */
+  label: string;
   sfen: string;
   usi?: string;
 }
@@ -61,15 +64,14 @@ export function GameViewer({ id, initialPly }: Props) {
     try {
       const { record } = importRecord(game.raw);
       const out: PlyInfo[] = [];
+      let prev = "";
       record.forEach((node) => {
         const usi = "usi" in node.move ? node.move.usi : undefined;
         if (node.ply > 0 && !usi) return; // 投了などは盤面に影響しない
-        out.push({
-          ply: node.ply,
-          text: node.ply === 0 ? "開始局面" : node.displayText,
-          sfen: node.sfen,
-          usi,
-        });
+        const text = node.ply === 0 ? "開始局面" : node.displayText;
+        const label = usi ? formatUsiMove(prev, usi) : text;
+        out.push({ ply: node.ply, text, label, sfen: node.sfen, usi });
+        prev = node.sfen;
       });
       return out;
     } catch {
@@ -78,14 +80,14 @@ export function GameViewer({ id, initialPly }: Props) {
   }, [game]);
 
   const sfenByPly = useMemo(() => new Map(plies.map((p) => [p.ply, p.sfen] as const)), [plies]);
-  const textByPly = useMemo(() => new Map(plies.map((p) => [p.ply, p.text] as const)), [plies]);
+  const labelByPly = useMemo(() => new Map(plies.map((p) => [p.ply, p.label] as const)), [plies]);
   /** 最善手を符号 (例: △6二銀) にする。指す前の局面が無ければ USI のまま */
   const bestLabel = (m: MoveReview): string =>
     m.best ? formatUsiMove(sfenByPly.get(m.ply - 1) ?? "", m.best) : "";
   const describeMove = (p: number): string => {
     const m = reviewByPly.get(p);
     if (!m) return "";
-    const parts = [textByPly.get(p) ?? ""];
+    const parts = [labelByPly.get(p) ?? ""];
     if (m.judgement !== "good") parts.push(JUDGEMENT_LABEL[m.judgement]);
     if (m.best) parts.push(`最善 ${bestLabel(m)}`);
     return parts.filter(Boolean).join(" ");
@@ -197,14 +199,14 @@ export function GameViewer({ id, initialPly }: Props) {
               if (!m) return null;
               return (
                 <p style={{ margin: "6px 0 0" }}>
-                  {current.ply}手目 {current.text}
+                  {current.ply}手目 {current.label}
                   {m.judgement !== "good" && (
                     <span className="mark"> {JUDGEMENT_LABEL[m.judgement]}</span>
                   )}
                   <span className="muted">
                     {" "}
                     {fmtCp(m.cpBefore)} → {fmtCp(m.cpAfter)}
-                    {m.best ? ` · 最善 ${bestLabel(m)}` : " · これが最善"}
+                    {m.best ? ` · 最善 ${bestLabel(m)}` : m.playedBest ? " · これが最善" : ""}
                   </span>
                 </p>
               );

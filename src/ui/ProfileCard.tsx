@@ -16,8 +16,11 @@ const RATES: Record<
     label: string;
     /** 内訳の説明 (どの局面を指しているか) */
     note: string;
+    /** 分子に数えた対局 (軸の向き = 良い方) の印 */
     hit: string;
     miss: string;
+    /** 軸が率を反転している (RateEvidence.hit が悪い方) */
+    invert?: boolean;
   }
 > = {
   conversion: {
@@ -39,10 +42,11 @@ const RATES: Record<
     miss: "勝てなかった",
   },
   firstBlunder: {
-    label: "先に大悪手を指す率",
+    label: "先に崩れない (相手が先に大悪手を指した率)",
     note: "対局で最初の大悪手を指す前の局面",
-    hit: "自分が先",
-    miss: "相手が先",
+    hit: "相手が先",
+    miss: "自分が先",
+    invert: true,
   },
 };
 
@@ -162,8 +166,8 @@ function RadarHelp({ hasBaseline }: { hasBaseline: boolean }) {
       <p>
         有利を活かす: 評価値が初めて +300 以上になった対局のうち勝った割合。粘り: 初めて -300
         以下になった対局のうち負けなかった割合。咎める: 相手が大悪手を指した対局のうち勝った割合。
-        先に崩れない:
-        大悪手が出た対局のうち、先に指したのが相手だった割合。率の行をタップすると、数えた対局が開く。
+        先に崩れない: 大悪手が出た対局のうち、先に指したのが相手だった割合
+        (「先に大悪手を指す率」の裏返し)。 率の行をタップすると、数えた対局が開く。
       </p>
       {hasBaseline && <p>点線は登録している他の対局者の平均。</p>}
     </details>
@@ -172,28 +176,36 @@ function RadarHelp({ hasBaseline }: { hasBaseline: boolean }) {
 
 function RateBreakdownList({ kind, list }: { kind: RateKind; list: RateEvidence[] }) {
   const current = RATES[kind];
+  // 軸と同じ向きにそろえる (反転した軸では RateEvidence.hit が悪い方)
+  const good = (e: RateEvidence) => (current.invert ? !e.hit : e.hit);
+  const goods = list.filter(good).length;
   return (
     <div className="rate-breakdown">
       <div className="muted">
-        {current.label} の内訳 · {list.length} 局 · {current.note}
+        {current.label} の内訳 · {current.hit} {goods}/{list.length} 局 · {current.note}
       </div>
       {list.length === 0 && <p className="muted">該当する対局はまだありません</p>}
       {list.map((e) => (
-        <RateRow key={`${e.gameId}-${e.ply}`} e={e} label={e.hit ? current.hit : current.miss} />
+        <RateRow
+          key={`${e.gameId}-${e.ply}`}
+          e={e}
+          good={good(e)}
+          label={good(e) ? current.hit : current.miss}
+        />
       ))}
     </div>
   );
 }
 
 /** 内訳の 1 行。開いたときだけ盤面を出す */
-function RateRow({ e, label }: { e: RateEvidence; label: string }) {
+function RateRow({ e, good, label }: { e: RateEvidence; good: boolean; label: string }) {
   const [shown, setShown] = useState(false);
   const signed = (cp: number) => (cp > 0 ? `+${cp}` : `${cp}`);
   return (
     <details className="rate-row" onToggle={(ev) => setShown(ev.currentTarget.open)}>
       <summary>
         {e.startedAt?.slice(0, 10)} vs {e.opponent} · {e.ply}手目{" "}
-        <span className={e.hit ? "hit" : "mark"}>{label}</span>{" "}
+        <span className={good ? "hit" : "mark"}>{label}</span>{" "}
         <span className="muted">{signed(e.cp)}</span>
       </summary>
       {shown && (

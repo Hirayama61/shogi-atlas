@@ -1157,13 +1157,21 @@ describe("UI", () => {
     expect(conversion).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("該当する対局はまだありません")).toBeInTheDocument();
 
-    // 先に大悪手: 15 手目の本人の大悪手。指す前の 14 手目を指す
-    fireEvent.click(screen.getByRole("button", { name: /先に崩れない/ }));
+    // 先に崩れない: 15 手目の本人の大悪手。指す前の 14 手目を指す
+    const firstBlunder = screen.getByRole("button", { name: /先に崩れない/ });
+    expect(firstBlunder).toHaveTextContent("0/1 局");
+    fireEvent.click(firstBlunder);
     expect(conversion).toHaveAttribute("aria-expanded", "false");
+    // 内訳の見出し・該当の印・n/m は軸と同じ向き (相手が先 = 良い方が分子)
+    const heading = document.querySelector(".rate-breakdown > .muted")!;
+    expect(heading).toHaveTextContent("先に崩れない");
+    expect(heading).toHaveTextContent("相手が先 0/1 局");
     const rows = document.querySelectorAll("details.rate-row");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("14手目");
     expect(rows[0]).toHaveTextContent("自分が先");
+    expect(rows[0]!.querySelector(".mark")).toHaveTextContent("自分が先");
+    expect(rows[0]!.querySelector(".hit")).toBeNull();
     // 盤面は開いたときだけ出す
     expect(rows[0]!.querySelector("svg.board")).toBeNull();
     (rows[0] as HTMLDetailsElement).open = true;
@@ -1177,6 +1185,11 @@ describe("UI", () => {
     // 不利から負けなかった率: 初めて -300 以下になった 15 手目
     fireEvent.click(screen.getByRole("button", { name: /粘り/ }));
     expect(document.querySelectorAll("details.rate-row")[0]).toHaveTextContent("15手目");
+    // 反転しない軸は内訳の分子もそのまま (軸の 1/1 局と一致)
+    expect(screen.getByRole("button", { name: /粘り/ })).toHaveTextContent("1/1 局");
+    expect(document.querySelector(".rate-breakdown > .muted")).toHaveTextContent(
+      "負けなかった 1/1 局",
+    );
     expect(document.body.textContent).not.toContain("undefined");
   });
 });

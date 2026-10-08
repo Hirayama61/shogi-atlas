@@ -71,8 +71,15 @@ test.describe("一通りの画面", () => {
     await page.locator("details.rate-row").getByRole("button", { name: "局面を開く" }).click();
     await expectGame(page, /#\/game\/f000000000000000\/15/);
     await page.goBack();
-    await page.locator("details.worst summary").first().click();
-    await page.getByRole("button", { name: "局面を開く" }).first().click();
+    // 戻っても内訳と開いた行はそのまま
+    await expect(page.getByRole("button", { name: /粘り/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(page.locator("details.rate-row[open]")).toHaveCount(1);
+    const worst = page.locator("details.worst").first();
+    await worst.locator("summary").click();
+    await worst.getByRole("button", { name: "局面を開く" }).click();
     await expectGame(page, /#\/game\/f000000000000000\/14/);
     await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
     await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();

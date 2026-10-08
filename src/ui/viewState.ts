@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * 履歴エントリごとの表示状態 (スクロール位置・開いている折りたたみ) を覚えて、戻ったときに復元する。
+ * 履歴エントリごとの表示状態 (スクロール位置・開いている折りたたみ・useRestoredState の値) を覚えて、戻ったときに復元する。
  * ハッシュが変わると画面コンポーネントが作り直されるので、ブラウザ任せでは先頭に戻ってしまう。
  *
  * 各エントリの `history.state` に鍵を付け、表示状態は sessionStorage に鍵ごとに置く。
@@ -18,10 +18,14 @@ interface ViewSnapshot {
   y: number;
   /** 開いていた details の識別子 (detailsIds) */
   open: string[];
+  /** useRestoredState で登録した値 (React の state で開閉する部分など)。識別子 → 値 */
+  state?: Record<string, unknown>;
 }
 
 const STORAGE_PREFIX = "shogi-atlas:view:";
 let currentKey: string | null = null;
+/** いま画面に出ている useRestoredState の値の読み出し口。離れるときに保存する */
+const restoredStates = new Map<string, () => unknown>();
 
 function entryState(): EntryState | null {
   const s = history.state as Partial<EntryState> | null;
@@ -66,6 +70,9 @@ function saveView(key: string): void {
     .filter(([d]) => d.open)
     .map(([, id]) => id);
   const snap: ViewSnapshot = { y: window.scrollY, open };
+  if (restoredStates.size > 0) {
+    snap.state = Object.fromEntries(Array.from(restoredStates, ([id, get]) => [id, get()]));
+  }
   try {
     sessionStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(snap));
   } catch {
@@ -139,4 +146,25 @@ export function useRestoreView(ready: boolean, { topWhenNew = false } = {}): voi
     for (const [d, id] of detailsIds()) d.open = open.has(id);
     window.scrollTo(0, snap.y);
   });
+}
+
+/**
+ * useState と同じだが、値を履歴エントリの表示状態に含める。戻ってきたときはこのエントリで保存した値から始まる
+ * (details ではなく state で開閉する部分 — 率の内訳など — を、details と同じように復元するため)。
+ * `id` は画面内で一意にする。値は JSON にできるものに限る。
+ */
+export function useRestoredState<T>(id: string, initial: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    const key = entryState()?.viewKey;
+    const saved = key ? loadView(key)?.state : undefined;
+    return saved && id in saved ? (saved[id] as T) : initial;
+  });
+  useEffect(() => {
+    const get = () => value;
+    restoredStates.set(id, get);
+    return () => {
+      if (restoredStates.get(id) === get) restoredStates.delete(id);
+    };
+  }, [id, value]);
+  return [value, setValue];
 }

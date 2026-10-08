@@ -13,6 +13,7 @@ import { LossHelp } from "./LossHelp";
 import { pageTitle, shownRank } from "./labels";
 import { RadarChart } from "./RadarChart";
 import { hashFor, navigate } from "./router";
+import { useRestoredState } from "./viewState";
 
 type RateKind = keyof RateBreakdown;
 
@@ -76,7 +77,8 @@ interface Props {
  * 率の軸はタップすると内訳 (数えた対局と根拠の局面) が下に開く。
  */
 export function ProfileCard({ stats, profile, others }: Props) {
-  const [open, setOpen] = useState<RateKind | null>(null);
+  // 内訳から局面へ飛んで戻ったときも開いたままにする
+  const [open, setOpen] = useRestoredState<RateKind | null>("rate-breakdown", null);
   const axes = profile ? radarAxes(profile) : null;
   const baseline = others.length ? averageAxes(others.map(radarAxes)) : undefined;
   const side = (s: "black" | "white") => stats.bySide[s];

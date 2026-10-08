@@ -169,6 +169,43 @@ describe("棋譜画面から戻る", () => {
     await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
   });
 
+  it("率の内訳から局面を開いて戻ると、同じ内訳と行が開いたまま同じスクロール位置になる", async () => {
+    const { b } = await seed();
+    // 15 手目に本人の大悪手 (先に崩れない の内訳に 1 行出る)
+    const cps = Array.from({ length: 21 }, (_, i) => (i >= 15 ? -900 : 0));
+    await db.analyses.put({
+      schema: 1,
+      id: b.id,
+      engine: { name: "fake", depth: 1 },
+      analyzedAt: "2026-01-01T00:00:00Z",
+      plies: cps.map((cp, ply) =>
+        ply === 14 ? { ply, cp, best: "1g1f", pv: ["1g1f"] } : { ply, cp },
+      ),
+    });
+    history.replaceState(null, "", "#/player/Sukonbu3");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /先に崩れない/ }));
+    const row = () => document.querySelector<HTMLDetailsElement>("details.rate-row")!;
+    await waitFor(() => expect(row()).not.toBeNull());
+    row().open = true;
+    fireEvent(row(), new Event("toggle"));
+    const open = await within(row()).findByRole("button", { name: "局面を開く" });
+    setScrollY(800);
+    fireEvent.click(open);
+    await waitFor(() => expect(location.hash).toBe(`#/game/${b.id}/14`));
+    setScrollY(0);
+    fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
+
+    await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 800));
+    expect(screen.getByRole("button", { name: /先に崩れない/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(document.querySelector(".rate-breakdown")).toHaveTextContent("先に崩れない");
+    await waitFor(() => expect(row().open).toBe(true));
+  });
+
   it("区分 → 戦法の詳細と開き、一つ上に戻ると前の位置に戻る", async () => {
     await seed();
     history.replaceState(null, "", "#/player/Sukonbu3");

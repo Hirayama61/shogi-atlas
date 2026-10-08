@@ -302,3 +302,12 @@ export const USI_MILLENNIUM =
 /** ☗超速 vs ☖ゴキゲン中飛車: 2五歩・4八銀・3六歩・3七銀 */
 export const USI_CHOSOKU =
   "position startpos moves 7g7f 3c3d 2g2f 5c5d 2f2e 8b5b 3i4h 5a6b 5i6h 6b7b 3g3f 7b8b 4h3g 9c9d";
+
+/**
+ * 囲い崩しの問題 (endgame.ts) 用。☖玉 2二・銀 3二・歩 1〜3 三 の形に、☗が飛車を打って迫る。
+ * 途中局面からの局面指定なので序盤の除外は効かない。A: ▲2一飛 (最善) △同銀 (最善)。B: 最善の ▲2一飛 を逃して ▲8八玉。
+ */
+export const USI_ENDGAME_A = "position sfen 9/6sk1/6ppp/9/9/9/9/9/K8 b G2R 1 moves R*2a 3b2a";
+export const USI_ENDGAME_B = "position sfen 9/6sk1/6ppp/9/9/9/9/9/K8 b G2R 1 moves 9i8h";
+/** C: A / B の盤を 180 度回した形 (☗玉 8八 が守る側)。最善の △8九飛 を逃して △2一玉 */
+export const USI_ENDGAME_C = "position sfen 8k/9/9/9/9/9/PPP6/1KS6/9 w g2r 1 moves 1a2a";

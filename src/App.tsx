@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { hasUnseenUpdates } from "./changelog";
 import { BranchStudyPage } from "./ui/BranchStudy";
 import { ComparePage } from "./ui/ComparePage";
+import { EndgamePage } from "./ui/EndgamePage";
 import { GameList } from "./ui/GameList";
 import { GameViewer } from "./ui/GameViewer";
 import { PlayerList } from "./ui/PlayerList";
@@ -28,7 +29,7 @@ export default function App() {
   }, []);
 
   const tab = (
-    kind: "list" | "players" | "settings" | "updates",
+    kind: "list" | "players" | "endgame" | "settings" | "updates",
     label: string,
     active: boolean,
     mark = false,
@@ -57,6 +58,7 @@ export default function App() {
               route.kind === "compare" ||
               (route.kind === "list" && !!route.portfolio),
           )}
+          {tab("endgame", "終盤", route.kind === "endgame")}
           {tab("updates", "更新情報", route.kind === "updates", unseen)}
           {tab("settings", "設定", route.kind === "settings")}
         </nav>
@@ -75,6 +77,7 @@ export default function App() {
         />
       )}
       {route.kind === "compare" && <ComparePage route={route} />}
+      {route.kind === "endgame" && <EndgamePage route={route} />}
       {route.kind === "settings" && <SettingsPane />}
       {route.kind === "updates" && <UpdatesPane onSeen={onSeen} />}
       {route.kind === "game" && <GameViewer id={route.id} initialPly={route.ply} />}

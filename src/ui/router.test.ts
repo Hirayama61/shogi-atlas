@@ -30,6 +30,18 @@ describe("router", () => {
     expect(parseHash(hashFor(filtered))).toEqual(filtered);
   });
 
+  it("終盤力強化の URL を往復できる", () => {
+    expect(hashFor({ kind: "endgame" })).toBe("#/endgame");
+    expect(parseHash("#/endgame")).toEqual({ kind: "endgame" });
+    const route: Route = {
+      kind: "endgame",
+      castle: "美濃囲い",
+      group: "attack|美濃囲い|88:P,P,P,.,K,S,.,.,.",
+      problem: "abc:41",
+    };
+    expect(parseHash(hashFor(route))).toEqual(route);
+  });
+
   it("絞り込みつき一覧の URL を往復できる", () => {
     const route: Route = {
       kind: "list",

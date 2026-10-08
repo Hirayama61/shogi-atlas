@@ -73,7 +73,9 @@ export type Route =
    * 参考の対局者 (other) と同じ局面で何を指したかの比較。opening で 2 人の戦法を絞る。
    * all で一致の局面と数手以内に合流する分岐も出す (既定では隠す)
    */
-  | { kind: "compare"; name: string; other: string; opening?: string; all?: boolean };
+  | { kind: "compare"; name: string; other: string; opening?: string; all?: boolean }
+  /** 終盤力強化。castle で囲いを絞り、group (問題群のキー) を選ぶと出題、problem は出している問題 */
+  | { kind: "endgame"; castle?: string; group?: string; problem?: string };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
@@ -259,6 +261,15 @@ export function parseHash(full: string): Route {
     if (view) route.view = view;
     return route;
   }
+  if (hash === "#/endgame") {
+    const route: Route = { kind: "endgame" };
+    const p = new URLSearchParams(qi < 0 ? "" : full.slice(qi + 1));
+    for (const k of ["castle", "group", "problem"] as const) {
+      const v = p.get(k);
+      if (v) route[k] = v;
+    }
+    return route;
+  }
   if (hash.startsWith("#/players")) return { kind: "players" };
   if (hash.startsWith("#/settings")) return { kind: "settings" };
   if (hash.startsWith("#/updates")) return { kind: "updates" };
@@ -291,6 +302,15 @@ export function hashFor(route: Route): string {
       if (route.all) p.set("all", "1");
       const qs = p.toString();
       return qs ? `${path}?${qs}` : path;
+    }
+    case "endgame": {
+      const p = new URLSearchParams();
+      for (const k of ["castle", "group", "problem"] as const) {
+        const v = route[k];
+        if (v) p.set(k, v);
+      }
+      const qs = p.toString();
+      return qs ? `#/endgame?${qs}` : "#/endgame";
     }
     case "list": {
       const qs = queryString(route.query ?? {});

@@ -151,15 +151,17 @@ export function judge(swing: number, loss: number): Judgement {
 export function reviewMoves(game: GameRecord, analysis: AnalysisRecord): MoveReview[] {
   const byPly = new Map(analysis.plies.map((p) => [p.ply, p] as const));
   const moves = game.usi
-    .replace(/^position startpos( moves)?\s*/, "")
+    .replace(/^position (startpos|sfen \S+ [bw] \S+ \d+)( moves)?\s*/, "")
     .split(/\s+/)
     .filter(Boolean);
+  // 局面指定 (sfen) で後手番から始まる対局は、奇数手目が後手
+  const whiteFirst = /^position sfen \S+ w /.test(game.usi);
   const out: MoveReview[] = [];
   for (let ply = 1; ply <= moves.length; ply++) {
     const before = byPly.get(ply - 1);
     const after = byPly.get(ply);
     if (!before || !after) continue;
-    const side = ply % 2 === 1 ? "black" : "white";
+    const side = (ply % 2 === 1) !== whiteFirst ? "black" : "white";
     const sign = side === "black" ? 1 : -1;
     const loss = Math.max(0, sign * (before.cp - after.cp));
     const swing = Math.max(0, sign * (winProbability(before.cp) - winProbability(after.cp)));

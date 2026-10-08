@@ -64,8 +64,8 @@ export function formatUsiMove(key: string, usi: string): string {
 }
 
 /** 局面と手から表示用の表記 (例: ▲6五歩) を作る */
-export function formatPositionMove(pos: ImmutablePosition, move: Move): string {
-  return formatMove(pos, move)
+export function formatPositionMove(pos: ImmutablePosition, move: Move, lastMove?: Move): string {
+  return formatMove(pos, move, lastMove ? { lastMove } : undefined)
     .replace("☗", "▲")
     .replace("☖", "△")
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));

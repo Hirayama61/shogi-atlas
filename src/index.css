@@ -906,3 +906,52 @@ ul.games .chip.new {
 .branch-tree + .branch-tree {
   margin-top: var(--space-row);
 }
+.endgame-groups {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-row) 0;
+  display: grid;
+  gap: var(--space-inline);
+}
+.endgame-group {
+  width: 100%;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--space-row) var(--space-block);
+  line-height: var(--leading-tight);
+}
+.endgame-self {
+  display: block;
+  margin-top: var(--space-hair);
+  font-size: 13px;
+  color: var(--danger);
+}
+.endgame-answer {
+  margin-top: var(--space-block);
+  font-size: 14px;
+}
+.endgame-answer dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-inline) var(--space-row);
+  margin: var(--space-row) 0;
+}
+.endgame-answer dt {
+  color: var(--muted);
+}
+.endgame-answer dd {
+  margin: 0;
+}
+.endgame-correct,
+.endgame-wrong {
+  margin: 0;
+  font-weight: bold;
+}
+.endgame-correct {
+  color: var(--good);
+}
+.endgame-wrong {
+  color: var(--danger);
+}

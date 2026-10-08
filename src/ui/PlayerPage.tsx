@@ -38,6 +38,7 @@ import { GameButtons } from "./GameButtons";
 import {
   describeCandidate,
   judgementTone,
+  pageTitle,
   quadrantQuery,
   SIDE_LABEL,
   STYLE_QUADRANT_LABEL,
@@ -360,53 +361,110 @@ function LineSegment({
   );
 }
 
-/** 階層の一つ上へ戻るリンク。直前に見ていた画面なら history.back() で戻り、位置と折りたたみが復元される */
-function UpLink({ to, label }: { to: Route; label: string }) {
-  const hash = hashFor(to);
+interface Crumb {
+  label: string;
+  /** 無ければ今いる段 */
+  to?: Route;
+}
+
+/**
+ * 階層の段の先頭: 今いる場所 (パンくず) と、この画面が何を示し次に何ができるかの 1 行。
+ * 上の段へのリンクは、直前に見ていた画面なら history.back() で戻り、位置と折りたたみが復元される。
+ */
+function LevelHeader({ crumbs, title, note }: { crumbs: Crumb[]; title: string; note: string }) {
   return (
-    <a
-      className="up-link"
-      href={hash}
-      onClick={(e) => {
-        e.preventDefault();
-        goBackTo(hash);
-      }}
-    >
-      ← {label}
-    </a>
+    <>
+      <nav className="crumbs" aria-label="現在地">
+        {crumbs.map((c, i) => (
+          <span key={i}>
+            {i > 0 && <span className="crumb-sep"> › </span>}
+            {c.to ? (
+              <a
+                href={hashFor(c.to)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goBackTo(hashFor(c.to!));
+                }}
+              >
+                {c.label}
+              </a>
+            ) : (
+              <span aria-current="page">{c.label}</span>
+            )}
+          </span>
+        ))}
+      </nav>
+      <strong className="level-title">{title}</strong>
+      <p className="muted level-note">{note}</p>
+    </>
   );
 }
 
-/** 戦型の 4 区分。区分をタップすると、その区分の戦法の一覧を開く (もう一度タップで閉じる) */
+/** 階層のパンくず。`opening` を渡すと戦法の詳細の段まで */
+function crumbsOf(name: string, view: PlayerView, opening?: string): Crumb[] {
+  const top: Crumb = { label: pageTitle(name), to: { kind: "player", name } };
+  const quadrant = STYLE_QUADRANT_LABEL[view.quadrant];
+  if (opening === undefined) return [top, { label: quadrant }];
+  return [
+    top,
+    {
+      label: quadrant,
+      to: { kind: "player", name, view: listView(view.quadrant, view.axis ?? "self", view.side) },
+    },
+    { label: opening },
+  ];
+}
+
+/** 戦法の一覧・詳細を先手 / 後手 / 両方で切り替える。開いている戦法の詳細はそのまま (その先後の局数で数え直す) */
+function SideToggle({ name, view }: { name: string; view: PlayerView }) {
+  const routeOf = (side: Side | undefined): Route => ({
+    kind: "player",
+    name,
+    view: {
+      ...listView(view.quadrant, view.axis ?? "self", side),
+      ...(view.opening ? { opening: view.opening } : {}),
+    },
+  });
+  return (
+    <div className="axis-toggle" role="group" aria-label="先後">
+      {([undefined, "black", "white"] as const).map((side) => (
+        <a
+          key={side ?? "both"}
+          className={`chip${side === view.side ? " active" : ""}`}
+          href={hashFor(routeOf(side))}
+          aria-pressed={side === view.side}
+        >
+          {side ? SIDE_LABEL[side] : "両方"}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** 戦型の 4 区分。区分をタップすると、その区分の戦法の一覧の画面に移る */
 function StyleQuadrants({
   quadrants,
   total,
   name,
-  view,
 }: {
   quadrants: QuadrantStats[];
   total: number;
   name: string;
-  view?: PlayerView;
 }) {
   return (
     <div className="panel">
       <strong>戦型</strong>
       <p className="muted">
-        自分と相手の戦型の組み合わせごとの成績。区分をタップすると、その中の戦法が出る。
+        自分と相手の戦型の組み合わせごとの成績。区分をタップすると、その区分で指した戦法の一覧に移る。
       </p>
       <div className="quadrants">
         {quadrants.map((q) => {
-          const open = view?.quadrant === q.quadrant;
-          const route: Route = open
-            ? { kind: "player", name }
-            : { kind: "player", name, view: { quadrant: q.quadrant } };
+          const route: Route = { kind: "player", name, view: { quadrant: q.quadrant } };
           return (
             <a
               key={q.quadrant}
-              className={`quadrant${open ? " selected" : ""}${q.games === 0 ? " empty" : ""}`}
+              className={`quadrant${q.games === 0 ? " empty" : ""}`}
               href={hashFor(route)}
-              aria-current={open ? "true" : undefined}
             >
               <span className="quadrant-title">{STYLE_QUADRANT_LABEL[q.quadrant]}</span>
               <span className="muted quadrant-note">{STYLE_QUADRANT_NOTE[q.quadrant]}</span>
@@ -417,6 +475,9 @@ function StyleQuadrants({
                 {q.wins} 勝 {q.losses} 敗 · 先手 {q.bySide.black.games} 局 {q.bySide.black.wins} 勝
                 · 後手 {q.bySide.white.games} 局 {q.bySide.white.wins} 勝
               </span>
+              <span className="quadrant-more">
+                {q.openings.length > 0 ? `戦法 ${q.openings.length} 種を見る →` : "戦法の一覧 →"}
+              </span>
             </a>
           );
         })}
@@ -426,8 +487,8 @@ function StyleQuadrants({
 }
 
 /**
- * 区分の中の戦法の一覧。自分の戦法と相手の戦法を切り替えられ、行をタップすると戦法の詳細を開く。
- * 下に区分の中での相手の囲い別の成績を添える。
+ * 区分の中の戦法の一覧 (階層の 2 段目の画面)。自分の戦法と相手の戦法を切り替えられ、
+ * 行をタップすると戦法の詳細の画面に移る。下に区分の中での相手の囲い別の成績を添える。
  */
 function OpeningList({
   q,
@@ -447,31 +508,20 @@ function OpeningList({
     name,
     view: listView(q.quadrant, a, view.side),
   });
-  // 先後を切り替えても開いている戦法の詳細はそのまま (その先後の局数で数え直す)
-  const sideRoute = (side: Side | undefined): Route => ({
-    kind: "player",
-    name,
-    view: {
-      ...listView(q.quadrant, axis, side),
-      ...(view.opening ? { opening: view.opening } : {}),
-    },
-  });
+  const quadrant = STYLE_QUADRANT_LABEL[q.quadrant];
+  const owner = name === SELF_NAME ? "あなた" : ` ${name} `;
   return (
     <div className="panel opening-list">
-      <UpLink to={{ kind: "player", name }} label="戦型" />
-      <strong>{STYLE_QUADRANT_LABEL[q.quadrant]} の戦法</strong>
-      <div className="axis-toggle" role="group" aria-label="先後">
-        {([undefined, "black", "white"] as const).map((side) => (
-          <a
-            key={side ?? "both"}
-            className={`chip${side === view.side ? " active" : ""}`}
-            href={hashFor(sideRoute(side))}
-            aria-pressed={side === view.side}
-          >
-            {side ? SIDE_LABEL[side] : "両方"}
-          </a>
-        ))}
-      </div>
+      <LevelHeader
+        crumbs={crumbsOf(name, view)}
+        title={axis === "self" ? `${quadrant} の${owner}の戦法` : `${quadrant} の相手の戦法`}
+        note={
+          axis === "self"
+            ? "この区分で指した戦法ごとの成績。行をタップすると、その戦法の囲い・相手の戦法・手順・分岐点の画面に移る。"
+            : "この区分で当たった相手の戦法ごとの成績。行をタップすると、その戦法への自分の応手・手順・分岐点の画面に移る。"
+        }
+      />
+      <SideToggle name={name} view={view} />
       <div className="axis-toggle" role="group" aria-label="戦法の側">
         {(["self", "opponent"] as const).map((a) => (
           <a
@@ -491,7 +541,6 @@ function OpeningList({
           head={axis === "self" ? "自分の戦法" : "相手の戦法"}
           rows={rows}
           total={q.games}
-          selected={view.opening}
           routeOf={(r) => ({
             kind: "player",
             name,
@@ -569,7 +618,7 @@ function counterQuery(
 }
 
 /**
- * 戦法の詳細: 囲い・相手の戦法 (相手の戦法で見ているときは自分の応手) の内訳、繰り返している手順、分岐点、
+ * 戦法の詳細 (階層の 3 段目の画面): 囲い・相手の戦法 (相手の戦法で見ているときは自分の応手) の内訳、繰り返している手順、分岐点、
  * 棋譜一覧へのリンクを 1 か所にまとめる。
  */
 function OpeningDetailPanel({
@@ -615,19 +664,16 @@ function OpeningDetailPanel({
     [combo],
   );
   const list: Route = { kind: "list", query: detailQuery(name, detail, view.side) };
-  const parent: Route = {
-    kind: "player",
-    name,
-    view: listView(view.quadrant, view.axis ?? "self", view.side),
-  };
   const isSelf = detail.axis === "self";
+  const label = `${isSelf ? "" : "相手: "}${detail.opening}`;
   return (
     <div className="panel opening-detail">
-      <UpLink to={parent} label={`${STYLE_QUADRANT_LABEL[detail.quadrant]} の戦法`} />
-      <strong>
-        {isSelf ? "" : "相手: "}
-        {detail.opening}
-      </strong>
+      <LevelHeader
+        crumbs={crumbsOf(name, view, label)}
+        title={`${label} の詳細`}
+        note={DETAIL_NOTE}
+      />
+      <SideToggle name={name} view={view} />
       <div className="muted">
         {STYLE_QUADRANT_LABEL[detail.quadrant]}
         {view.side ? ` · ${SIDE_LABEL[view.side]}のみ` : ""} · {detail.games} 局 {detail.wins} 勝{" "}
@@ -715,6 +761,25 @@ function OpeningDetailPanel({
           <BranchTreeList trees={trees} name={name} view={view} />
         )}
       </div>
+    </div>
+  );
+}
+
+const DETAIL_NOTE =
+  "この戦法の対局の内訳。表の行をタップするとその対局の棋譜一覧が、分岐点をタップすると手順をたどって候補手を比べる画面が開く。";
+
+/** 戦法の詳細を開いたが、その条件 (先後など) の対局が無いとき。先後は切り替えられる */
+function EmptyDetail({ name, view, opening }: { name: string; view: PlayerView; opening: string }) {
+  const label = `${(view.axis ?? "self") === "self" ? "" : "相手: "}${opening}`;
+  return (
+    <div className="panel opening-detail">
+      <LevelHeader
+        crumbs={crumbsOf(name, view, label)}
+        title={`${label} の詳細`}
+        note={DETAIL_NOTE}
+      />
+      <SideToggle name={name} view={view} />
+      <p className="muted">この条件の対局はありません</p>
     </div>
   );
 }
@@ -911,10 +976,43 @@ export function PlayerPage({ name, view }: Props) {
     () => (analyses ? new Map(analyses.map((a) => [a.id, a] as const)) : null),
     [analyses],
   );
-  useRestoreView(!!games && !!analyses && report !== undefined);
+  // 段ごとに 1 画面なので、新しく開いた段は先頭から見せる
+  useRestoreView(!!games && !!analyses && report !== undefined, { topWhenNew: true });
 
   if (!games || !stats) return <p className="muted">読み込み中…</p>;
   if (stats.games === 0) return <p className="error">{name} の対局がありません</p>;
+
+  // 階層の 2 段目 (区分の戦法の一覧) と 3 段目 (戦法の詳細) は、それだけを 1 画面に出す
+  if (view?.opening) {
+    return (
+      <section>
+        {detail && detail.games > 0 ? (
+          <OpeningDetailPanel
+            detail={detail}
+            view={view}
+            games={own}
+            byId={byId}
+            analyses={analysisMap}
+            name={name}
+          />
+        ) : (
+          <EmptyDetail name={name} view={view} opening={view.opening} />
+        )}
+      </section>
+    );
+  }
+  if (view) {
+    return (
+      <section>
+        <OpeningList
+          q={quadrant ?? emptyQuadrant(view.quadrant)}
+          name={name}
+          view={view}
+          vsCastles={quadrantCastles}
+        />
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -930,20 +1028,7 @@ export function PlayerPage({ name, view }: Props) {
 
       {name === SELF_NAME && <ComparePicker name={name} candidates={compareCandidates} />}
 
-      <StyleQuadrants quadrants={quadrants} total={stats.games} name={name} view={view} />
-      {view && quadrant && (
-        <OpeningList q={quadrant} name={name} view={view} vsCastles={quadrantCastles} />
-      )}
-      {view && detail && detail.games > 0 && (
-        <OpeningDetailPanel
-          detail={detail}
-          view={view}
-          games={own}
-          byId={byId}
-          analyses={analysisMap}
-          name={name}
-        />
-      )}
+      <StyleQuadrants quadrants={quadrants} total={stats.games} name={name} />
 
       {profile && (
         <div className="panel">

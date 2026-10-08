@@ -313,6 +313,66 @@ describe("UI", () => {
     expect(card.compareDocumentPosition(quadrants) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("PlayerPage: 区分を選ぶと一覧だけの画面に、戦法を選ぶと詳細だけの画面になり、前の段は残らない", async () => {
+    const { b } = await seed();
+    const opening = b.opening.blackOpening;
+    const { rerender } = render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
+    await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
+    for (const sel of [".profile-card", ".quadrants", ".opening-detail", ".overall-shares"]) {
+      expect(document.querySelector(sel)).toBeNull();
+    }
+    rerender(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha", opening }} />);
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    for (const sel of [".profile-card", ".quadrants", ".opening-list", ".overall-shares"]) {
+      expect(document.querySelector(sel)).toBeNull();
+    }
+  });
+
+  it("PlayerPage: 一覧と詳細の画面の先頭にパンくずと説明文があり、上の段へのリンクになっている", async () => {
+    const { b } = await seed();
+    const opening = b.opening.blackOpening;
+    const { rerender } = render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
+    await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
+    const crumbs = () => screen.getByRole("navigation", { name: "現在地" });
+    expect(crumbs()).toHaveTextContent("Sukonbu3 › 対抗形 · 自分が振り飛車");
+    expect(within(crumbs()).getByRole("link", { name: "Sukonbu3" })).toHaveAttribute(
+      "href",
+      "#/player/Sukonbu3",
+    );
+    expect(document.querySelector(".opening-list > nav")).toBe(
+      document.querySelector(".opening-list")!.firstElementChild,
+    );
+    expect(document.querySelector(".opening-list .level-note")).toHaveTextContent(
+      "行をタップすると",
+    );
+
+    rerender(
+      <PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha", side: "black", opening }} />,
+    );
+    await waitFor(() => expect(document.querySelector(".opening-detail")).not.toBeNull());
+    expect(crumbs()).toHaveTextContent(`Sukonbu3 › 対抗形 · 自分が振り飛車 › ${opening}`);
+    // 区分の段へのリンクは先後を保つ
+    const up = within(crumbs()).getByRole("link", { name: "対抗形 · 自分が振り飛車" });
+    expect(parseHash(up.getAttribute("href")!)).toEqual({
+      kind: "player",
+      name: "Sukonbu3",
+      view: { quadrant: "furiVsIbisha", side: "black" },
+    });
+    expect(within(crumbs()).getByText(opening)).toHaveAttribute("aria-current", "page");
+    expect(document.querySelector(".opening-detail .level-title")).toHaveTextContent(
+      `${opening} の詳細`,
+    );
+    expect(document.querySelector(".opening-detail .level-note")).toHaveTextContent("棋譜一覧");
+  });
+
+  it("PlayerPage: 4 区分のタイルにタップすると戦法の一覧が出ることが書かれている", async () => {
+    await seed();
+    render(<PlayerPage name="Sukonbu3" />);
+    await waitFor(() => expect(screen.getByText("相居飛車")).toBeInTheDocument());
+    const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>("a.quadrant"));
+    expect(cards[2]!.querySelector(".quadrant-more")).toHaveTextContent("戦法 1 種を見る →");
+  });
+
   it("PlayerPage: 4 区分それぞれに局数・勝率・先後の内訳が出て、合計が全対局数に一致する", async () => {
     await seed();
     render(<PlayerPage name="Sukonbu3" />);
@@ -346,9 +406,8 @@ describe("UI", () => {
     const { rerender } = render(<PlayerPage name="Sukonbu3" view={{ quadrant: "furiVsIbisha" }} />);
     await waitFor(() => expect(document.querySelector(".opening-list")).not.toBeNull());
     const list = document.querySelector(".opening-list") as HTMLElement;
-    expect(list).toHaveTextContent("対抗形 · 自分が振り飛車 の戦法");
-    expect(document.querySelector("a.quadrant.selected")).toHaveTextContent(
-      "対抗形 · 自分が振り飛車",
+    expect(list.querySelector(".level-title")).toHaveTextContent(
+      "対抗形 · 自分が振り飛車 の Sukonbu3 の戦法",
     );
     const heads = Array.from(list.querySelectorAll(":scope > table thead th")).map(
       (th) => th.textContent,
@@ -444,10 +503,6 @@ describe("UI", () => {
     await waitFor(() => expect(cells()).toEqual(["1", "1", "0"]));
     rerender(<PlayerPage name="Sukonbu3" view={{ ...base, side: "black" }} />);
     await waitFor(() => expect(cells()).toEqual(["2", "1", "1"]));
-    // 4 区分のタイルは両方のまま
-    expect(document.querySelector("a.quadrant.selected")).toHaveTextContent(
-      "先手 2 局 1 勝 · 後手 1 局 1 勝",
-    );
     // 行から開く戦法の詳細にも先後が付く
     const row = within(document.querySelector(".opening-list > table") as HTMLElement).getByRole(
       "link",
@@ -465,12 +520,10 @@ describe("UI", () => {
     const detail = document.querySelector(".opening-detail") as HTMLElement;
     expect(detail).toHaveTextContent("後手のみ · 1 局 1 勝 0 敗");
     expect(detail.querySelector("details.lines")).toBeNull();
-    // 詳細を開いたまま先後を切り替えられる
-    const both = within(
-      within(document.querySelector(".opening-list") as HTMLElement).getByRole("group", {
-        name: "先後",
-      }),
-    ).getByRole("link", { name: "両方" });
+    // 詳細の画面のまま先後を切り替えられる
+    const both = within(within(detail).getByRole("group", { name: "先後" })).getByRole("link", {
+      name: "両方",
+    });
     expect(parseHash(both.getAttribute("href")!)).toEqual({
       kind: "player",
       name: "Sukonbu3",

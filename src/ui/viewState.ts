@@ -120,9 +120,10 @@ export function goBackTo(hash: string): void {
 
 /**
  * 画面のデータが揃ったら (ready)、このエントリで前に保存した表示状態を 1 回だけ復元する。
- * 新しく開いた画面には保存が無いので何もしない。
+ * 新しく開いた画面には保存が無いので何もしない。`topWhenNew` なら先頭へスクロールする
+ * (同じ画面コンポーネントのまま中身が入れ替わる画面で、前の段のスクロール位置が残らないように)。
  */
-export function useRestoreView(ready: boolean): void {
+export function useRestoreView(ready: boolean, { topWhenNew = false } = {}): void {
   const done = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;
@@ -130,7 +131,10 @@ export function useRestoreView(ready: boolean): void {
     if (!key || done.current === key) return;
     done.current = key;
     const snap = loadView(key);
-    if (!snap) return;
+    if (!snap) {
+      if (topWhenNew) window.scrollTo(0, 0);
+      return;
+    }
     const open = new Set(snap.open);
     for (const [d, id] of detailsIds()) d.open = open.has(id);
     window.scrollTo(0, snap.y);

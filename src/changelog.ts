@@ -12,6 +12,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-08",
+    title: "対局者ページの戦型 → 戦法 → 戦法の詳細を 1 段ずつの画面にする",
+    details: [
+      "区分を選ぶと戦法の一覧だけの画面に、戦法を選ぶと詳細だけの画面に移る。",
+      "各画面の先頭に今いる場所 (パンくず) と、何が分かり次に何ができるかの 1 行がある。",
+    ],
+  },
+  {
     date: "2026-10-07",
     title: "戦法の一覧と詳細を先手 / 後手で切り替える",
     details: [

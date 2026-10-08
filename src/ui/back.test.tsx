@@ -183,6 +183,8 @@ describe("棋譜画面から戻る", () => {
       if (!el) throw new Error("opening-list not rendered");
       return el;
     });
+    // 新しく開いた段は先頭から (前の段のスクロール位置を引き継がない)
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 0));
     const row = within(list).getByRole("link", { name: "ノーマル四間飛車" });
     setScrollY(500);
     act(() => {
@@ -190,7 +192,7 @@ describe("棋譜画面から戻る", () => {
     });
     await waitFor(() => expect(location.hash).toBe(hashFor(DETAIL)));
     setScrollY(0);
-    fireEvent.click(await screen.findByRole("link", { name: /← 対抗形 · 自分が振り飛車 の戦法/ }));
+    fireEvent.click(await screen.findByRole("link", { name: "対抗形 · 自分が振り飛車" }));
     await waitFor(() =>
       expect(location.hash).toBe(
         hashFor({ kind: "player", name: "Sukonbu3", view: { quadrant: "furiVsIbisha" } }),
@@ -198,7 +200,7 @@ describe("棋譜画面から戻る", () => {
     );
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 500));
     expect(document.querySelector(".opening-detail")).toBeNull();
-    fireEvent.click(screen.getByRole("link", { name: "← 戦型" }));
+    fireEvent.click(screen.getByRole("link", { name: "Sukonbu3" }));
     await waitFor(() => expect(location.hash).toBe("#/player/Sukonbu3"));
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 300));
   });
@@ -224,7 +226,7 @@ describe("棋譜画面から戻る", () => {
       "true",
     );
     expect(document.querySelector(".opening-detail")).toHaveTextContent("先手のみ · 1 局");
-    fireEvent.click(screen.getByRole("link", { name: /← 対抗形 · 自分が振り飛車 の戦法/ }));
+    fireEvent.click(screen.getByRole("link", { name: "対抗形 · 自分が振り飛車" }));
     await waitFor(() =>
       expect(location.hash).toBe(hashFor({ kind: "player", name: "Sukonbu3", view })),
     );

@@ -663,10 +663,6 @@ table.stats tr.selected td {
   text-decoration: none;
   font-size: 13px;
 }
-.quadrant.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
 .quadrant.empty {
   opacity: 0.6;
 }
@@ -674,15 +670,34 @@ table.stats tr.selected td {
   font-weight: 700;
   font-size: 15px;
 }
-.up-link {
-  display: inline-block;
+.quadrant-more {
+  margin-top: 2px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.crumbs {
   margin-bottom: 4px;
   font-size: 13px;
   color: var(--muted);
 }
-.opening-list > strong,
-.opening-detail > strong {
+.crumbs a {
+  color: var(--accent);
+}
+.crumbs [aria-current="page"] {
+  color: inherit;
+  font-weight: 700;
+}
+.level-title {
   display: block;
+  font-size: 17px;
+}
+.level-note {
+  margin: 2px 0 6px;
+}
+/* 行がリンクの表は、行をタップすると先へ進めることを矢印で示す */
+table.stats tr.link td:first-child a::after {
+  content: " ›";
+  color: var(--muted);
 }
 .axis-toggle {
   margin: 6px 0;

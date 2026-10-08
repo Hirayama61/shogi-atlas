@@ -85,6 +85,12 @@ test.describe("一通りの画面", () => {
     await expect(page).toHaveURL(/style=furiVsIbisha&opening=/);
     const detail = page.locator(".opening-detail");
     await expect(detail).toContainText("3 局 2 勝 1 敗");
+    // 1 画面 1 段: 詳細の画面には上の段 (4 区分・一覧) が残らず、先頭にパンくずがある
+    await expect(page.locator(".quadrants")).toHaveCount(0);
+    await expect(openings).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "現在地" })).toHaveText(
+      "taro › 対抗形 · 自分が振り飛車 › ノーマル四間飛車",
+    );
     const detailUrl = page.url();
     // 1 件 1 行。解析済みの a は最善、b は未解析 → 正しく指せた分岐
     const branches = detail.locator(".detail-branches");

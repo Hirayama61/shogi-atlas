@@ -1,7 +1,16 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { fixtureReport } from "../src/core/__tests__/fixtures";
 import { fixtureAnalyses, fixtureGames, fixtureSelfGames, syncWithMock } from "./fixture";
+
+/**
+ * 棋譜ビューアへ飛んだことを確かめる。URL はクリックの時点で変わるが、画面の描き直しは hashchange の後なので、
+ * ビューアが出るまで待ってから次の操作に進む (遅い CI では、前の画面に対して検証や goBack をしてしまう)。
+ */
+async function expectGame(page: Page, url: RegExp): Promise<void> {
+  await expect(page).toHaveURL(url);
+  await expect(page.locator("section.viewer")).toBeVisible();
+}
 
 test.describe("一通りの画面", () => {
   test.beforeEach(async ({ page }) => {
@@ -60,11 +69,11 @@ test.describe("一通りの画面", () => {
     await expect(page.locator("details.rate-row")).toHaveCount(1);
     await page.locator("details.rate-row summary").click();
     await page.locator("details.rate-row").getByRole("button", { name: "局面を開く" }).click();
-    await expect(page).toHaveURL(/#\/game\/f000000000000000\/15/);
+    await expectGame(page, /#\/game\/f000000000000000\/15/);
     await page.goBack();
     await page.locator("details.worst summary").first().click();
     await page.getByRole("button", { name: "局面を開く" }).first().click();
-    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);
+    await expectGame(page, /#\/game\/f000000000000000\/14/);
     await expect(page.getByRole("img", { name: "評価値の推移" })).toBeVisible();
     await expect(page.getByText("解析つき KIF をコピー")).toBeVisible();
     await page.goBack();
@@ -113,7 +122,7 @@ test.describe("一通りの画面", () => {
     await candidates.getByRole("button", { name: /▲9六歩/ }).click();
     await expect(ply).toHaveText("19 手目 ▲9六歩");
     await page.getByRole("button", { name: /^棋譜で開く/ }).click();
-    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/19/);
+    await expectGame(page, /#\/game\/[0-9a-f]+\/19/);
     await expect(page.getByText("19 手目")).toBeVisible();
     await page.goBack();
     await page.getByRole("button", { name: "← 閉じる" }).click();
@@ -130,7 +139,7 @@ test.describe("一通りの画面", () => {
     await lines.getByRole("button", { name: "△5四歩" }).click();
     await expect(lines.locator("svg.board")).toBeVisible();
     await lines.locator(".detail-body button").first().click();
-    await expect(page).toHaveURL(/#\/game\/[0-9a-f]+\/18$/);
+    await expectGame(page, /#\/game\/[0-9a-f]+\/18$/);
     await page.goBack();
     // 戻ると同じ戦法の詳細で、開いていた折りたたみがそのまま
     await expect(page).toHaveURL(detailUrl);
@@ -176,7 +185,7 @@ test.describe("一通りの画面", () => {
     const y = await page.evaluate<number>("scrollY");
     expect(y).toBeGreaterThan(0);
     await worst.getByRole("button", { name: "局面を開く" }).click();
-    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14/);
+    await expectGame(page, /#\/game\/f000000000000000\/14/);
     await page.getByRole("button", { name: "← 戻る" }).click();
     await expect(page).toHaveURL(/#\/player\/taro$/);
     await expect(page.locator("details.worst").first()).toHaveAttribute("open", "");
@@ -210,7 +219,7 @@ test.describe("一通りの画面", () => {
     await expect(panel.getByText("新しいレポート")).toHaveCount(0);
     await panel.locator("summary", { hasText: "全文" }).click();
     await panel.getByRole("link", { name: `${games[0]!.id} 15手目` }).click();
-    await expect(page).toHaveURL(/#\/game\/f000000000000000\/14$/);
+    await expectGame(page, /#\/game\/f000000000000000\/14$/);
     await expect(page.getByText("14 手目")).toBeVisible();
 
     await page.goto("#/players");

@@ -92,3 +92,30 @@ export function averageAxes(list: RadarAxis[][]): Record<RadarAxisKey, number | 
     }),
   ) as Record<RadarAxisKey, number | null>;
 }
+
+/** 一周を閉じる折れ線の辺 [i, i+1] のうち、両端に値があるもの */
+export function closedEdges(values: (number | null)[]): [number, number][] {
+  const n = values.length;
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (values[i] != null && values[j] != null) out.push([i, j]);
+  }
+  return out;
+}
+
+/** 軸の並びに合わせた平均の値。無い軸は null */
+export function baselineValues(
+  axes: RadarAxis[],
+  baseline: Partial<Record<RadarAxisKey, number | null>>,
+): (number | null)[] {
+  return axes.map((a) => baseline[a.key] ?? null);
+}
+
+/** 平均の点線が 1 辺でも描かれるか。点線の説明文はこれが真のときだけ出す */
+export function hasBaselineLine(
+  axes: RadarAxis[],
+  baseline: Partial<Record<RadarAxisKey, number | null>> | undefined,
+): boolean {
+  return !!baseline && closedEdges(baselineValues(axes, baseline)).length > 0;
+}

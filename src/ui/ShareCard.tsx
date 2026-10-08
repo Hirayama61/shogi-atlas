@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PlayerProfile } from "../core/profile";
-import { averageAxes, radarAxes } from "../core/radar";
+import { averageAxes, hasBaselineLine, radarAxes } from "../core/radar";
 import type { Bucket, PlayerStats } from "../core/stats";
 import { shownRank } from "./labels";
 import { RadarChart, type RadarPalette } from "./RadarChart";
@@ -128,7 +128,8 @@ export function ShareCard({ stats, profile, others, report, date }: ShareCardPro
       </svg>,
     );
     y += rh;
-    if (baseline) text("点線は登録している他の対局者の平均", 12, { color: COLORS.muted });
+    if (hasBaselineLine(axes, baseline))
+      text("点線は登録している他の対局者の平均", 12, { color: COLORS.muted });
   } else {
     y += 8;
     text("解析待ち: エンジン解析の済んだ対局がまだありません", 14, { color: COLORS.muted });

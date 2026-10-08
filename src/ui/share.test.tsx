@@ -111,6 +111,17 @@ describe("対策 1 枚の画像", () => {
     expect(textOf()).toContain("解析待ち");
   });
 
+  it("他の対局者の平均があるときだけ点線とその説明が入る", async () => {
+    const p = await props({ analyzed: true });
+    render(<ShareCard {...p} />);
+    expect(textOf()).not.toContain("点線");
+    expect(document.querySelector("svg.share-card .radar-baseline")).toBeNull();
+    cleanup();
+    render(<ShareCard {...p} others={[p.profile!]} />);
+    expect(textOf()).toContain("点線は登録している他の対局者の平均");
+    expect(document.querySelector("svg.share-card .radar-baseline")).not.toBeNull();
+  });
+
   it("SVG の文字列は画像として読めるよう xmlns 付きで、HTML を描画しない", async () => {
     const p = await props({
       analyzed: true,

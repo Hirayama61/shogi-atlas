@@ -1,8 +1,8 @@
-import type { RadarAxis, RadarAxisKey } from "../core/radar";
+import { baselineValues, closedEdges, type RadarAxis, type RadarAxisKey } from "../core/radar";
 
 interface Props {
   axes: RadarAxis[];
-  /** 比較用に薄く重ねる値 (例: 他の対局者の平均)。無い軸は描かない */
+  /** 比較用に点線で重ねる値 (例: 他の対局者の平均)。無い軸で線を途切らせる */
   baseline?: Partial<Record<RadarAxisKey, number | null>>;
   /** 色。既定は画面の CSS 変数。画像に書き出すときは CSS が効かないので実際の色を渡す */
   palette?: RadarPalette;
@@ -29,6 +29,21 @@ const CY = H / 2 + 2;
 const R = 82;
 const RINGS = [25, 50, 75, 100];
 
+const angleOf = (i: number, n: number) => -Math.PI / 2 + (2 * Math.PI * i) / n;
+const pointOf = (i: number, n: number, v: number) => {
+  const r = (R * Math.max(0, Math.min(100, v))) / 100;
+  return [CX + r * Math.cos(angleOf(i, n)), CY + r * Math.sin(angleOf(i, n))] as const;
+};
+const fmt = (p: readonly [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+
+/** 一周を閉じる折れ線を M/L で返す。null の軸で途切れる */
+function segmentsOf(values: (number | null)[]): string[] {
+  const n = values.length;
+  return closedEdges(values).map(
+    ([i, j]) => `M${fmt(pointOf(i, n, values[i]!))} L${fmt(pointOf(j, n, values[j]!))}`,
+  );
+}
+
 /**
  * 0〜100 の軸を並べたレーダーチャート。値が null の軸は点を打たず、線もそこで途切らせる。
  * 外周ほど良い。
@@ -36,23 +51,11 @@ const RINGS = [25, 50, 75, 100];
 export function RadarChart({ axes, baseline, palette = CSS_PALETTE }: Props) {
   const c = palette;
   const n = axes.length;
-  const angle = (i: number) => -Math.PI / 2 + (2 * Math.PI * i) / n;
-  const point = (i: number, v: number) => {
-    const r = (R * Math.max(0, Math.min(100, v))) / 100;
-    return [CX + r * Math.cos(angle(i)), CY + r * Math.sin(angle(i))] as const;
-  };
-  const fmt = (p: readonly [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+  const angle = (i: number) => angleOf(i, n);
+  const point = (i: number, v: number) => pointOf(i, n, v);
   const complete = axes.every((a) => a.score !== null);
-  // null で途切れる折れ線 (一周を閉じる)
-  const segments: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = axes[i]!;
-    const b = axes[(i + 1) % n]!;
-    if (a.score === null || b.score === null) continue;
-    segments.push(`M${fmt(point(i, a.score))} L${fmt(point((i + 1) % n, b.score))}`);
-  }
-  const base = baseline ? axes.map((a) => baseline[a.key] ?? null) : [];
-  const baseComplete = base.length > 0 && base.every((v) => v !== null);
+  const segments = segmentsOf(axes.map((a) => a.score));
+  const baseSegments = baseline ? segmentsOf(baselineValues(axes, baseline)) : [];
 
   return (
     <svg
@@ -78,10 +81,10 @@ export function RadarChart({ axes, baseline, palette = CSS_PALETTE }: Props) {
           <line key={a.key} x1={CX} y1={CY} x2={x} y2={y} stroke={c.border} strokeWidth={0.8} />
         );
       })}
-      {baseComplete && (
-        <polygon
+      {baseSegments.length > 0 && (
+        <path
           className="radar-baseline"
-          points={base.map((v, i) => fmt(point(i, v!))).join(" ")}
+          d={baseSegments.join(" ")}
           fill="none"
           stroke={c.muted}
           strokeWidth={1.2}

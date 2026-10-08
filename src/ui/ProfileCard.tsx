@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { PlayerProfile, RateBreakdown, RateEvidence } from "../core/profile";
-import { averageAxes, RADAR_LOSS_FLOOR, radarAxes, type RadarAxis } from "../core/radar";
+import {
+  averageAxes,
+  hasBaselineLine,
+  RADAR_LOSS_FLOOR,
+  radarAxes,
+  type RadarAxis,
+} from "../core/radar";
 import type { PlayerStats } from "../core/stats";
 import { Board } from "./Board";
 import { LossHelp } from "./LossHelp";
@@ -146,7 +152,7 @@ export function ProfileCard({ stats, profile, others }: Props) {
             </ul>
           </div>
           {open && profile && <RateBreakdownList kind={open} list={profile.rates[open]} />}
-          <RadarHelp hasBaseline={!!baseline} />
+          <RadarHelp hasBaseline={!!axes && hasBaselineLine(axes, baseline)} />
           <LossHelp />
         </>
       )}

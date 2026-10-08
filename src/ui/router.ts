@@ -69,8 +69,11 @@ export type Route =
   | { kind: "player"; name: string; view?: PlayerView }
   /** 分岐点の学習画面。key は分岐点の局面キー。残りは学習画面の状態 (戻ったときに復元する) */
   | ({ kind: "branch"; name: string; key: string } & BranchState)
-  /** 参考の対局者 (other) と同じ局面で何を指したかの比較。opening で 2 人の戦法を絞る */
-  | { kind: "compare"; name: string; other: string; opening?: string; diffOnly?: boolean };
+  /**
+   * 参考の対局者 (other) と同じ局面で何を指したかの比較。opening で 2 人の戦法を絞る。
+   * all で一致の局面と数手以内に合流する分岐も出す (既定では隠す)
+   */
+  | { kind: "compare"; name: string; other: string; opening?: string; all?: boolean };
 
 const SIDE_FILTERS: readonly SideFilter[] = ["black", "white", "self", "opponent"];
 const RESULTS: readonly ResultFilter[] = ["black", "white", "other", "win", "loss"];
@@ -246,7 +249,7 @@ export function parseHash(full: string): Route {
     const p = new URLSearchParams(qi < 0 ? "" : full.slice(qi + 1));
     const opening = p.get("opening");
     if (opening) route.opening = opening;
-    if (p.get("diff") === "1") route.diffOnly = true;
+    if (p.get("all") === "1") route.all = true;
     return route;
   }
   const player = /^#\/player\/([^/]+)$/.exec(hash);
@@ -285,7 +288,7 @@ export function hashFor(route: Route): string {
       const path = `#/player/${encodeURIComponent(route.name)}/compare/${encodeURIComponent(route.other)}`;
       const p = new URLSearchParams();
       if (route.opening) p.set("opening", route.opening);
-      if (route.diffOnly) p.set("diff", "1");
+      if (route.all) p.set("all", "1");
       const qs = p.toString();
       return qs ? `${path}?${qs}` : path;
     }

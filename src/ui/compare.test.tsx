@@ -101,33 +101,63 @@ describe("参考の対局者との比較", () => {
     expect(screen.queryByRole("combobox", { name: "比較する相手" })).toBeNull();
   });
 
-  it("共通局面を手数順に並べ、手が違う局面だけ・戦法で絞れる", async () => {
-    const { a } = await seed();
+  it("先頭に相手の戦法ごとの応手を並べ、分岐を戦法ごとにまとめる。一致は既定で隠して件数だけ出す", async () => {
+    const { a, k1 } = await seed();
     history.replaceState(null, "", hashFor(COMPARE));
     render(<App />);
-    await waitFor(() => expect(items()).toHaveLength(2));
-    expect(screen.getByText("共通局面 2 件 · 手が違う局面 1 件")).toBeInTheDocument();
-    const [first, second] = items();
-    expect(first).toHaveTextContent("一致");
-    expect(first).toHaveTextContent("12 手目 · 先手");
-    expect(second).toHaveTextContent("違う");
-    expect(second).toHaveTextContent("18 手目 · 先手");
-    expect(second).toHaveTextContent("自分: ▲1六歩");
-    expect(second).toHaveTextContent("ref: ▲9六歩");
+    await waitFor(() => expect(items()).toHaveLength(1));
+    // 相手の戦法ごとの応手 (戦法 × 囲い、局数・勝率)
+    const table = screen.getByText("相手の戦法ごとの応手").parentElement!;
+    const row = Array.from(table.querySelectorAll("tr")).find((tr) =>
+      tr.textContent?.startsWith(a.opening.whiteOpening),
+    )!;
+    expect(row).toHaveTextContent(`${a.opening.blackOpening} · ${a.opening.blackCastle}`);
+    expect(row).toHaveTextContent("1 局 · 勝率 100%");
 
-    fireEvent.click(screen.getByLabelText("手が違う局面だけ"));
-    await waitFor(() => expect(location.hash).toBe(hashFor({ ...COMPARE, diffOnly: true })));
+    expect(screen.getByText(/分岐 1 件 · 一致 1 件 · 数手以内に合流 0/)).toBeInTheDocument();
+    const [only] = items();
+    expect(only).toHaveTextContent(`${a.opening.blackOpening} · 18 手目 自分 ▲1六歩 / ref ▲9六歩`);
+    expect(only).toHaveTextContent("先手");
+    expect(only!.closest(".compare-group")!.querySelector("h3")).toHaveTextContent(
+      a.opening.blackOpening,
+    );
+
+    fireEvent.click(screen.getByLabelText("一致と合流する分岐も出す"));
+    await waitFor(() => expect(location.hash).toBe(hashFor({ ...COMPARE, all: true })));
+    await waitFor(() => expect(items()).toHaveLength(2));
+    const same = items().find((x) => x.textContent?.includes("12 手目"))!;
+    expect(same).toHaveTextContent("一致");
+    expect(same).toHaveTextContent(k1.opening.blackOpening);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "戦法" }), {
+      target: { value: a.opening.blackOpening },
+    });
+    await waitFor(() =>
+      expect(location.hash).toBe(
+        hashFor({ ...COMPARE, opening: a.opening.blackOpening, all: true }),
+      ),
+    );
     await waitFor(() => expect(items()).toHaveLength(1));
     expect(items()[0]).toHaveTextContent("18 手目");
+  });
 
-    fireEvent.click(screen.getByLabelText("手が違う局面だけ"));
-    await waitFor(() => expect(items()).toHaveLength(2));
-    const opening = a.opening.blackOpening;
-    fireEvent.change(screen.getByRole("combobox", { name: "戦法" }), {
-      target: { value: opening },
-    });
-    await waitFor(() => expect(location.hash).toBe(hashFor({ ...COMPARE, opening })));
+  it("数手以内に合流する分岐は既定で隠し、件数だけ出す", async () => {
+    const base = (rest: string) => USI_SHIKEN_VS_FUNA.replace("1g1f 1c1d", rest);
+    await db.games.bulkPut([
+      await game(base("1g1f 1c1d 9g9f 9c9d"), "自分", "x1", "2026-02-01T00:00:00"),
+      await game(base("9g9f 1c1d 1g1f 9c9d 5g5f"), "自分", "x2", "2026-02-02T00:00:00"),
+      await game(base("9g9f 1c1d 1g1f 9c9d"), "ref", "x3", "2026-02-03T00:00:00"),
+      await game(base("9g9f 1c1d 2g2f"), "ref", "x4", "2026-02-04T00:00:00"),
+    ]);
+    history.replaceState(null, "", hashFor(COMPARE));
+    render(<App />);
     await waitFor(() => expect(items()).toHaveLength(1));
+    expect(screen.getByText(/分岐 1 件 · 一致 0 件 · 数手以内に合流 1/)).toBeInTheDocument();
+    expect(items()[0]).toHaveTextContent("20 手目 自分 ▲1六歩 / ref ▲1六歩・▲2六歩");
+
+    fireEvent.click(screen.getByLabelText("一致と合流する分岐も出す"));
+    await waitFor(() => expect(items()).toHaveLength(2));
+    expect(items()[0]).toHaveTextContent("合流");
     expect(items()[0]).toHaveTextContent("18 手目");
   });
 
@@ -136,8 +166,8 @@ describe("参考の対局者との比較", () => {
     history.replaceState(null, "", "#/player/自分");
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "同じ局面の手を比べる" }));
-    await waitFor(() => expect(items()).toHaveLength(2));
-    const second = items()[1]!;
+    await waitFor(() => expect(items()).toHaveLength(1));
+    const second = items()[0]!;
     second.open = true;
     expect(second.querySelector(".board, svg, table")).not.toBeNull();
     const own = Array.from(second.querySelectorAll("button")).find((x) =>
@@ -148,8 +178,8 @@ describe("参考の対局者との比較", () => {
     fireEvent.click(await screen.findByRole("button", { name: "← 戻る" }));
     await waitFor(() => expect(location.hash).toBe(hashFor(COMPARE)));
 
-    await waitFor(() => expect(items()).toHaveLength(2));
-    const theirs = Array.from(items()[1]!.querySelectorAll("button")).find((x) =>
+    await waitFor(() => expect(items()).toHaveLength(1));
+    const theirs = Array.from(items()[0]!.querySelectorAll("button")).find((x) =>
       x.textContent?.includes("vs x2"),
     )!;
     act(() => theirs.click());

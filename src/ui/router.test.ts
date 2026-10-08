@@ -26,7 +26,7 @@ describe("router", () => {
     const plain: Route = { kind: "compare", name: "自分", other: "a/b" };
     expect(hashFor(plain)).toBe("#/player/%E8%87%AA%E5%88%86/compare/a%2Fb");
     expect(parseHash(hashFor(plain))).toEqual(plain);
-    const filtered: Route = { ...plain, opening: "四間飛車", diffOnly: true };
+    const filtered: Route = { ...plain, opening: "四間飛車", all: true };
     expect(parseHash(hashFor(filtered))).toEqual(filtered);
   });
 
